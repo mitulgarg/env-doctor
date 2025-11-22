@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "env-doctor"
+version = "0.1.0"
+description = "A CLI tool to verify and fix AI/ML environment compatibility (Driver <-> CUDA <-> Wheels)."
+readme = "README.md"
+authors = [
+  { name = "Mitul Garg", email = "mitulgarg3@gmail.com" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+]
+requires-python = ">=3.7"
+dependencies = [
+    "nvidia-ml-py",
+    "packaging",
+    "click",
+]
+
+[project.scripts]
+env-doctor = "env_doctor.cli:main"
+doctor = "env_doctor.cli:main"
+
+[project.urls]
+"Homepage" = "https://github.com/mitulgarg/env-doctor"
+"Bug Tracker" = "https://github.com/mitulgarg/env-doctor/issues"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

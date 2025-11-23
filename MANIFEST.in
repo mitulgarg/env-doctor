@@ -1,0 +1,4 @@
+include README.md
+include LICENSE
+include pyproject.toml
+include src/env_doctor/compatibility.json

@@ -22,7 +22,6 @@ git clone [https://github.com/yourusername/env-doctor.git](https://github.com/yo
 cd env-doctor
 pip install -e .
 
-
 🛠️ Usage
 
 1. Diagnose your Environment
@@ -30,7 +29,6 @@ pip install -e .
 Checks if your currently installed libraries match your physical hardware.
 
 doctor check
-
 
 Output:
 
@@ -43,7 +41,6 @@ Don't guess. Get the exact command to install the compatible version.
 
 doctor install torch
 
-
 Output:
 
 ⬇️ Run this command to install the SAFE version:
@@ -55,7 +52,6 @@ Automatically detect which AI libraries you are importing in your current direct
 
 doctor scan
 
-
 🧩 Architecture
 
 Leg 1 (Hardware): We use nvidia-ml-py to query the live driver version.
@@ -64,3 +60,16 @@ Leg 2 (System): We check nvcc for compilation compatibility.
 
 Leg 3 (Software): We map safe versions against a curated compatibility database(Currently Static JSON for POC).
 
+Run the updater:
+
+Bash
+
+python tools/scraper.py
+_This will read `src/env_doctor/compatibility.json`, update it with the latest data from the web, and save it._
+
+Verify the tool works:
+
+Bash
+
+env-doctor install torch
+_It should read from the updated JSON file._

@@ -1,0 +1,39 @@
+{
+    "driver_to_cuda": {
+        "550": "12.4",
+        "545": "12.3",
+        "535": "12.2",
+        "530": "12.1",
+        "525": "12.0",
+        "520": "11.8",
+        "515": "11.7",
+        "510": "11.6",
+        "470": "11.4",
+        "465": "11.3",
+        "460": "11.2",
+        "455": "11.1",
+        "450": "11.0"
+    },
+    "recommendations": {
+        "12.4": {
+            "torch": "pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124",
+            "tensorflow": "pip install tensorflow==2.16.1"
+        },
+        "12.1": {
+            "torch": "pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121",
+            "tensorflow": "pip install tensorflow==2.15.0"
+        },
+        "11.8": {
+            "torch": "pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118",
+            "tensorflow": "pip install tensorflow==2.14.0"
+        },
+        "11.7": {
+            "torch": "pip install torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorch.org/whl/cu117",
+            "tensorflow": "pip install tensorflow==2.13.0"
+        },
+        "11.x": {
+            "torch": "pip install torch==1.13.1 --index-url https://download.pytorch.org/whl/cu116",
+            "tensorflow": "pip install tensorflow==2.11.0"
+        }
+    }
+}

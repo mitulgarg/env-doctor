@@ -1,0 +1,59 @@
+name: Self-Improving Database
+
+on:
+  schedule:
+    # Run at 00:00 UTC every day
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allows you to click "Run Now" manually
+
+permissions:
+  contents: write
+
+jobs:
+  update-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 📦 Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 modal
+
+      - name: 🕷️ Run Scraper (The Researcher)
+        run: python tools/scraper.py
+
+      - name: 🔍 Check for Updates
+        id: check_changes
+        run: |
+          if git diff --quiet src/env_doctor/compatibility.json; then
+            echo "No changes detected."
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Updates found! Proceeding to validation."
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🧪 Run Validator (The Gatekeeper)
+        if: steps.check_changes.outputs.changed == 'true'
+        env:
+          # To enable real GPU testing, add this secret in Repo Settings -> Secrets
+          # If missing, validator.py runs in "Simulation Mode" (which is fine for now)
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: python tools/validator.py
+
+      - name: 💾 Commit and Push Changes
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          git config --global user.name "Env-Doctor Bot"
+          git config --global user.email "bot@env-doctor.ai"
+          git add src/env_doctor/compatibility.json
+          git commit -m "🤖 Auto-update compatibility database [Verified]"
+          git push

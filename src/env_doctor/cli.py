@@ -5,9 +5,10 @@ from .checks import (
     get_nvidia_driver_version, 
     get_system_cuda_version, 
     get_installed_library_version,
-    scan_imports_in_folder
+    scan_imports_in_folder,
+    check_broken_imports
 )
-from .db import get_max_cuda_for_driver, get_install_command
+from .db import get_max_cuda_for_driver, get_install_command, DB_DATA
 
 #For add on stuff like Flash-Attention  because their compilation depends on nvcc, the pytorch included cuda version needs to match 
 def check_compilation_health(sys_cuda, torch_cuda):
@@ -62,13 +63,12 @@ def check_command():
 
 
     # --- Show DB Status ---
-    '''
+    # Verification Status
     meta = DB_DATA.get("_metadata", {})
     if meta:
         print(f"🛡️  DB Verified: {meta.get('last_verified', 'Unknown')}")
         print(f"    Method: {meta.get('method', 'Unknown')}")
         print("------------------------------")
-    '''
     
     # 1. Hardware Check
     driver = get_nvidia_driver_version()
@@ -110,6 +110,7 @@ def check_command():
                         # Simple float comparison
                         if float(info['cuda']) > float(max_cuda):
                             print(f"    ❌ CRITICAL CONFLICT: Lib requires CUDA {info['cuda']}, but Driver only supports {max_cuda}!")
+                            print(f"    Run 'doctor install {lib}' to fix this.")
                         else:
                             print(f"    ✅ Compatible with Driver.")
                     except ValueError:
@@ -125,6 +126,9 @@ def check_command():
         check_compilation_health(sys_cuda, torch_cuda_version)
     
     check_system_path()
+
+    # 5. Code Migration Check 
+    check_broken_imports()
 
 def install_command(package_name):
     print(f"\n🩺  PRESCRIPTION FOR: {package_name}")

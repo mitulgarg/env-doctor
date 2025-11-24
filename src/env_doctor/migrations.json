@@ -1,0 +1,45 @@
+{
+    "langchain": {
+      "trigger_version": "0.1.0",
+      "rules": {
+        "langchain.llms": {
+          "new_path": "langchain_community.llms",
+          "fix_cmd": "pip install langchain-community"
+        },
+        "langchain.chat_models": {
+          "new_path": "langchain_community.chat_models",
+          "fix_cmd": "pip install langchain-community"
+        },
+        "langchain.embeddings": {
+          "new_path": "langchain_community.embeddings",
+          "fix_cmd": "pip install langchain-community"
+        },
+        "langchain.vectorstores": {
+          "new_path": "langchain_community.vectorstores",
+          "fix_cmd": "pip install langchain-community"
+        },
+        "langchain.document_loaders": {
+          "new_path": "langchain_community.document_loaders",
+          "fix_cmd": "pip install langchain-community"
+        }
+      }
+    },
+    "pydantic": {
+      "trigger_version": "2.0.0",
+      "rules": {
+        "pydantic.BaseSettings": {
+          "new_path": "pydantic_settings.BaseSettings",
+          "fix_cmd": "pip install pydantic-settings"
+        }
+      }
+    },
+    "openai": {
+      "trigger_version": "1.0.0",
+      "rules": {
+        "openai.ChatCompletion": {
+          "new_path": "client.chat.completions (Rewrite required)",
+          "fix_cmd": "See migration guide: https://github.com/openai/openai-python"
+        }
+      }
+    }
+  }

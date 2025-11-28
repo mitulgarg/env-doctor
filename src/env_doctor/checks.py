@@ -156,7 +156,8 @@ def check_broken_imports():
 
         # 2. Scan files for forbidden strings
         for root, dirs, files in os.walk("."):
-            if "venv" in root or ".git" in root: continue 
+            if "venv" in root or ".git" in root:
+                continue 
             
             for file in files:
                 if file.endswith(".py"):

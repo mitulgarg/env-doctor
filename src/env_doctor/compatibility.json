@@ -24,7 +24,7 @@
             "tensorflow": "pip install tensorflow==2.15.0"
         },
         "11.8": {
-            "torch": "# ROCM 5.4.2 (Linux only) pip install torch==2.0.0 torchvision==0.15.1 torchaudio==2.0.1 --index-url https://download.pytorch.org/whl/rocm5.4.2 # CUDA 11.7 pip install torch==2.0.0 torchvision==0.15.1 torchaudio==2.0.1 # CUDA 11.8 pip install torch==2.0.0 torchvision==0.15.1 torchaudio==2.0.1 --index-url https://download.pytorch.org/whl/cu118 # CPU only pip install torch==2.0.0 torchvision==0.15.1 torchaudio==2.0.1 --index-url https://download.pytorch.org/whl/cpu",
+            "torch": "pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118",
             "tensorflow": "pip install tensorflow==2.14.0"
         },
         "11.7": {
@@ -36,33 +36,44 @@
             "tensorflow": "pip install tensorflow==2.11.0"
         },
         "12.6": {
-            "torch": "# ROCM 6.4 (Linux only) pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/rocm6.4 # CUDA 12.6 pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu126 # CUDA 12.8 pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu128 # CUDA 12.9 pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu129 # CPU only pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cpu",
+            "torch": "pip install torch==2.9.0 torchvision==0.24.0 torchaudio==2.9.0 --index-url https://download.pytorch.org/whl/cu126",
+            "tensorflow": "Manual verification needed"
+        },
+        "12.8": {
+            "torch": "pip install torch==2.9.0 torchvision==0.24.0 torchaudio==2.9.0 --index-url https://download.pytorch.org/whl/cu128",
+            "tensorflow": "Manual verification needed"
+        },
+        "13.0": {
+            "torch": "pip install torch==2.9.0 torchvision==0.24.0 torchaudio==2.9.0 --index-url https://download.pytorch.org/whl/cu130",
+            "tensorflow": "Manual verification needed"
+        },
+        "12.9": {
+            "torch": "pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu129",
             "tensorflow": "Manual verification needed"
         },
         "11.6": {
-            "torch": "# ROCM 5.1.1 (Linux only) pip install torch==1.12.0+rocm5.1.1 torchvision==0.13.0+rocm5.1.1 torchaudio==0.12.0 --extra-index-url  https://download.pytorch.org/whl/rocm5.1.1 # CUDA 11.6 pip install torch==1.12.0+cu116 torchvision==0.13.0+cu116 torchaudio==0.12.0 --extra-index-url https://download.pytorch.org/whl/cu116 # CUDA 11.3 pip install torch==1.12.0+cu113 torchvision==0.13.0+cu113 torchaudio==0.12.0 --extra-index-url https://download.pytorch.org/whl/cu113 # CUDA 10.2 pip install torch==1.12.0+cu102 torchvision==0.13.0+cu102 torchaudio==0.12.0 --extra-index-url https://download.pytorch.org/whl/cu102 # CPU only pip install torch==1.12.0+cpu torchvision==0.13.0+cpu torchaudio==0.12.0 --extra-index-url https://download.pytorch.org/whl/cpu",
+            "torch": "pip install torch==1.13.1+cu116 torchvision==0.14.1+cu116 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu116",
             "tensorflow": "Manual verification needed"
         },
         "11.3": {
-            "torch": "# ROCM 4.5.2 (Linux only) pip install torch==1.11.0+rocm4.5.2 torchvision==0.12.0+rocm4.5.2 torchaudio==0.11.0 --extra-index-url  https://download.pytorch.org/whl/rocm4.5.2  # CUDA 11.3 pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113  # CUDA 10.2 pip install torch==1.11.0+cu102 torchvision==0.12.0+cu102 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu102  # CPU only pip install torch==1.11.0+cpu torchvision==0.12.0+cpu torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cpu",
+            "torch": "pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu113",
+            "tensorflow": "Manual verification needed"
+        },
+        "10.2": {
+            "torch": "pip install torch==1.12.1+cu102 torchvision==0.13.1+cu102 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu102",
             "tensorflow": "Manual verification needed"
         },
         "11.1": {
-            "torch": "# RocM 4.0.1 (Linux only) pip install torch -f https://download.pytorch.org/whl/rocm4.0.1/torch_stable.html pip install ninja pip install 'git+https://github.com/pytorch/vision.git@v0.9.0'  # CUDA 11.1 pip install torch==1.8.0+cu111 torchvision==0.9.0+cu111 torchaudio==0.8.0 -f https://download.pytorch.org/whl/torch_stable.html  # CUDA 10.2 pip install torch==1.8.0 torchvision==0.9.0 torchaudio==0.8.0  # CPU only pip install torch==1.8.0+cpu torchvision==0.9.0+cpu torchaudio==0.8.0 -f https://download.pytorch.org/whl/torch_stable.html",
-            "tensorflow": "Manual verification needed"
-        },
-        "11.0": {
-            "torch": "# CUDA 11.0 pip install torch==1.7.0+cu110 torchvision==0.8.0+cu110 torchaudio==0.7.0 -f https://download.pytorch.org/whl/torch_stable.html  # CUDA 10.2 pip install torch==1.7.0 torchvision==0.8.0 torchaudio==0.7.0  # CUDA 10.1 pip install torch==1.7.0+cu101 torchvision==0.8.0+cu101 torchaudio==0.7.0 -f https://download.pytorch.org/whl/torch_stable.html  # CUDA 9.2 pip install torch==1.7.0+cu92 torchvision==0.8.0+cu92 torchaudio==0.7.0 -f https://download.pytorch.org/whl/torch_stable.html  # CPU only pip install torch==1.7.0+cpu torchvision==0.8.0+cpu torchaudio==0.7.0 -f https://download.pytorch.org/whl/torch_stable.html",
+            "torch": "pip install torch==1.10.1+cu111 torchvision==0.11.2+cu111 torchaudio==0.10.1 -f https://download.pytorch.org/whl/cu111/torch_stable.html",
             "tensorflow": "Manual verification needed"
         },
         "10.1": {
-            "torch": "# CUDA 10.2 pip install torch==1.5.0 torchvision==0.6.0  # CUDA 10.1 pip install torch==1.5.0+cu101 torchvision==0.6.0+cu101 -f https://download.pytorch.org/whl/torch_stable.html  # CUDA 9.2 pip install torch==1.5.0+cu92 torchvision==0.6.0+cu92 -f https://download.pytorch.org/whl/torch_stable.html  # CPU only pip install torch==1.5.0+cpu torchvision==0.6.0+cpu -f https://download.pytorch.org/whl/torch_stable.html",
+            "torch": "pip install torch==1.8.1+cu101 torchvision==0.9.1+cu101 torchaudio==0.8.1 -f https://download.pytorch.org/whl/torch_stable.html",
+            "tensorflow": "Manual verification needed"
+        },
+        "11.0": {
+            "torch": "pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 torchaudio==0.7.2 -f https://download.pytorch.org/whl/torch_stable.html",
             "tensorflow": "Manual verification needed"
         }
-    },
-    "_metadata": {
-        "last_verified": "2025-11-24",
-        "method": "Automated Serverless GPU Test (Modal)",
-        "status": "passing"
     }
 }

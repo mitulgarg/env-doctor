@@ -4,7 +4,7 @@ import time
 import requests
 
 # 1. The URL where your Scraper pushes the latest data
-# REPLACE 'yourusername' with your actual GitHub username
+
 REMOTE_URL = "https://raw.githubusercontent.com/mitulgarg/env-doctor/main/src/env_doctor/compatibility.json"
 
 # 2. Local Cache File (in user's home dir) so we don't hit GitHub every single run

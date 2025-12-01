@@ -7,21 +7,35 @@ import os
 import re
 import json
 
+
 try:
-    import pynvml
+    from nvidia import nvidia_smi       #new nvidia lib
     HAS_NVML = True
-except ImportError:
+except Exception:
     HAS_NVML = False
 
 def get_nvidia_driver_version():
-    if not HAS_NVML: return None
+    # 1. Try NVML
     try:
+        import pynvml
         pynvml.nvmlInit()
-        driver = pynvml.nvmlSystemGetDriverVersion().decode("utf-8")
+        driver = pynvml.nvmlSystemGetDriverVersion().decode()
         pynvml.nvmlShutdown()
         return driver
-    except Exception:
-        return None
+    except:
+        pass
+
+    # 2. Try nvidia-smi
+    try:
+        out = subprocess.check_output(["nvidia-smi"], encoding="utf-8")
+        match = re.search(r"Driver Version:\s+(\d+\.\d+)", out)
+        if match:
+            return match.group(1)
+    except:
+        pass
+
+    # 3. Fail
+    return None
 
 def get_system_cuda_version():
     nvcc_path = shutil.which("nvcc")

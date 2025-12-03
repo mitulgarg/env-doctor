@@ -1,146 +1,101 @@
-🩺 Env-Doctor: The AI Environment Fixer
-Stop guessing which PyTorch version works with your NVIDIA driver.
-Env-Doctor is a CLI tool that bridges the gap between your hardware (NVIDIA drivers) and your software (Python AI libraries). It scans your system, detects your GPU driver version, and tells you exactly which pre-compiled binaries (wheels) will work — without random crashes or cryptic CUDA errors.
+# 🩺 Env-Doctor: The AI Environment Fixer
 
-🛡️ Verified Daily — A Self-Improving Database
-We don’t guess compatibility. Env-Doctor is powered by an automated verification system:
+[![PyPI version](https://badge.fury.io/py/env-doctor.svg)](https://badge.fury.io/py/env-doctor)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
+**Stop guessing which PyTorch version works with your NVIDIA driver.**
 
-Scraper – Watches PyTorch & NVIDIA release notes every 24 hours
+**Env-Doctor** is a CLI tool that bridges the gap between your hardware (NVIDIA drivers) and your software (Python AI libraries). It scans your system, detects your GPU driver version, and tells you exactly which pre-compiled binaries (wheels) will work — preventing random crashes and cryptic CUDA errors.
 
+---
 
-Validator – Physically tests new versions on serverless GPUs (T4/A100)
+## 🚀 Key Features
 
+- **🛡️ Automated Verification**: Powered by a database verified daily against real serverless GPUs (T4/A100).
+- **🩺 Deep Diagnosis**: Checks the "Tripod of Compatibility":
+    1.  **GPU Driver** (Kernel Level)
+    2.  **System CUDA** (Compiler Level)
+    3.  **Python Wheels** (Library Level)
+- **💊 Precise Prescriptions**: Generates the *exact* `pip install` command for your specific driver/CUDA combo.
+- **🦜 Migration Assistant**: Scans your code for deprecated imports (e.g., LangChain, OpenAI) and suggests fixes.
 
-Hybrid Cache – Your CLI fetches the latest compatibility rules from GitHub, and falls back to local data when offline
+## 📦 Installation
 
-
-
-🔴 The Problem: The Tripod of Compatibility
-AI development depends on three layers that must align perfectly.
-If any one is mismatched, you get silent failures or cryptic C++ CUDA errors.
-Leg 1 — GPU Driver (Kernel Level)
-
-
-Hard to change
-
-
-Determines your maximum supported CUDA version
-
-
-Leg 2 — System CUDA Toolkit (Compiler Level)
-
-
-Used only when building from source (e.g., Flash-Attention, xFormers)
-
-
-Must match the library you’re compiling
-
-
-Leg 3 — Python Wheels (Library Level)
-
-
-Wheels bundle their own CUDA runtime
-
-
-If this > Driver’s max CUDA → Crash
-
-
-Env-Doctor checks all three legs and ensures they stand together.
-
-⚡ Installation
-From PyPI (Recommended)
-(Not yet published — coming soon)
+### From PyPI (Recommended)
+```bash
 pip install env-doctor
+```
 
-From Source (Development)
+### From Source (Development)
+```bash
 git clone https://github.com/mitulgarg/env-doctor.git
 cd env-doctor
 pip install -e .
+```
 
+## 🛠️ Usage
 
-🛠️ Usage
-1️⃣ Diagnose Your Environment
-Checks hardware, system paths, and installed libraries for conflicts.
-doctor check
+### 1. Diagnose Your Environment
+Check hardware, system paths, and installed libraries for conflicts.
 
-Sample Output
+```console
+$ doctor check
+
 🩺 ENV-DOCTOR DIAGNOSIS
 ==============================
-🛡️  DB Verified: 2025-11-24 (Automated Serverless GPU Test)
-
+🛡️  DB Verified: 2025-11-24
 ✅  GPU Driver Found: 535.129 (Supports CUDA 12.2)
 ✅  System CUDA (nvcc): 11.8
 
 📦 Found torch: v2.2.1
-   → Bundled CUDA: 12.1
+   -> Bundled CUDA: 12.1
    ✅ Compatible with Driver.
 
-🏭 COMPILATION HEALTH (Flash-Attention / AutoGPTQ)
-❌ ASYMMETRY DETECTED:
-   System (11.8) != Torch (12.1)
-   → pip install flash-attention will FAIL.
+🏭 COMPILATION HEALTH
+❌ ASYMMETRY DETECTED: System (11.8) != Torch (12.1)
+   -> pip install flash-attention will likely FAIL.
+```
+
+### 2. Get the Safe Install Command
+Stop guessing which `cuXX` wheel works on your machine.
+
+```console
+$ doctor install torch
+
+Detected Driver: 535.129 (Supports up to CUDA 12.2)
+
+⬇️ Run this command to install the SAFE version:
+---------------------------------------------------
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+---------------------------------------------------
+```
+
+### 3. Scan for Deprecated Code
+Automatically detects outdated imports and suggests fixes.
+
+```console
+$ doctor scan
 
 🦜 CODE MIGRATION CHECK
 ❌ Deprecated in src/main.py:4
    Found: 'langchain.chat_models'
    Moved to: 'langchain_community.chat_models'
+```
 
+## 🧩 Architecture
 
-2️⃣ Get the Safe Install Command
-Stop guessing which torch/cuXX wheel works on your machine.
-doctor install torch
+Env-Doctor relies on a self-improving database:
 
-Output
-⬇️ Run this command to install the SAFE version:
----------------------------------------------------
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
----------------------------------------------------
+1.  **Scraper**: Watches PyTorch & NVIDIA release notes.
+2.  **Validator**: Physically tests new versions on cloud GPUs.
+3.  **Hybrid Cache**: The CLI fetches the latest rules from GitHub but works offline using cached data.
 
+## 🤝 Contributing
 
-3️⃣ Scan Your Project for AI Libraries
-Automatically detects imports and suggests fixes for deprecated or incompatible APIs.
-doctor scan
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) for details.
 
+## 📄 License
 
-🧩 Architecture
-🧠 The Brain (Data)
-
-
-compatibility.json
-Maps GPU driver → max CUDA → compatible wheels
-
-
-migrations.json
-Maps deprecated API imports to correct replacements (e.g., LangChain v0.2+)
-
-
-✋ The Hands (CLI)
-
-
-checks.py — Detects driver, system CUDA, torch wheels (via NVML & nvcc)
-
-
-db.py — Hybrid online/offline compatibility loader
-
-
-⚙️ The Updater (CI/CD Automation)
-
-
-tools/scraper.py — Fetches new releases from NVIDIA + PyTorch
-
-
-tools/validator.py — Spins up cloud GPUs to verify compatibility before updates are accepted
-
-
-
-📄 License
-MIT
-
-If you'd like, I can also generate:
-📌 badges (PyPI, version, downloads, CI status)
-📌 a clean project banner image
-📌 a pypi.org-optimized README variant
-📌 installable CLI help (doctor --help) section
-📌 improved architecture diagram (ASCII or image)
-Just say "add badges" or "make this PyPI-ready" or "generate banner."
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

@@ -126,6 +126,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+src\env_doctor.egg-info
 
 # Spyder project settings
 .spyderproject

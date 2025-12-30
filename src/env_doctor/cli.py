@@ -22,7 +22,7 @@ from .checks import (
 from .detectors.nvidia_driver import NvidiaDriverDetector
 from .detectors.cuda_toolkit import CudaToolkitDetector
 from .detectors.python_libraries import PythonLibraryDetector
-from .detectors.wsl import WSLDetector
+from .detectors.wsl2 import WSL2Detector
 
 def check_compilation_health(cuda_result, torch_result):
     """
@@ -160,11 +160,11 @@ def check_command():
         print("------------------------------")
     
     # === STEP 1: Environment Detection ===
-    # Use the WSLDetector to check environment first
-    wsl_detector = DetectorRegistry.get("wsl")
-    if wsl_detector.can_run():
-        wsl_result = wsl_detector.detect()
-        print_detection_result(wsl_result, "🐧")
+    # Use the WSL2Detector to check environment first
+    wsl2_detector = DetectorRegistry.get("wsl2")
+    if wsl2_detector.can_run():
+        wsl2_result = wsl2_detector.detect()
+        print_detection_result(wsl2_result, "🐧")
         print("------------------------------")
     
     # === STEP 2: Hardware Detection ===

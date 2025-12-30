@@ -7,6 +7,7 @@ to the new detector-based system.
 import sys
 import os
 import argparse
+import platform 
 from .core.registry import DetectorRegistry
 from .core.detector import Status
 from .db import get_max_cuda_for_driver, get_install_command, DB_DATA
@@ -326,6 +327,11 @@ def debug_command():
         print(f"\n--- {name.upper().replace('_', ' ')} ---")
         try:
             detector = DetectorRegistry.get(name)
+            # CHECK if detector can run on this platform
+            if not detector.can_run():
+                print(f"Status: skipped (not applicable on {platform.system()})")
+                continue
+
             result = detector.detect()
             
             print(f"Status: {result.status.value}")

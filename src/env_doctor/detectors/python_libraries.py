@@ -10,7 +10,8 @@ from env_doctor.core.registry import DetectorRegistry
 class PythonLibraryDetector(Detector):
     """Detects installed Python AI libraries and their CUDA versions."""
     
-    def __init__(self, library_name: str):
+    #making library_name optional so it can be registered as a detector
+    def __init__(self, library_name=None):
         self.library_name = library_name
     
     def detect(self) -> DetectionResult:

@@ -22,6 +22,7 @@ from .checks import (
 from .detectors.nvidia_driver import NvidiaDriverDetector
 from .detectors.cuda_toolkit import CudaToolkitDetector
 from .detectors.python_libraries import PythonLibraryDetector
+from .detectors.wsl import WSLDetector
 
 def check_compilation_health(cuda_result, torch_result):
     """
@@ -158,7 +159,15 @@ def check_command():
         print(f"    Method: {meta.get('method', 'Unknown')}")
         print("------------------------------")
     
-    # === STEP 1: Hardware Detection ===
+    # === STEP 1: Environment Detection ===
+    # Use the WSLDetector to check environment first
+    wsl_detector = DetectorRegistry.get("wsl")
+    if wsl_detector.can_run():
+        wsl_result = wsl_detector.detect()
+        print_detection_result(wsl_result, "🐧")
+        print("------------------------------")
+    
+    # === STEP 2: Hardware Detection ===
     # Use the new NvidiaDriverDetector
     driver_detector = DetectorRegistry.get("nvidia_driver")
     driver_result = driver_detector.detect()
@@ -174,7 +183,7 @@ def check_command():
             print(f"    → {rec}")
         max_cuda = None
 
-    # === STEP 2: System CUDA Detection ===
+    # === STEP 3: System CUDA Detection ===
     # Use the new CudaToolkitDetector
     cuda_detector = DetectorRegistry.get("cuda_toolkit")
     cuda_result = cuda_detector.detect()
@@ -190,7 +199,7 @@ def check_command():
 
     print("------------------------------")
 
-    # === STEP 3: Python Libraries Detection ===
+    # === STEP 4: Python Libraries Detection ===
     # Use the new PythonLibraryDetector for each library
     libs = ["torch", "tensorflow", "jax"]
     torch_result = None
@@ -222,14 +231,14 @@ def check_command():
         else:
             print(f"❌  {lib} is NOT installed.")
 
-    # === STEP 4: Compilation Health Check ===
+    # === STEP 5: Compilation Health Check ===
     if torch_result and torch_result.detected:
         check_compilation_health(cuda_result, torch_result)
     
-    # === STEP 5: System Path Check ===
+    # === STEP 6: System Path Check ===
     check_system_path()
     
-    # === STEP 6: Code Migration Check ===
+    # === STEP 7: Code Migration Check ===
     # (Not yet refactored - still using legacy function)
     check_broken_imports()
 

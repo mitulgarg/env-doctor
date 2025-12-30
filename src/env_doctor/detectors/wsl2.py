@@ -5,20 +5,23 @@ import platform
 from env_doctor.core import Detector, DetectionResult, Status, DetectorRegistry
 
 
-@DetectorRegistry.register("wsl")
-class WSLDetector(Detector):
+@DetectorRegistry.register("wsl2")
+class WSL2Detector(Detector):
     """
-    Detects Windows Subsystem for Linux (WSL) environment and validates GPU forwarding.
+    Detects Windows Subsystem for Linux 2 (WSL2) environment and validates GPU forwarding.
     
     This detector identifies whether the current environment is:
     - Native Linux
-    - WSL1 (limited GPU support)  
-    - WSL2 (full GPU forwarding support)
+    - WSL1 (no CUDA support available)  
+    - WSL2 (GPU forwarding support available)
     
     For WSL2 environments, it validates proper GPU forwarding setup including:
-    - Absence of internal NVIDIA drivers
-    - Presence of WSL CUDA libraries
+    - Absence of internal NVIDIA drivers (which break GPU forwarding)
+    - Presence of WSL2 CUDA libraries
     - Functional nvidia-smi command
+    
+    Note: WSL1 does not support CUDA at all, so this detector will warn users
+    to upgrade to WSL2 for any GPU computing needs.
     """
     
     def can_run(self) -> bool:
@@ -33,8 +36,8 @@ class WSLDetector(Detector):
         except Exception:
             return ""
     
-    def _detect_wsl_type(self) -> str:
-        """Detect the type of WSL environment."""
+    def _detect_wsl2_environment(self) -> str:
+        """Detect the type of WSL environment, focusing on WSL2 support."""
         version_info = self._read_proc_version()
         
         if not version_info:
@@ -61,8 +64,8 @@ class WSLDetector(Detector):
         except Exception:
             return False
     
-    def _check_wsl_libcuda(self) -> bool:
-        """Check if WSL CUDA library exists."""
+    def _check_wsl2_libcuda(self) -> bool:
+        """Check if WSL2 CUDA library exists."""
         return os.path.exists("/usr/lib/wsl/lib/libcuda.so")
     
     def _check_internal_nvidia_driver(self) -> bool:
@@ -70,26 +73,26 @@ class WSLDetector(Detector):
         return os.path.exists("/usr/lib/x86_64-linux-gnu/libnvidia-ml.so")
     
     def detect(self) -> DetectionResult:
-        """Detect WSL environment and GPU forwarding status."""
-        wsl_type = self._detect_wsl_type()
-        result = DetectionResult(component="wsl", status=Status.SUCCESS)
-        result.version = wsl_type
+        """Detect WSL2 environment and GPU forwarding status."""
+        env_type = self._detect_wsl2_environment()
+        result = DetectionResult(component="wsl2", status=Status.SUCCESS)
+        result.version = env_type
         
         # Native Linux path
-        if wsl_type == "native_linux":
+        if env_type == "native_linux":
             result.metadata["environment"] = "Native Linux"
             return result
         
-        # WSL1 path
-        if wsl_type == "wsl1":
+        # WSL1 path - no CUDA support available
+        if env_type == "wsl1":
             result.metadata["environment"] = "WSL1"
-            result.issues.append("WSL1 detected. GPU passthrough not supported in WSL1.")
-            result.recommendations.append("Upgrade to WSL2 for GPU support")
-            result.status = Status.WARNING
+            result.issues.append("WSL1 detected. CUDA is not supported in WSL1 at all.")
+            result.recommendations.append("Upgrade to WSL2 for GPU/CUDA support")
+            result.status = Status.ERROR
             return result
         
         # WSL2 path - check GPU forwarding setup
-        if wsl_type == "wsl2":
+        if env_type == "wsl2":
             result.metadata["environment"] = "WSL2"
             
             # Check for problematic internal NVIDIA driver
@@ -100,8 +103,8 @@ class WSLDetector(Detector):
                 result.recommendations.append("Run: sudo apt remove --purge nvidia-*")
                 return result
             
-            # Check for WSL CUDA library
-            has_libcuda = self._check_wsl_libcuda()
+            # Check for WSL2 CUDA library
+            has_libcuda = self._check_wsl2_libcuda()
             if not has_libcuda:
                 result.status = Status.ERROR
                 result.issues.append("Missing /usr/lib/wsl/lib/libcuda.so")

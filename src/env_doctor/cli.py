@@ -1,25 +1,55 @@
+"""
+Modernized CLI using the detector architecture.
+
+This version demonstrates how to migrate from procedural checks
+to the new detector-based system.
+"""
 import sys
 import os
 import argparse
+from .core.registry import DetectorRegistry
+from .core.detector import Status
+from .db import get_max_cuda_for_driver, get_install_command, DB_DATA
+
+# Legacy imports for functions not yet refactored
 from .checks import (
-    get_nvidia_driver_version, 
-    get_system_cuda_version, 
-    get_installed_library_version,
     scan_imports_in_folder,
     check_broken_imports
 )
-from .db import get_max_cuda_for_driver, get_install_command, DB_DATA
 
-def check_compilation_health(sys_cuda, torch_cuda):
+# Import detectors to register them!
+# This triggers all @register decorators
+from .detectors.nvidia_driver import NvidiaDriverDetector
+from .detectors.cuda_toolkit import CudaToolkitDetector
+from .detectors.python_libraries import PythonLibraryDetector
+
+def check_compilation_health(cuda_result, torch_result):
+    """
+    Check if system CUDA matches PyTorch CUDA for compilation compatibility.
+    
+    Args:
+        cuda_result: DetectionResult from CudaToolkitDetector
+        torch_result: DetectionResult from PythonLibraryDetector (torch)
+    """
     print("\n🏭  COMPILATION HEALTH (For Flash-Attention/AutoGPTQ)")
-    if not sys_cuda:
+    
+    if not cuda_result.detected:
         print("⚠️   System CUDA (nvcc) NOT found.")
         print("    -> You cannot install 'flash-attention' or 'auto-gptq' from source.")
+        for rec in cuda_result.recommendations:
+            print(f"    → {rec}")
         return
+    
+    if not torch_result.detected:
+        print("❓  PyTorch not installed. Skipping check.")
+        return
+    
+    torch_cuda = torch_result.metadata.get("cuda_version", "Unknown")
     if torch_cuda == "Unknown":
         print("❓  Torch CUDA version unknown. Skipping check.")
         return
 
+    sys_cuda = cuda_result.version
     sys_mm = ".".join(sys_cuda.split(".")[:2])
     torch_mm = ".".join(torch_cuda.split(".")[:2])
 
@@ -28,18 +58,96 @@ def check_compilation_health(sys_cuda, torch_cuda):
     else:
         print(f"❌  ASYMMETRY DETECTED: System ({sys_cuda}) != Torch ({torch_cuda})")
         print("    -> pip install flash-attention will likely FAIL.")
+        print(f"    → Consider installing CUDA Toolkit {torch_mm}")
+
 
 def check_system_path():
+    """Check LD_LIBRARY_PATH for CUDA linking (TensorFlow/JAX)."""
     print("\n🔗  SYSTEM LINKING (For TensorFlow/JAX)")
     ld_path = os.environ.get("LD_LIBRARY_PATH", "")
     if not ld_path:
         print("⚠️   LD_LIBRARY_PATH is unset.")
+        print("    → For TensorFlow/JAX, you may need to set this.")
         return
     print(f"    LD_LIBRARY_PATH: {ld_path}")
     if "cuda" not in ld_path.lower():
         print("⚠️   Warning: LD_LIBRARY_PATH is set but does not seem to point to any CUDA folders.")
 
+
+def print_detection_result(result, emoji="📦"):
+    """
+    Pretty-print a DetectionResult.
+    
+    Args:
+        result: DetectionResult object
+        emoji: Emoji prefix for the component
+    """
+    component_name = result.component.replace("_", " ").title()
+    
+    if result.status == Status.SUCCESS:
+        print(f"✅  {component_name}: {result.version}")
+        if result.path:
+            print(f"    Path: {result.path}")
+        
+        # Print metadata
+        for key, value in result.metadata.items():
+            if key not in ["detection_method"]:  # Skip internal keys
+                display_key = key.replace("_", " ").title()
+                print(f"    → {display_key}: {value}")
+    
+    elif result.status == Status.NOT_FOUND:
+        print(f"❌  {component_name}: Not Found")
+    
+    elif result.status == Status.WARNING:
+        print(f"⚠️   {component_name}: {result.version or 'Warning'}")
+    
+    elif result.status == Status.ERROR:
+        print(f"❌  {component_name}: Error")
+    
+    # Print issues
+    for issue in result.issues:
+        print(f"    ⚠️  {issue}")
+    
+    # Print recommendations
+    for rec in result.recommendations:
+        print(f"    → {rec}")
+
+
+def check_library_compatibility(lib_result, max_cuda):
+    """
+    Check if a library's CUDA version is compatible with the driver.
+    
+    Args:
+        lib_result: DetectionResult from PythonLibraryDetector
+        max_cuda: Maximum CUDA version supported by driver (string)
+    """
+    if not lib_result.detected or not max_cuda:
+        return
+    
+    lib_cuda = lib_result.metadata.get("cuda_version", "Unknown")
+    if lib_cuda == "Unknown" or "CPU" in lib_cuda:
+        return
+    
+    try:
+        # Extract numeric CUDA version
+        cuda_num = lib_cuda.split(" ")[0].replace("x", "0")
+        if float(cuda_num) > float(max_cuda):
+            lib_name = lib_result.component.replace("python_library_", "")
+            print(f"    ❌ CRITICAL CONFLICT: {lib_name} uses CUDA {lib_cuda}, Driver supports up to {max_cuda}!")
+            print(f"    → Run 'env-doctor install {lib_name}' to fix.")
+        else:
+            print(f"    ✅ Compatible with Driver (CUDA {max_cuda})")
+    except (ValueError, IndexError):
+        pass
+
+
 def check_command():
+    """
+    Main diagnostic command using detector architecture.
+    
+    This is the MODERNIZED version that uses DetectorRegistry
+    instead of direct function calls.
+    """
     print("\n🩺  ENV-DOCTOR DIAGNOSIS  🩺")
     print("==============================")
 
@@ -50,74 +158,115 @@ def check_command():
         print(f"    Method: {meta.get('method', 'Unknown')}")
         print("------------------------------")
     
-    # 1. Hardware
-    driver = get_nvidia_driver_version()
-    if driver:
-        max_cuda = get_max_cuda_for_driver(driver)
-        print(f"✅  GPU Driver Found: {driver}")
-        print(f"    -> Max Supported CUDA: {max_cuda}")
+    # === STEP 1: Hardware Detection ===
+    # Use the new NvidiaDriverDetector
+    driver_detector = DetectorRegistry.get("nvidia_driver")
+    driver_result = driver_detector.detect()
+    
+    if driver_result.detected:
+        max_cuda = driver_result.metadata.get("max_cuda_version", "Unknown")
+        print(f"✅  GPU Driver Found: {driver_result.version}")
+        print(f"    → Max Supported CUDA: {max_cuda}")
+        print(f"    → Detection Method: {driver_result.metadata.get('detection_method', 'unknown')}")
     else:
-        print("⚠️   No NVIDIA Driver detected via NVML.")
+        print("⚠️   No NVIDIA Driver detected.")
+        for rec in driver_result.recommendations:
+            print(f"    → {rec}")
         max_cuda = None
 
-    # 2. System
-    sys_cuda = get_system_cuda_version()
-    if sys_cuda:
-        print(f"✅  System CUDA (nvcc): {sys_cuda}")
+    # === STEP 2: System CUDA Detection ===
+    # Use the new CudaToolkitDetector
+    cuda_detector = DetectorRegistry.get("cuda_toolkit")
+    cuda_result = cuda_detector.detect()
+    
+    if cuda_result.detected:
+        print(f"✅  System CUDA (nvcc): {cuda_result.version}")
+        print(f"    Path: {cuda_result.path}")
     else:
         print("ℹ️   System CUDA (nvcc) not found.")
+        if cuda_result.recommendations:
+            for rec in cuda_result.recommendations[:1]:  # Show first recommendation
+                print(f"    → {rec}")
 
     print("------------------------------")
 
-    # 3. Software
+    # === STEP 3: Python Libraries Detection ===
+    # Use the new PythonLibraryDetector for each library
     libs = ["torch", "tensorflow", "jax"]
-    torch_cuda_version = None
-
+    torch_result = None
+    
     for lib in libs:
-        info = get_installed_library_version(lib)
-        if info:
-            print(f"📦  Found {lib}: v{info['version']}")
-            if info['cuda'] != "Unknown":
-                print(f"    -> Bundled CUDA: {info['cuda']}")
-                if lib == "torch": torch_cuda_version = info['cuda']
+        # Import here to avoid circular imports
+        from .detectors.python_libraries import PythonLibraryDetector
+        
+        lib_detector = PythonLibraryDetector(lib)
+        lib_result = lib_detector.detect()
+        
+        if lib_result.detected:
+            print(f"📦  Found {lib}: v{lib_result.version}")
+            
+            # Show bundled CUDA info
+            cuda_ver = lib_result.metadata.get("cuda_version", "Unknown")
+            if cuda_ver != "Unknown":
+                print(f"    → Bundled CUDA: {cuda_ver}")
                 
+                # Check compatibility with driver
                 if max_cuda:
-                    try:
-                        cuda_num = info['cuda'].split(" ")[0].replace("x", "0")
-                        if float(cuda_num) > float(max_cuda):
-                            print(f"    ❌ CRITICAL CONFLICT: Lib uses {info['cuda']}, Driver supports {max_cuda}!")
-                            print(f"    Run 'doctor install {lib}' to fix.")
-                        else:
-                            print(f"    ✅ Compatible with Driver.")
-                    except ValueError: pass
+                    check_library_compatibility(lib_result, max_cuda)
             else:
-                print(f"    -> Bundled CUDA: Not Detected")
+                print(f"    → Bundled CUDA: Not Detected")
+            
+            # Store torch result for compilation check
+            if lib == "torch":
+                torch_result = lib_result
         else:
             print(f"❌  {lib} is NOT installed.")
 
-    if torch_cuda_version:
-        check_compilation_health(sys_cuda, torch_cuda_version)
+    # === STEP 4: Compilation Health Check ===
+    if torch_result and torch_result.detected:
+        check_compilation_health(cuda_result, torch_result)
     
+    # === STEP 5: System Path Check ===
     check_system_path()
+    
+    # === STEP 6: Code Migration Check ===
+    # (Not yet refactored - still using legacy function)
     check_broken_imports()
 
+
 def install_command(package_name):
+    """
+    Provide installation prescription for a package.
+    
+    Uses NvidiaDriverDetector to determine compatible CUDA version.
+    """
     print(f"\n🩺  PRESCRIPTION FOR: {package_name}")
-    driver = get_nvidia_driver_version()
-    if not driver:
+    
+    # Use detector instead of direct function call
+    driver_detector = DetectorRegistry.get("nvidia_driver")
+    driver_result = driver_detector.detect()
+    
+    if not driver_result.detected:
         print("⚠️  No NVIDIA Driver found. Assuming CPU-only.")
         print(f"   pip install {package_name}")
         return
 
-    max_cuda = get_max_cuda_for_driver(driver)
-    print(f"Detected Driver: {driver} (Supports up to CUDA {max_cuda})")
+    max_cuda = driver_result.metadata.get("max_cuda_version", "Unknown")
+    print(f"Detected Driver: {driver_result.version} (Supports up to CUDA {max_cuda})")
+    
     command = get_install_command(package_name, max_cuda)
     print("\n⬇️   Run this command:")
     print("---------------------------------------------------")
     print(command)
     print("---------------------------------------------------")
 
+
 def scan_command():
+    """
+    Scan local directory for AI library imports.
+    
+    Note: This still uses legacy function as it's not environment detection.
+    """
     print("\n🔍  SCANNING CURRENT DIRECTORY...")
     libs = scan_imports_in_folder()
     if libs:
@@ -129,22 +278,118 @@ def scan_command():
     else:
         print("No common AI imports found.")
 
-def main():
-    parser = argparse.ArgumentParser(description="env-doctor: The AI Environment Fixer")
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
-    subparsers.add_parser("check", help="Diagnose environment.")
-    
-    install_p = subparsers.add_parser("install", help="Get safe install command.")
-    install_p.add_argument("library", help="Library name (e.g., torch)")
 
-    subparsers.add_parser("scan", help="Scan local files.")
+def debug_command():
+    """
+    NEW COMMAND: Debug mode that shows all detector results in detail.
+    
+    This is useful for troubleshooting and seeing raw detector output.
+    """
+    print("\n🔍  DEBUG MODE - Detailed Detector Information")
+    print("=" * 60)
+    
+    # Get all registered detectors
+    detector_names = DetectorRegistry.get_names()
+    print(f"Registered Detectors: {', '.join(detector_names)}\n")
+    
+    # Run each detector and show results
+    for name in detector_names:
+        if name == "python_library":
+            # Special case: python_library needs a library name
+            continue
+        
+        print(f"\n--- {name.upper().replace('_', ' ')} ---")
+        try:
+            detector = DetectorRegistry.get(name)
+            result = detector.detect()
+            
+            print(f"Status: {result.status.value}")
+            print(f"Component: {result.component}")
+            if result.version:
+                print(f"Version: {result.version}")
+            if result.path:
+                print(f"Path: {result.path}")
+            if result.metadata:
+                print(f"Metadata: {result.metadata}")
+            if result.issues:
+                print(f"Issues: {result.issues}")
+            if result.recommendations:
+                print(f"Recommendations: {result.recommendations}")
+        except Exception as e:
+            print(f"ERROR: {e}")
+    
+    # Test python libraries separately
+    print(f"\n--- PYTHON LIBRARIES ---")
+    from .detectors.python_libraries import PythonLibraryDetector
+    for lib in ["torch", "tensorflow", "jax"]:
+        print(f"\n{lib}:")
+        detector = PythonLibraryDetector(lib)
+        result = detector.detect()
+        print(f"  Status: {result.status.value}")
+        if result.version:
+            print(f"  Version: {result.version}")
+        if result.metadata:
+            print(f"  Metadata: {result.metadata}")
+
+
+def main():
+    """Main entry point with argument parsing."""
+    parser = argparse.ArgumentParser(
+        description="env-doctor: The AI Environment Fixer",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  env-doctor check              # Diagnose your environment
+  env-doctor install torch      # Get safe install command for PyTorch
+  env-doctor scan               # Scan project for AI library imports
+  env-doctor debug              # Show detailed detector information
+        """
+    )
+    
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    
+    # Check command
+    subparsers.add_parser(
+        "check", 
+        help="Diagnose environment compatibility"
+    )
+    
+    # Install command
+    install_p = subparsers.add_parser(
+        "install", 
+        help="Get safe installation command for a library"
+    )
+    install_p.add_argument(
+        "library", 
+        help="Library name (e.g., torch, tensorflow, jax)"
+    )
+
+    # Scan command
+    subparsers.add_parser(
+        "scan", 
+        help="Scan local files for AI library imports"
+    )
+    
+    # Debug command (NEW!)
+    subparsers.add_parser(
+        "debug",
+        help="Show detailed detector information (for troubleshooting)"
+    )
 
     args = parser.parse_args()
 
-    if args.command == "check": check_command()
-    elif args.command == "install": install_command(args.library)
-    elif args.command == "scan": scan_command()
-    else: parser.print_help()
+    # Route to appropriate command
+    if args.command == "check":
+        check_command()
+    elif args.command == "install":
+        install_command(args.library)
+    elif args.command == "scan":
+        scan_command()
+    elif args.command == "debug":
+        debug_command()
+    else:
+        parser.print_help()
+
 
 if __name__ == "__main__":
     main()

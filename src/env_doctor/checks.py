@@ -1,3 +1,5 @@
+# Keep for backward compatibility (thin wrappers)
+
 import sys
 import shutil
 import subprocess
@@ -6,7 +8,7 @@ import importlib.metadata
 import os
 import re
 import json
-
+from env_doctor.core.registry import DetectorRegistry
 
 try:
     from nvidia import nvidia_smi       #new nvidia lib
@@ -14,90 +16,30 @@ try:
 except Exception:
     HAS_NVML = False
 
+# Backward compatibility wrappers
 def get_nvidia_driver_version():
-    # 1. Try NVML
-    try:
-        import pynvml
-        pynvml.nvmlInit()
-        driver = pynvml.nvmlSystemGetDriverVersion().decode()
-        pynvml.nvmlShutdown()
-        return driver
-    except:
-        pass
-
-    # 2. Try nvidia-smi
-    try:
-        out = subprocess.check_output(["nvidia-smi"], encoding="utf-8")
-        match = re.search(r"Driver Version:\s+(\d+\.\d+)", out)
-        if match:
-            return match.group(1)
-    except:
-        pass
-
-    # 3. Fail
-    return None
+    """Legacy wrapper - use NvidiaDriverDetector directly."""
+    detector = DetectorRegistry.get("nvidia_driver")
+    result = detector.detect()
+    return result.version if result.detected else None
 
 def get_system_cuda_version():
-    nvcc_path = shutil.which("nvcc")
-    if not nvcc_path and os.path.exists("/usr/local/cuda/bin/nvcc"):
-        nvcc_path = "/usr/local/cuda/bin/nvcc"
-    if not nvcc_path: return None
-
-    try:
-        result = subprocess.check_output([nvcc_path, "--version"], encoding="utf-8")
-        match = re.search(r"release (\d+\.\d+)", result)
-        if match: return match.group(1)
-    except Exception:
-        return None
-    return None
-
+    """Legacy wrapper - use CudaToolkitDetector directly."""
+    detector = DetectorRegistry.get("cuda_toolkit")
+    result = detector.detect()
+    return result.version if result.detected else None
 def get_installed_library_version(lib_name):
-    try:
-        lib = importlib.import_module(lib_name)
-        version = getattr(lib, "__version__", "Unknown")
-        cuda_ver = "Unknown"
-        cudnn_ver = "Unknown"
-        
-        if lib_name == "torch":
-            try:
-                cuda_ver = lib.version.cuda
-                if hasattr(lib.backends, 'cudnn'):
-                    raw_cudnn = lib.backends.cudnn.version()
-                    if raw_cudnn:
-                        # PyTorch stores as int (8700 -> 8.7.0)
-                        major = raw_cudnn // 1000
-                        minor = (raw_cudnn % 1000) // 100
-                        patch = raw_cudnn % 100
-                        cudnn_ver = f"{major}.{minor}.{patch}"
-            except AttributeError:
-                pass
-        
-        elif lib_name == "tensorflow":
-            try:
-                sys_config = getattr(lib, "sysconfig", None)
-                if sys_config and hasattr(sys_config, "get_build_info"):
-                    build_info = sys_config.get_build_info()
-                    cuda_ver = build_info.get("cuda_version", "Unknown")
-                    cudnn_ver = build_info.get("cudnn_version", "Unknown")
-            except Exception:
-                pass
-
-        elif lib_name == "jax":
-            try:
-                import jaxlib
-                if hasattr(jaxlib, "version"):
-                    # Try to infer from installed nvidia packages
-                    packages = [d.metadata['Name'] for d in importlib.metadata.distributions()]
-                    if any("nvidia-cuda-runtime-cu12" in p for p in packages):
-                        cuda_ver = "12.x (via pip)"
-                    elif any("nvidia-cuda-runtime-cu11" in p for p in packages):
-                        cuda_ver = "11.x (via pip)"
-            except ImportError:
-                cuda_ver = "CPU Only (jaxlib not found)"
-
-        return {"version": version, "cuda": cuda_ver, "cudnn": cudnn_ver}
-    except ImportError:
-        return None
+    """Legacy wrapper - use PythonLibraryDetector directly."""
+    from env_doctor.detectors.python_libraries import PythonLibraryDetector
+    detector = PythonLibraryDetector(lib_name)
+    result = detector.detect()
+    if result.detected:
+        return {
+            "version": result.version,
+            "cuda": result.metadata.get("cuda_version", "Unknown"),
+            "cudnn": result.metadata.get("cudnn_version", "Unknown")
+        }
+    return None
 
 def scan_imports_in_folder(folder_path="."):
     found_libs = set()

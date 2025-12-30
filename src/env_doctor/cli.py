@@ -183,21 +183,32 @@ def check_command():
             print(f"    → {rec}")
         max_cuda = None
 
-    # === STEP 3: System CUDA Detection ===
-    # Use the new CudaToolkitDetector
+    # === STEP 3: System CUDA Detection (ENHANCED) ===
     cuda_detector = DetectorRegistry.get("cuda_toolkit")
     cuda_result = cuda_detector.detect()
     
+    # Print basic summary
     if cuda_result.detected:
         print(f"✅  System CUDA (nvcc): {cuda_result.version}")
-        print(f"    Path: {cuda_result.path}")
+        if cuda_result.path:
+            print(f"    Path: {cuda_result.path}")
+        
+        # Show quick status
+        install_count = cuda_result.metadata.get("installation_count", 1)
+        if install_count > 1:
+            print(f"    ⚠️  {install_count} CUDA installations detected")
+        
+        if cuda_result.status == Status.WARNING:
+            print(f"    ⚠️  Configuration issues detected (run 'doctor debug' for details)")
+        elif cuda_result.status == Status.ERROR:
+            print(f"    ❌ Critical issues detected (run 'doctor debug' for details)")
     else:
         print("ℹ️   System CUDA (nvcc) not found.")
         if cuda_result.recommendations:
-            for rec in cuda_result.recommendations[:1]:  # Show first recommendation
-                print(f"    → {rec}")
+            print(f"    → {cuda_result.recommendations[0]}")
 
     print("------------------------------")
+
 
     # === STEP 4: Python Libraries Detection ===
     # Use the new PythonLibraryDetector for each library
@@ -241,6 +252,11 @@ def check_command():
     # === STEP 7: Code Migration Check ===
     # (Not yet refactored - still using legacy function)
     check_broken_imports()
+
+    # === STEP 8: Offer detailed analysis ===
+    if cuda_result.detected and (cuda_result.issues or cuda_result.metadata.get("installation_count", 1) > 1):
+        print("\n💡  TIP: Run 'env-doctor cuda-info' for detailed CUDA analysis")
+
 
 
 def install_command(package_name):
@@ -341,6 +357,112 @@ def debug_command():
             print(f"  Metadata: {result.metadata}")
 
 
+
+
+def print_cuda_detailed_info(cuda_result):
+    """
+    Print detailed CUDA toolkit information from comprehensive detection.
+    
+    Args:
+        cuda_result: DetectionResult from CudaToolkitDetector
+    """
+    print("\n" + "="*60)
+    print("🔧  DETAILED CUDA TOOLKIT ANALYSIS")
+    print("="*60)
+    
+    if not cuda_result.detected:
+        print("❌  No CUDA Toolkit detected")
+        for rec in cuda_result.recommendations:
+            print(f"    → {rec}")
+        return
+    
+    # 1. Main version info
+    print(f"\n📌  Primary CUDA Version: {cuda_result.version}")
+    if cuda_result.path:
+        print(f"    nvcc location: {cuda_result.path}")
+    
+    # 2. Installation count
+    install_count = cuda_result.metadata.get("installation_count", 0)
+    if install_count > 1:
+        print(f"\n⚠️   Multiple Installations Detected: {install_count}")
+        for i, inst in enumerate(cuda_result.metadata.get("installations", []), 1):
+            print(f"    {i}. Version {inst['version']}: {inst['path']}")
+    
+    # 3. Environment Variables
+    print("\n🔐  Environment Variables:")
+    
+    cuda_home = cuda_result.metadata.get("cuda_home", {})
+    if cuda_home.get("status") == "set":
+        print(f"    ✅ CUDA_HOME: {cuda_home['value']}")
+    elif cuda_home.get("status") == "missing":
+        print(f"    ❌ CUDA_HOME: Not set")
+    elif cuda_home.get("status") == "invalid":
+        print(f"    ❌ CUDA_HOME: {cuda_home['value']} (path doesn't exist)")
+    
+    # 4. PATH Configuration
+    path_config = cuda_result.metadata.get("path_config", {})
+    if path_config.get("correct"):
+        print(f"    ✅ PATH: CUDA bin directory found")
+    else:
+        print(f"    ❌ PATH: CUDA bin directory missing")
+        print(f"       {path_config.get('reason', 'Unknown issue')}")
+    
+    # 5. LD_LIBRARY_PATH (Linux only)
+    if "ld_library_path" in cuda_result.metadata:
+        ld_info = cuda_result.metadata["ld_library_path"]
+        if ld_info.get("correct"):
+            print(f"    ✅ LD_LIBRARY_PATH: CUDA lib directory found")
+        else:
+            print(f"    ❌ LD_LIBRARY_PATH: {ld_info.get('reason', 'Not configured')}")
+    
+    # 6. Runtime Library
+    print("\n📚  Runtime Library:")
+    libcudart = cuda_result.metadata.get("libcudart", {})
+    if libcudart.get("found"):
+        version = libcudart.get("version", "Unknown")
+        print(f"    ✅ libcudart: Found (v{version})")
+        print(f"       Location: {libcudart.get('path', 'Unknown')}")
+    else:
+        print(f"    ❌ libcudart: Not found")
+    
+    # 7. Driver Compatibility
+    print("\n🖥️   Driver Compatibility:")
+    driver_compat = cuda_result.metadata.get("driver_compatibility", {})
+    if driver_compat.get("compatible"):
+        print(f"    ✅ {driver_compat.get('message', 'Compatible')}")
+        if "driver_version" in driver_compat:
+            print(f"       Driver: {driver_compat['driver_version']}")
+            print(f"       Max CUDA: {driver_compat['max_cuda']}")
+    else:
+        print(f"    ❌ {driver_compat.get('message', 'Incompatible')}")
+    
+    # 8. Issues & Recommendations
+    if cuda_result.issues:
+        print("\n⚠️   Issues Detected:")
+        for issue in cuda_result.issues:
+            print(f"    • {issue}")
+    
+    if cuda_result.recommendations:
+        print("\n💡  Recommendations:")
+        for rec in cuda_result.recommendations:
+            print(f"    → {rec}")
+    
+    print("\n" + "="*60)
+
+
+
+# New command: cuda-info
+def cuda_info_command():
+    """
+    Display comprehensive CUDA toolkit information.
+    """
+    cuda_detector = DetectorRegistry.get("cuda_toolkit")
+    cuda_result = cuda_detector.detect()
+    
+    print_cuda_detailed_info(cuda_result)
+
+
+# Update main() to add new command
 def main():
     """Main entry point with argument parsing."""
     parser = argparse.ArgumentParser(
@@ -349,6 +471,7 @@ def main():
         epilog="""
 Examples:
   env-doctor check              # Diagnose your environment
+  env-doctor cuda-info          # Detailed CUDA toolkit analysis
   env-doctor install torch      # Get safe install command for PyTorch
   env-doctor scan               # Scan project for AI library imports
   env-doctor debug              # Show detailed detector information
@@ -361,6 +484,12 @@ Examples:
     subparsers.add_parser(
         "check", 
         help="Diagnose environment compatibility"
+    )
+    
+    # CUDA Info command (NEW)
+    subparsers.add_parser(
+        "cuda-info",
+        help="Detailed CUDA toolkit analysis"
     )
     
     # Install command
@@ -379,7 +508,7 @@ Examples:
         help="Scan local files for AI library imports"
     )
     
-    # Debug command (NEW!)
+    # Debug command
     subparsers.add_parser(
         "debug",
         help="Show detailed detector information (for troubleshooting)"
@@ -390,6 +519,8 @@ Examples:
     # Route to appropriate command
     if args.command == "check":
         check_command()
+    elif args.command == "cuda-info":
+        cuda_info_command()
     elif args.command == "install":
         install_command(args.library)
     elif args.command == "scan":

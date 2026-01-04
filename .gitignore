@@ -158,3 +158,9 @@ cython_debug/
 
 # Project Specific
 src/env_doctor/compatibility_1.json
+CLAUDE.md
+TODO.md
+test.py
+
+
+

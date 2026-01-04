@@ -24,6 +24,7 @@ from .detectors.nvidia_driver import NvidiaDriverDetector
 from .detectors.cuda_toolkit import CudaToolkitDetector
 from .detectors.python_libraries import PythonLibraryDetector
 from .detectors.wsl2 import WSL2Detector
+from .detectors.cudnn import CudnnDetector
 
 def check_compilation_health(cuda_result, torch_result):
     """
@@ -210,6 +211,13 @@ def check_command():
 
     print("------------------------------")
 
+    #cuDNN Detection
+    # In check_command(), after CUDA check
+    cudnn_detector = DetectorRegistry.get("cudnn")
+    if cudnn_detector.can_run():
+        cudnn_result = cudnn_detector.detect()
+        if cudnn_result.detected:
+            print(f"✅  cuDNN: v{cudnn_result.version}")
 
     # === STEP 4: Python Libraries Detection ===
     # Use the new PythonLibraryDetector for each library
@@ -464,8 +472,109 @@ def cuda_info_command():
     """
     cuda_detector = DetectorRegistry.get("cuda_toolkit")
     cuda_result = cuda_detector.detect()
-    
+
     print_cuda_detailed_info(cuda_result)
+
+
+def print_cudnn_detailed_info(cudnn_result):
+    """
+    Print detailed cuDNN information from detection.
+
+    Args:
+        cudnn_result: DetectionResult from CudnnDetector
+    """
+    print("\n" + "="*60)
+    print("🧠  DETAILED CUDNN ANALYSIS")
+    print("="*60)
+
+    if not cudnn_result.detected:
+        print("❌  cuDNN library not found")
+        for rec in cudnn_result.recommendations:
+            print(f"    → {rec}")
+        return
+
+    # 1. Main version info
+    print(f"\n📌  cuDNN Version: {cudnn_result.version}")
+    if cudnn_result.path:
+        print(f"    Primary Library: {cudnn_result.path}")
+
+    # 2. Library count
+    lib_count = cudnn_result.metadata.get("library_count", 1)
+    if lib_count > 1:
+        print(f"\n📚  Multiple cuDNN Libraries Found: {lib_count}")
+        libraries = cudnn_result.metadata.get("libraries", [])
+        for lib in libraries:
+            print(f"    • {lib['path']}")
+
+    # 3. Platform info
+    platform_info = cudnn_result.metadata.get("platform", "Unknown")
+    print(f"\n🔧  Platform: {platform_info}")
+
+    # 4. Symlink/PATH status
+    if platform_info == "Linux":
+        symlink_status = cudnn_result.metadata.get("symlink_status", {})
+        if symlink_status:
+            print("\n🔗  Symlink Status:")
+            if symlink_status.get("valid"):
+                for symlink in symlink_status["valid"]:
+                    print(f"    ✅ {symlink}")
+            if symlink_status.get("missing"):
+                for symlink in symlink_status["missing"]:
+                    print(f"    ❌ Missing: {symlink}")
+            if symlink_status.get("broken"):
+                for symlink in symlink_status["broken"]:
+                    print(f"    ⚠️  Broken: {symlink}")
+    else:
+        path_status = cudnn_result.metadata.get("path_status", {})
+        if path_status:
+            print("\n🔗  PATH Configuration:")
+            if path_status.get("in_path"):
+                print(f"    ✅ cuDNN DLL in PATH: {path_status.get('directory')}")
+            else:
+                print(f"    ❌ cuDNN DLL not in PATH")
+                if path_status.get("suggested_path"):
+                    print(f"       Suggested: {path_status.get('suggested_path')}")
+
+    # 5. Multiple versions check
+    multiple_versions = cudnn_result.metadata.get("multiple_versions")
+    if multiple_versions and len(multiple_versions) > 1:
+        print(f"\n⚠️   Multiple Versions Detected: {', '.join(multiple_versions)}")
+        print("    Consider removing old versions to avoid conflicts")
+
+    # 6. CUDA compatibility
+    cuda_compat = cudnn_result.metadata.get("cuda_compatibility", {})
+    if cuda_compat:
+        print("\n🔗  CUDA Compatibility:")
+        if cuda_compat.get("compatible"):
+            print(f"    ✅ {cuda_compat.get('message', 'Compatible')}")
+        else:
+            print(f"    ❌ {cuda_compat.get('message', 'Incompatibility detected')}")
+
+    # 7. Issues & Recommendations
+    if cudnn_result.issues:
+        print("\n⚠️   Issues Detected:")
+        for issue in cudnn_result.issues:
+            print(f"    • {issue}")
+
+    if cudnn_result.recommendations:
+        print("\n💡  Recommendations:")
+        for rec in cudnn_result.recommendations:
+            print(f"    → {rec}")
+
+    print("\n" + "="*60)
+
+
+def cudnn_info_command():
+    """
+    Display comprehensive cuDNN library information.
+    """
+    cudnn_detector = DetectorRegistry.get("cudnn")
+    if not cudnn_detector.can_run():
+        print("❌  cuDNN detector not supported on this platform")
+        return
+
+    cudnn_result = cudnn_detector.detect()
+    print_cudnn_detailed_info(cudnn_result)
 
 
 # Update main() to add new command
@@ -478,6 +587,7 @@ def main():
 Examples:
   env-doctor check              # Diagnose your environment
   env-doctor cuda-info          # Detailed CUDA toolkit analysis
+  env-doctor cudnn-info         # Detailed cuDNN library analysis
   env-doctor install torch      # Get safe install command for PyTorch
   env-doctor scan               # Scan project for AI library imports
   env-doctor debug              # Show detailed detector information
@@ -485,17 +595,23 @@ Examples:
     )
     
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
-    
+
     # Check command
     subparsers.add_parser(
-        "check", 
+        "check",
         help="Diagnose environment compatibility"
     )
-    
+
     # CUDA Info command (NEW)
     subparsers.add_parser(
         "cuda-info",
         help="Detailed CUDA toolkit analysis"
+    )
+
+    # cuDNN Info command (NEW)
+    subparsers.add_parser(
+        "cudnn-info",
+        help="Detailed cuDNN library analysis"
     )
     
     # Install command
@@ -527,6 +643,8 @@ Examples:
         check_command()
     elif args.command == "cuda-info":
         cuda_info_command()
+    elif args.command == "cudnn-info":
+        cudnn_info_command()
     elif args.command == "install":
         install_command(args.library)
     elif args.command == "scan":

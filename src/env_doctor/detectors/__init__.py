@@ -7,10 +7,12 @@ from .nvidia_driver import NvidiaDriverDetector
 from .cuda_toolkit import CudaToolkitDetector
 from .python_libraries import PythonLibraryDetector
 from .wsl2 import WSL2Detector
+from .cudnn import CudnnDetector
 
 __all__ = [
     'NvidiaDriverDetector',
     'CudaToolkitDetector',
     'PythonLibraryDetector',
-    'WSL2Detector'
+    'WSL2Detector',
+    'CudnnDetector'
 ]

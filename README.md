@@ -1,28 +1,45 @@
-# 🩺 Env-Doctor: The AI Environment Fixer
+# 🩺 Env-Doctor
 
-![PyPI - Version](https://img.shields.io/pypi/v/env-doctor)
-![PyPI - Python Version](https://img.shields.io/pypi/pyversions/env-doctor)
+### **The missing link between your GPU and Python AI libraries**
+
 ![License](https://img.shields.io/github/license/mitulgarg/env-doctor)
 ![CI Status](https://img.shields.io/github/actions/workflow/status/mitulgarg/env-doctor/ci.yml)
+![Python](https://img.shields.io/badge/python-3.7+-blue)
 
-**Stop guessing which PyTorch version works with your NVIDIA driver.**
+---
 
-Env-Doctor is a CLI tool that bridges the gap between your hardware (NVIDIA drivers) and your software (Python AI libraries). It scans your system, detects your GPU driver version, and tells you **exactly** which pre-compiled binaries (wheels) will work — preventing random crashes and cryptic CUDA errors.
+> **"Why does my PyTorch crash with CUDA errors when I just installed it?"**
+>
+> Because your driver supports CUDA 11.8, but `pip install torch` gave you CUDA 12.4 wheels.
+
+---
+
+**Env-Doctor diagnoses and fixes the #1 frustration in GPU computing:** mismatched CUDA versions between your NVIDIA driver, system toolkit, cuDNN, and Python libraries.
+
+It takes **5 seconds** to find out if your environment is broken — and exactly how to fix it.
 
 ## 🚀 Features
 
-*   **⚡ Automated Diagnosis**: Instantly checks compatibility between your GPU Driver (Kernel), System CUDA (Compiler), and Python Libs (Torch, TensorFlow, JAX).
-*   **🐧 WSL2 GPU Support**: Detects WSL2 environments and validates GPU forwarding setup, including CUDA library presence and internal driver conflicts.
-*   **🛠️ Compilation Guard**: Warns if your system `nvcc` doesn't match `torch` bundled CUDA, preventing build failures for libs like `flash-attention`.
-*   **🦜 Migration Helper**: Scans your code for deprecated imports (e.g., old LangChain or Pydantic schemas) and suggests fixes.
-*   **🛡️ Verified Compatibility**: Uses a hybrid Verified Database (scraped & tested daily) to recommend safe installation commands.
+| Feature | What It Does |
+|---------|--------------|
+| **⚡ One-Command Diagnosis** | Instantly check compatibility between GPU Driver → CUDA Toolkit → cuDNN → PyTorch/TensorFlow/JAX |
+| **🔧 Deep CUDA Analysis** | `cuda-info` reveals multiple installations, PATH issues, environment misconfigurations |
+| **🧠 cuDNN Detection** | `cudnn-info` finds cuDNN libraries, validates symlinks, checks version compatibility |
+| **🐧 WSL2 GPU Support** | Detects WSL1/WSL2 environments, validates GPU forwarding, catches common driver conflicts |
+| **🛠️ Compilation Guard** | Warns if system `nvcc` doesn't match PyTorch's CUDA — preventing flash-attention build failures |
+| **💊 Safe Install Commands** | Prescribes the exact `pip install` command that works with YOUR driver |
+| **🦜 Migration Helper** | Scans code for deprecated imports (LangChain, Pydantic) and suggests fixes |
 
 ## 📦 Installation
 
-To install Env-Doctor, simply run:
+> ⏳ **Coming Soon**: `pip install env-doctor` will be available shortly!
+
+For now, install from source:
 
 ```bash
-pip install env-doctor
+git clone https://github.com/mitulgarg/env-doctor.git
+cd env-doctor
+pip install -e .
 ```
 
 ## 🛠️ Usage
@@ -63,7 +80,34 @@ Scan your project for deprecated imports (like old LangChain definitions).
 env-doctor scan
 ```
 
-### 4️⃣ Debug Mode (Troubleshooting)
+### 4️⃣ Deep CUDA Toolkit Analysis
+Get comprehensive details about your CUDA installations, environment variables, and configuration issues.
+
+```bash
+env-doctor cuda-info
+```
+
+**What it shows:**
+*   Multiple CUDA installations and their paths
+*   `CUDA_HOME`, `PATH`, and `LD_LIBRARY_PATH` configuration
+*   Runtime library (libcudart) status
+*   Driver compatibility with installed toolkit
+
+### 5️⃣ cuDNN Library Analysis
+Detect cuDNN installations and validate they're properly configured.
+
+```bash
+env-doctor cudnn-info
+```
+
+**What it shows:**
+*   cuDNN version and library locations
+*   Multiple installation detection
+*   Symlink validation (Linux)
+*   PATH configuration (Windows)
+*   CUDA compatibility status
+
+### 6️⃣ Debug Mode (Troubleshooting)
 Get detailed information from all detectors for troubleshooting and development.
 
 ```bash
@@ -133,7 +177,9 @@ Env-Doctor provides comprehensive WSL2 environment detection and GPU forwarding 
 
 ```bash
 env-doctor check              # Diagnose your environment
-env-doctor install torch      # Get safe install command for PyTorch  
+env-doctor cuda-info          # Detailed CUDA toolkit analysis
+env-doctor cudnn-info         # Detailed cuDNN library analysis
+env-doctor install torch      # Get safe install command for PyTorch
 env-doctor scan               # Scan project for AI library imports
 env-doctor debug              # Show detailed detector information
 ```
@@ -145,6 +191,7 @@ env-doctor debug              # Show detailed detector information
     - `WSL2Detector`: Environment detection and GPU forwarding validation
     - `NvidiaDriverDetector`: GPU driver version and capability detection
     - `CudaToolkitDetector`: System CUDA installation detection
+    - `CudnnDetector`: cuDNN library detection and configuration validation
     - `PythonLibraryDetector`: Python AI library version and CUDA compatibility
 *   **The Registry**: `DetectorRegistry` provides a plugin system for easy detector discovery and execution.
 *   **The CLI**: `cli.py` orchestrates all detectors and presents unified diagnostics.

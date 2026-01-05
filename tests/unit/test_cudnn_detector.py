@@ -84,9 +84,8 @@ class TestCudnnDetector:
     @patch('os.path.islink')
     @patch('os.access')
     @patch('os.path.realpath')
-    @patch('os.path.dirname')
     @patch('glob.glob')
-    def test_cudnn_found_windows(self, mock_glob, mock_dirname, mock_realpath,
+    def test_cudnn_found_windows(self, mock_glob, mock_realpath,
                                   mock_access, mock_islink, mock_exists,
                                   mock_system, detector):
         """Test successful cuDNN detection on Windows."""
@@ -95,7 +94,6 @@ class TestCudnnDetector:
         mock_islink.return_value = False
         mock_access.return_value = True
         mock_realpath.side_effect = lambda x: x
-        mock_dirname.side_effect = lambda x: os.path.dirname(x)
 
         cuda_path = r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.0\bin"
 
@@ -470,9 +468,8 @@ Dynamic section at offset 0x1234:
     @patch('os.path.islink')
     @patch('os.access')
     @patch('os.path.realpath')
-    @patch('os.path.dirname')
     @patch('glob.glob')
-    def test_windows_path_not_set(self, mock_glob, mock_dirname, mock_realpath,
+    def test_windows_path_not_set(self, mock_glob, mock_realpath,
                                    mock_access, mock_islink, mock_exists,
                                    mock_system, detector):
         """Test Windows detection when cuDNN directory not in PATH."""
@@ -481,7 +478,6 @@ Dynamic section at offset 0x1234:
         mock_islink.return_value = False
         mock_access.return_value = True
         mock_realpath.side_effect = lambda x: x
-        mock_dirname.side_effect = lambda x: os.path.dirname(x)
 
         cuda_bin = r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.0\bin"
 

@@ -158,3 +158,9 @@ cython_debug/
 
 # Project Specific
 src/env_doctor/compatibility_1.json
+CLAUDE.md
+TODO.md
+test.py
+venv-wsl
+cuda_12.2.0_535.54.03_linux.run
+

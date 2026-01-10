@@ -25,6 +25,7 @@ It takes **5 seconds** to find out if your environment is broken — and exactly
 | **⚡ One-Command Diagnosis** | Instantly check compatibility between GPU Driver → CUDA Toolkit → cuDNN → PyTorch/TensorFlow/JAX |
 | **🔧 Deep CUDA Analysis** | `cuda-info` reveals multiple installations, PATH issues, environment misconfigurations |
 | **🧠 cuDNN Detection** | `cudnn-info` finds cuDNN libraries, validates symlinks, checks version compatibility |
+| **🐳 Container Validation** | `dockerfile` & `docker-compose` commands catch GPU config errors before you build/deploy |
 | **🐧 WSL2 GPU Support** | Detects WSL1/WSL2 environments, validates GPU forwarding, catches common driver conflicts |
 | **🛠️ Compilation Guard** | Warns if system `nvcc` doesn't match PyTorch's CUDA — preventing flash-attention build failures |
 | **💊 Safe Install Commands** | Prescribes the exact `pip install` command that works with YOUR driver |
@@ -107,7 +108,93 @@ env-doctor cudnn-info
 *   PATH configuration (Windows)
 *   CUDA compatibility status
 
-### 6️⃣ Debug Mode (Troubleshooting)
+### 6️⃣ Validate Dockerfiles
+Check your Dockerfile for GPU/CUDA configuration issues before building.
+
+```bash
+env-doctor dockerfile
+```
+
+**What it validates:**
+*   **Base Images**: Detects CPU-only images (python:*, ubuntu:*) that won't work with GPU
+*   **PyTorch Installs**: Ensures `pip install torch` has the correct `--index-url`
+*   **TensorFlow Setup**: Validates `tensorflow[and-cuda]` usage
+*   **Driver Installation**: Flags forbidden NVIDIA driver installs (must be on host, not container)
+*   **CUDA Toolkit**: Warns about unnecessary toolkit installs that bloat images
+*   **Version Matching**: Checks CUDA version consistency between base image and pip installs
+
+*Example Output:*
+```bash
+🐳  DOCKERFILE VALIDATION: Dockerfile
+============================================================
+
+❌  ERRORS (2):
+------------------------------------------------------------
+
+Line 1:
+  Issue: CPU-only base image detected: python:3.10
+  Fix:   Use a GPU-enabled base image
+
+  Suggested fix:
+    FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
+    # Or: FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
+    # Or: FROM tensorflow/tensorflow:latest-gpu
+
+Line 8:
+  Issue: PyTorch installation missing --index-url flag
+  Fix:   Add --index-url to install the correct CUDA version
+
+SUMMARY:
+  ❌ Errors:   2
+  ⚠️  Warnings: 1
+  ℹ️  Info:     0
+```
+
+### 7️⃣ Validate Docker Compose Files
+Check your docker-compose.yml for proper GPU device configuration.
+
+```bash
+env-doctor docker-compose
+```
+
+**What it validates:**
+*   **GPU Device Config**: Ensures `deploy.resources.reservations.devices` is set correctly
+*   **Driver Setting**: Validates `driver: nvidia` is specified
+*   **Capabilities**: Checks for `capabilities: [gpu]`
+*   **Deprecated Syntax**: Flags old `runtime: nvidia` approach
+*   **Multi-Service Conflicts**: Warns about GPU resource sharing between services
+*   **Host Requirements**: Checks for nvidia-container-toolkit
+
+*Example Output:*
+```bash
+🐳  DOCKER COMPOSE VALIDATION: docker-compose.yml
+============================================================
+
+❌  ERRORS (1):
+------------------------------------------------------------
+
+Service 'ml-training':
+  Issue: Missing GPU device configuration
+  Fix:   Add GPU device configuration under deploy.resources.reservations.devices
+
+  Suggested fix:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+⚠️   WARNINGS (1):
+------------------------------------------------------------
+
+Service 'legacy-app':
+  Issue: Deprecated 'runtime: nvidia' syntax
+  Fix:   Use the new 'deploy.resources.reservations.devices' syntax instead
+```
+
+### 8️⃣ Debug Mode (Troubleshooting)
 Get detailed information from all detectors for troubleshooting and development.
 
 ```bash
@@ -179,6 +266,8 @@ Env-Doctor provides comprehensive WSL2 environment detection and GPU forwarding 
 env-doctor check              # Diagnose your environment
 env-doctor cuda-info          # Detailed CUDA toolkit analysis
 env-doctor cudnn-info         # Detailed cuDNN library analysis
+env-doctor dockerfile         # Validate Dockerfile for GPU issues
+env-doctor docker-compose     # Validate docker-compose.yml for GPU issues
 env-doctor install torch      # Get safe install command for PyTorch
 env-doctor scan               # Scan project for AI library imports
 env-doctor debug              # Show detailed detector information

@@ -26,6 +26,9 @@ from .detectors.python_libraries import PythonLibraryDetector
 from .detectors.wsl2 import WSL2Detector
 from .detectors.cudnn import CudnnDetector
 
+# Import model checker for model compatibility
+from .utilities import ModelChecker
+
 def check_compilation_health(cuda_result, torch_result):
     """
     Check if system CUDA matches PyTorch CUDA for compilation compatibility.
@@ -676,11 +679,177 @@ def _print_validation_result(result):
         print("\n⚠️   Validation passed with warnings. Review before deploying.")
     else:
         print("\n✅  All checks passed!")
+def model_command(model_name: str, precision: str = None):
+    """
+    Check if a model can run on available hardware.
+
+    Args:
+        model_name: Name of the model to check
+        precision: Optional specific precision to check
+    """
+    checker = ModelChecker()
+    result = checker.check_compatibility(model_name, precision)
+
+    if not result["success"]:
+        print(f"\n❌  {result['error']}")
+        if result.get("suggestions"):
+            print(f"\n💡  Did you mean:")
+            for sugg in result["suggestions"]:
+                print(f"    • {sugg}")
+            print(f"\n    Run 'env-doctor model --list' to see all available models")
+        print()
+        return
+
+    print_model_compatibility(result)
+
+
+def print_model_compatibility(result: dict):
+    """
+    Pretty-print model compatibility analysis.
+
+    Args:
+        result: Compatibility check result from ModelChecker
+    """
+    model_info = result["model_info"]
+    gpu_info = result["gpu_info"]
+    vram_reqs = result["vram_requirements"]
+    compat = result["compatibility"]
+    recs = result["recommendations"]
+
+    # Header
+    print(f"\n🤖  Checking: {result['model_name'].upper()}")
+    print(f"    Parameters: {model_info['params_b']}B")
+    if model_info.get("hf_id"):
+        print(f"    HuggingFace: {model_info['hf_id']}")
+
+    # GPU Info
+    print(f"\n🖥️   Your Hardware:")
+    if gpu_info["available"]:
+        if gpu_info["gpu_count"] == 1:
+            print(
+                f"    {gpu_info['primary_gpu_name']} "
+                f"({gpu_info['primary_gpu_vram_mb'] // 1024}GB VRAM)"
+            )
+        else:
+            print(f"    {gpu_info['gpu_count']}x {gpu_info['primary_gpu_name']}")
+            print(f"    Total VRAM: {gpu_info['total_vram_mb'] // 1024}GB")
+    else:
+        print(f"    ❌ No NVIDIA GPU detected")
+
+    # Compatibility Table
+    print(f"\n" + "=" * 60)
+    print(f"💾  VRAM Requirements & Compatibility")
+    print("=" * 60)
+
+    if compat.get("no_gpu_available"):
+        print("\n❌  No GPU available - cannot run this model locally\n")
+    else:
+        fits_any = False
+
+        for precision in ["fp32", "fp16", "bf16", "int8", "int4", "fp8"]:
+            if precision not in vram_reqs:
+                continue
+
+            req_info = vram_reqs[precision]
+            fit_info = compat["fits_on_single_gpu"][precision]
+
+            required_mb = req_info["vram_mb"]
+            required_gb = required_mb / 1024
+            source = req_info["source"]
+            source_indicator = "" if source == "measured" else "~"
+
+            if fit_info["fits"]:
+                free_gb = fit_info["free_vram_mb"] / 1024
+                print(
+                    f"  ✅  {precision.upper():5s}: "
+                    f"{source_indicator}{required_gb:6.1f}GB ({source:9s}) - "
+                    f"{free_gb:5.1f}GB free"
+                )
+                fits_any = True
+            else:
+                shortage_gb = fit_info["shortage_mb"] / 1024
+                print(
+                    f"  ❌  {precision.upper():5s}: "
+                    f"{source_indicator}{required_gb:6.1f}GB ({source:9s}) - "
+                    f"Need {shortage_gb:5.1f}GB more"
+                )
+
+        # Overall status
+        print("\n" + "=" * 60)
+        if fits_any:
+            print("✅  This model WILL FIT on your GPU!\n")
+        else:
+            print("❌  This model WON'T FIT on your GPU\n")
+
+    # Recommendations
+    if recs:
+        print("💡  Recommendations:")
+        print("=" * 60)
+        for i, rec in enumerate(recs, 1):
+            print(f"{i}. {rec}")
+        print()
+
+    # Reference
+    if model_info.get("hf_id"):
+        print("=" * 60)
+        print("📚  Reference:")
+        print(f"    https://huggingface.co/{model_info['hf_id']}")
+        print("=" * 60)
+
+
+def list_models_command():
+    """
+    List all available models in database.
+    """
+    from .utilities import VRAMCalculator
+
+    calc = VRAMCalculator()
+    models_by_category = calc.list_all_models()
+
+    print("\n📋  Available Models in Database")
+    print("=" * 60)
+
+    category_names = {
+        "llm": "🧠  Large Language Models (LLMs)",
+        "diffusion": "🎨  Diffusion Models (Image Generation)",
+        "audio": "🔊  Audio Models (Speech Recognition)",
+        "language": "📝  Language Models (Text Processing)",
+    }
+
+    for category in ["llm", "diffusion", "audio", "language"]:
+        if category not in models_by_category:
+            continue
+
+        print(f"\n{category_names.get(category, category.upper())}")
+        print("-" * 60)
+
+        for model in sorted(
+            models_by_category[category], key=lambda x: x["params_b"]
+        ):
+            name = model["name"]
+            params = model["params_b"]
+            print(f"  • {name:30s} ({params:6.1f}B params)")
+
+    print("\n" + "=" * 60)
+    print("💡  Usage:")
+    print("    env-doctor model <model-name>")
+    print("    env-doctor model <model-name> --precision int4")
+    print("\n📖  To add models:")
+    print("    See docs/ADDING_MODELS.md")
+    print("=" * 60 + "\n")
 
 
 # Update main() to add new command
 def main():
     """Main entry point with argument parsing."""
+    # Enable UTF-8 output on Windows
+    import sys
+    if sys.platform == "win32":
+        # Configure stdout to use UTF-8
+        import io
+        if sys.stdout.encoding != "utf-8":
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+
     parser = argparse.ArgumentParser(
         description="env-doctor: The AI Environment Fixer",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -691,6 +860,8 @@ Examples:
   env-doctor cudnn-info         # Detailed cuDNN library analysis
   env-doctor dockerfile         # Validate Dockerfile for GPU issues
   env-doctor docker-compose     # Validate docker-compose.yml for GPU issues
+  env-doctor model llama-3-8b   # Check if model fits on your GPU
+  env-doctor model --list       # List all available models
   env-doctor install torch      # Get safe install command for PyTorch
   env-doctor scan               # Scan project for AI library imports
   env-doctor debug              # Show detailed detector information
@@ -763,6 +934,27 @@ Examples:
         help="Show detailed detector information (for troubleshooting)"
     )
 
+    # Model command
+    model_p = subparsers.add_parser(
+        "model",
+        help="Check if AI model fits on your GPU"
+    )
+    model_p.add_argument(
+        "model_name",
+        nargs="?",
+        help="Model name (e.g., llama-3-8b, stable-diffusion-xl)"
+    )
+    model_p.add_argument(
+        "--precision",
+        choices=["fp32", "fp16", "bf16", "int8", "int4", "fp8"],
+        help="Check specific precision (default: show all)"
+    )
+    model_p.add_argument(
+        "--list",
+        action="store_true",
+        help="List all available models"
+    )
+
     args = parser.parse_args()
 
     # Route to appropriate command
@@ -776,6 +968,13 @@ Examples:
         dockerfile_command(args.path)
     elif args.command == "docker-compose":
         docker_compose_command(args.path)
+    elif args.command == "model":
+        if args.list:
+            list_models_command()
+        elif args.model_name:
+            model_command(args.model_name, args.precision)
+        else:
+            model_p.print_help()
     elif args.command == "install":
         install_command(args.library)
     elif args.command == "scan":

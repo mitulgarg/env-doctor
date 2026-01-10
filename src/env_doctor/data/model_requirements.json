@@ -1,0 +1,249 @@
+{
+  "_metadata": {
+    "version": "1.0",
+    "last_updated": "2026-01-10",
+    "description": "AI model VRAM requirements - hybrid measured + calculated values",
+    "sources": [
+      "HuggingFace model cards",
+      "Community measurements",
+      "Empirical testing",
+      "Official documentation"
+    ]
+  },
+  "models": {
+    "llama-3-8b": {
+      "params_b": 8.0,
+      "category": "llm",
+      "family": "llama-3",
+      "hf_id": "meta-llama/Meta-Llama-3-8B",
+      "vram": {
+        "fp16": 19200,
+        "int4": 4800
+      },
+      "notes": "Instruction-tuned variant, best for instruction following"
+    },
+    "llama-3-70b": {
+      "params_b": 70.0,
+      "category": "llm",
+      "family": "llama-3",
+      "hf_id": "meta-llama/Meta-Llama-3-70B",
+      "vram": {
+        "fp16": 140000,
+        "int4": 35000
+      },
+      "notes": "Large model, requires multi-GPU or significant VRAM"
+    },
+    "llama-3.1-8b": {
+      "params_b": 8.0,
+      "category": "llm",
+      "family": "llama-3",
+      "hf_id": "meta-llama/Meta-Llama-3.1-8B"
+    },
+    "llama-3.1-70b": {
+      "params_b": 70.0,
+      "category": "llm",
+      "family": "llama-3",
+      "hf_id": "meta-llama/Meta-Llama-3.1-70B"
+    },
+    "llama-3.1-405b": {
+      "params_b": 405.0,
+      "category": "llm",
+      "family": "llama-3",
+      "hf_id": "meta-llama/Meta-Llama-3.1-405B",
+      "notes": "Ultra-large model, requires 8+ GPUs or cloud infrastructure"
+    },
+    "mistral-7b": {
+      "params_b": 7.0,
+      "category": "llm",
+      "family": "mistral",
+      "hf_id": "mistralai/Mistral-7B-v0.1",
+      "vram": {
+        "int4": 4000
+      },
+      "notes": "Efficient 7B model, excellent for resource-constrained setups"
+    },
+    "mistral-7b-instruct": {
+      "params_b": 7.0,
+      "category": "llm",
+      "family": "mistral",
+      "hf_id": "mistralai/Mistral-7B-Instruct-v0.2"
+    },
+    "mixtral-8x7b": {
+      "params_b": 46.7,
+      "category": "llm",
+      "family": "mixtral",
+      "hf_id": "mistralai/Mixtral-8x7B-v0.1",
+      "notes": "Mixture of Experts: 46.7B total parameters, 12.9B active"
+    },
+    "mixtral-8x22b": {
+      "params_b": 176.0,
+      "category": "llm",
+      "family": "mixtral",
+      "hf_id": "mistral-community/Mixtral-8x22B-v0.1",
+      "vram": {
+        "fp16": 263000
+      },
+      "notes": "Large MoE model, requires significant VRAM"
+    },
+    "qwen-7b": {
+      "params_b": 7.0,
+      "category": "llm",
+      "family": "qwen",
+      "hf_id": "Qwen/Qwen-7B",
+      "notes": "Alibaba's Qwen model"
+    },
+    "qwen-14b": {
+      "params_b": 14.0,
+      "category": "llm",
+      "family": "qwen",
+      "hf_id": "Qwen/Qwen-14B"
+    },
+    "qwen-72b": {
+      "params_b": 72.0,
+      "category": "llm",
+      "family": "qwen",
+      "hf_id": "Qwen/Qwen-72B",
+      "notes": "Large variant, requires multi-GPU setup"
+    },
+    "stable-diffusion-1.5": {
+      "params_b": 0.9,
+      "category": "diffusion",
+      "family": "stable-diffusion",
+      "hf_id": "runwayml/stable-diffusion-v1-5",
+      "vram": {
+        "fp16": 4000
+      },
+      "notes": "Original Stable Diffusion, lightweight"
+    },
+    "stable-diffusion-xl": {
+      "params_b": 3.5,
+      "category": "diffusion",
+      "family": "stable-diffusion",
+      "hf_id": "stabilityai/stable-diffusion-xl-base-1.0",
+      "vram": {
+        "fp16": 8000
+      },
+      "notes": "SDXL base model, improved quality over v1.5"
+    },
+    "stable-diffusion-xl-turbo": {
+      "params_b": 3.5,
+      "category": "diffusion",
+      "family": "stable-diffusion",
+      "hf_id": "stabilityai/stable-diffusion-xl-turbo",
+      "notes": "Fast SDXL variant for real-time generation"
+    },
+    "stable-diffusion-3": {
+      "params_b": 2.0,
+      "category": "diffusion",
+      "family": "stable-diffusion",
+      "hf_id": "stabilityai/stable-diffusion-3-medium",
+      "notes": "Latest Stable Diffusion 3 variant"
+    },
+    "flux-dev": {
+      "params_b": 12.0,
+      "category": "diffusion",
+      "family": "flux",
+      "hf_id": "black-forest-labs/FLUX.1-dev",
+      "vram": {
+        "fp8": 16000,
+        "int4": 4000
+      },
+      "notes": "Black Forest Labs Flux model, requires significant VRAM for fp8"
+    },
+    "flux-schnell": {
+      "params_b": 3.5,
+      "category": "diffusion",
+      "family": "flux",
+      "hf_id": "black-forest-labs/FLUX.1-schnell",
+      "notes": "Faster Flux variant"
+    },
+    "whisper-tiny": {
+      "params_b": 0.039,
+      "category": "audio",
+      "family": "whisper",
+      "hf_id": "openai/whisper-tiny",
+      "notes": "Tiny speech recognition model, runs on CPU"
+    },
+    "whisper-base": {
+      "params_b": 0.074,
+      "category": "audio",
+      "family": "whisper",
+      "hf_id": "openai/whisper-base",
+      "notes": "Base speech recognition model"
+    },
+    "whisper-small": {
+      "params_b": 0.244,
+      "category": "audio",
+      "family": "whisper",
+      "hf_id": "openai/whisper-small"
+    },
+    "whisper-medium": {
+      "params_b": 0.769,
+      "category": "audio",
+      "family": "whisper",
+      "hf_id": "openai/whisper-medium"
+    },
+    "whisper-large": {
+      "params_b": 1.55,
+      "category": "audio",
+      "family": "whisper",
+      "hf_id": "openai/whisper-large"
+    },
+    "whisper-large-v3": {
+      "params_b": 1.55,
+      "category": "audio",
+      "family": "whisper",
+      "hf_id": "openai/whisper-large-v3",
+      "notes": "Latest Whisper model with improved multilingual support"
+    },
+    "bert-base": {
+      "params_b": 0.11,
+      "category": "language",
+      "family": "bert",
+      "hf_id": "bert-base-uncased",
+      "notes": "BERT base model, very lightweight"
+    },
+    "bert-large": {
+      "params_b": 0.34,
+      "category": "language",
+      "family": "bert",
+      "hf_id": "bert-large-uncased"
+    },
+    "t5-small": {
+      "params_b": 0.06,
+      "category": "language",
+      "family": "t5",
+      "hf_id": "t5-small",
+      "notes": "Smallest T5 variant"
+    },
+    "t5-base": {
+      "params_b": 0.22,
+      "category": "language",
+      "family": "t5",
+      "hf_id": "t5-base"
+    },
+    "t5-large": {
+      "params_b": 0.74,
+      "category": "language",
+      "family": "t5",
+      "hf_id": "t5-large",
+      "notes": "Largest standard T5 variant"
+    }
+  },
+  "aliases": {
+    "llama3-8b": "llama-3-8b",
+    "llama-8b": "llama-3-8b",
+    "llama3-70b": "llama-3-70b",
+    "llama-70b": "llama-3-70b",
+    "llama3-405b": "llama-3.1-405b",
+    "mistral-7b-v01": "mistral-7b",
+    "mixtral-moe": "mixtral-8x7b",
+    "sd-1.5": "stable-diffusion-1.5",
+    "sdv1.5": "stable-diffusion-1.5",
+    "sd-xl": "stable-diffusion-xl",
+    "sdxl": "stable-diffusion-xl",
+    "sd3": "stable-diffusion-3",
+    "flux": "flux-dev",
+    "flux-1": "flux-dev"
+  }
+}

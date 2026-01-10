@@ -3,3 +3,4 @@ include LICENSE
 include pyproject.toml
 include src/env_doctor/compatibility.json
 include src/env_doctor/migrations.json
+include src/env_doctor/data/model_requirements.json

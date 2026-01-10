@@ -25,6 +25,7 @@ It takes **5 seconds** to find out if your environment is broken — and exactly
 | **⚡ One-Command Diagnosis** | Instantly check compatibility between GPU Driver → CUDA Toolkit → cuDNN → PyTorch/TensorFlow/JAX |
 | **🔧 Deep CUDA Analysis** | `cuda-info` reveals multiple installations, PATH issues, environment misconfigurations |
 | **🧠 cuDNN Detection** | `cudnn-info` finds cuDNN libraries, validates symlinks, checks version compatibility |
+| **🤖 AI Model Compatibility** | Check if your GPU can run any model (LLMs, Diffusion, Audio) before downloading |
 | **🐧 WSL2 GPU Support** | Detects WSL1/WSL2 environments, validates GPU forwarding, catches common driver conflicts |
 | **🛠️ Compilation Guard** | Warns if system `nvcc` doesn't match PyTorch's CUDA — preventing flash-attention build failures |
 | **💊 Safe Install Commands** | Prescribes the exact `pip install` command that works with YOUR driver |
@@ -107,7 +108,68 @@ env-doctor cudnn-info
 *   PATH configuration (Windows)
 *   CUDA compatibility status
 
-### 6️⃣ Debug Mode (Troubleshooting)
+### 6️⃣ Check AI Model Compatibility
+Before downloading a 40GB+ model, find out if it will run on your GPU!
+
+```bash
+env-doctor model llama-3-8b
+```
+
+**What it checks:**
+*   **Model Parameters**: LLMs, Diffusion models, Audio models, and more
+*   **VRAM Requirements**: Calculates VRAM needed for each precision (fp32, fp16, int8, int4)
+*   **GPU Availability**: Detects your GPU and available VRAM
+*   **Compatibility Analysis**: Shows which precisions fit on your hardware
+*   **Smart Recommendations**: Suggests smaller variants or multi-GPU setup if needed
+
+**List all available models:**
+```bash
+env-doctor model --list
+```
+
+**Check specific precision:**
+```bash
+env-doctor model stable-diffusion-xl --precision int4
+```
+
+**Example Output:**
+```
+🤖  Checking: LLAMA-3-8B
+    Parameters: 8.0B
+    HuggingFace: meta-llama/Meta-Llama-3-8B
+
+🖥️   Your Hardware:
+    RTX 3090 (24GB VRAM)
+
+============================================================
+💾  VRAM Requirements & Compatibility
+============================================================
+
+  ✅  FP16: 19.2GB (measured) - 4.8GB free
+  ✅  INT4:  4.8GB (estimated) - 19.2GB free
+
+============================================================
+✅  This model WILL FIT on your GPU!
+============================================================
+
+💡  Recommendations:
+1. Use fp16 for best quality on your GPU
+```
+
+**Supported Models:**
+- **LLMs**: Llama-3, Mistral, Mixtral, Qwen (8B-405B parameters)
+- **Diffusion**: Stable Diffusion 1.5/XL, Flux, Stable Diffusion 3
+- **Audio**: Whisper (tiny to large-v3)
+- **Language**: BERT, T5 (for embeddings and text encoding)
+
+**Key Features:**
+- Measured VRAM for popular models (most accurate)
+- Formula-based estimation for new models
+- Multi-GPU support (total VRAM calculation)
+- Alias support (e.g., "sdxl" → "stable-diffusion-xl")
+- Family variants (e.g., suggest llama-3-8b when 70b won't fit)
+
+### 7️⃣ Debug Mode (Troubleshooting)
 Get detailed information from all detectors for troubleshooting and development.
 
 ```bash
@@ -179,6 +241,8 @@ Env-Doctor provides comprehensive WSL2 environment detection and GPU forwarding 
 env-doctor check              # Diagnose your environment
 env-doctor cuda-info          # Detailed CUDA toolkit analysis
 env-doctor cudnn-info         # Detailed cuDNN library analysis
+env-doctor model llama-3-8b   # Check if model fits on your GPU
+env-doctor model --list       # List all available models
 env-doctor install torch      # Get safe install command for PyTorch
 env-doctor scan               # Scan project for AI library imports
 env-doctor debug              # Show detailed detector information

@@ -25,6 +25,7 @@ dependencies = [
     "packaging",
     "click",
     "requests",  # Required for fetching the database from GitHub
+    "pyyaml",    # Required for docker-compose validation
 ]
 
 [project.scripts]

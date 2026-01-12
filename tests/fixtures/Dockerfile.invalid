@@ -1,0 +1,18 @@
+# Invalid Dockerfile with multiple GPU issues
+FROM python:3.10
+
+# Install NVIDIA driver (WRONG - should never be in container)
+RUN apt-get update && apt-get install -y nvidia-driver-535
+
+# Install PyTorch WITHOUT --index-url (WRONG)
+RUN pip install torch torchvision
+
+# Install CUDA toolkit (WARNING - may be unnecessary)
+RUN apt-get install -y cuda-toolkit-12-1
+
+# Install TensorFlow without GPU support
+RUN pip install tensorflow
+
+COPY . .
+
+CMD ["python3", "app.py"]

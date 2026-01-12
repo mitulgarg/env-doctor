@@ -580,6 +580,105 @@ def cudnn_info_command():
     print_cudnn_detailed_info(cudnn_result)
 
 
+def dockerfile_command(dockerfile_path: str = "Dockerfile"):
+    """
+    Validate a Dockerfile for GPU/CUDA configuration issues.
+
+    Args:
+        dockerfile_path: Path to Dockerfile (default: ./Dockerfile)
+    """
+    from .validators.dockerfile_validator import DockerfileValidator
+
+    print(f"\n🐳  DOCKERFILE VALIDATION: {dockerfile_path}")
+    print("="*60)
+
+    validator = DockerfileValidator(dockerfile_path)
+    result = validator.validate()
+
+    _print_validation_result(result)
+
+    # Exit with error code if errors found
+    sys.exit(1 if result.error_count > 0 else 0)
+
+
+def docker_compose_command(compose_path: str = "docker-compose.yml"):
+    """
+    Validate a docker-compose.yml for GPU configuration issues.
+
+    Args:
+        compose_path: Path to docker-compose.yml (default: ./docker-compose.yml)
+    """
+    from .validators.compose_validator import ComposeValidator
+
+    print(f"\n🐳  DOCKER COMPOSE VALIDATION: {compose_path}")
+    print("="*60)
+
+    validator = ComposeValidator(compose_path)
+    result = validator.validate()
+
+    _print_validation_result(result)
+
+    # Exit with error code if errors found
+    sys.exit(1 if result.error_count > 0 else 0)
+
+
+def _print_validation_result(result):
+    """
+    Print a validation result with colorized, grouped output.
+
+    Args:
+        result: ValidationResult object
+    """
+    from .validators.models import Severity
+
+    if not result.issues:
+        print("\n✅  No issues found! Configuration looks good.")
+        return
+
+    # Print issues grouped by severity
+    for severity in [Severity.ERROR, Severity.WARNING, Severity.INFO]:
+        issues = result.get_issues_by_severity(severity)
+        if not issues:
+            continue
+
+        # Severity header with emoji
+        if severity == Severity.ERROR:
+            print(f"\n❌  ERRORS ({len(issues)}):")
+        elif severity == Severity.WARNING:
+            print(f"\n⚠️   WARNINGS ({len(issues)}):")
+        else:
+            print(f"\nℹ️   INFO ({len(issues)}):")
+
+        print("-" * 60)
+
+        # Print each issue
+        for issue in issues:
+            if issue.line_number > 0:
+                print(f"\nLine {issue.line_number}:")
+            else:
+                print()
+
+            print(f"  Issue: {issue.issue}")
+            print(f"  Fix:   {issue.recommendation}")
+
+            if issue.corrected_command:
+                print(f"\n  Suggested fix:")
+                for line in issue.corrected_command.split('\n'):
+                    print(f"    {line}")
+
+    # Print summary
+    print("\n" + "="*60)
+    print("SUMMARY:")
+    print(f"  ❌ Errors:   {result.error_count}")
+    print(f"  ⚠️  Warnings: {result.warning_count}")
+    print(f"  ℹ️  Info:     {result.info_count}")
+
+    if result.error_count > 0:
+        print("\n❌  Validation FAILED. Fix errors before deploying.")
+    elif result.warning_count > 0:
+        print("\n⚠️   Validation passed with warnings. Review before deploying.")
+    else:
+        print("\n✅  All checks passed!")
 def model_command(model_name: str, precision: str = None):
     """
     Check if a model can run on available hardware.
@@ -759,6 +858,8 @@ Examples:
   env-doctor check              # Diagnose your environment
   env-doctor cuda-info          # Detailed CUDA toolkit analysis
   env-doctor cudnn-info         # Detailed cuDNN library analysis
+  env-doctor dockerfile         # Validate Dockerfile for GPU issues
+  env-doctor docker-compose     # Validate docker-compose.yml for GPU issues
   env-doctor model llama-3-8b   # Check if model fits on your GPU
   env-doctor model --list       # List all available models
   env-doctor install torch      # Get safe install command for PyTorch
@@ -786,14 +887,38 @@ Examples:
         "cudnn-info",
         help="Detailed cuDNN library analysis"
     )
-    
+
+    # Dockerfile validation command (NEW)
+    dockerfile_p = subparsers.add_parser(
+        "dockerfile",
+        help="Validate Dockerfile for GPU/CUDA configuration issues"
+    )
+    dockerfile_p.add_argument(
+        "path",
+        nargs="?",
+        default="Dockerfile",
+        help="Path to Dockerfile (default: ./Dockerfile)"
+    )
+
+    # Docker Compose validation command (NEW)
+    compose_p = subparsers.add_parser(
+        "docker-compose",
+        help="Validate docker-compose.yml for GPU configuration issues"
+    )
+    compose_p.add_argument(
+        "path",
+        nargs="?",
+        default="docker-compose.yml",
+        help="Path to docker-compose.yml (default: ./docker-compose.yml)"
+    )
+
     # Install command
     install_p = subparsers.add_parser(
-        "install", 
+        "install",
         help="Get safe installation command for a library"
     )
     install_p.add_argument(
-        "library", 
+        "library",
         help="Library name (e.g., torch, tensorflow, jax)"
     )
 
@@ -839,6 +964,10 @@ Examples:
         cuda_info_command()
     elif args.command == "cudnn-info":
         cudnn_info_command()
+    elif args.command == "dockerfile":
+        dockerfile_command(args.path)
+    elif args.command == "docker-compose":
+        docker_compose_command(args.path)
     elif args.command == "model":
         if args.list:
             list_models_command()

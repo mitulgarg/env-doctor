@@ -1,0 +1,18 @@
+# Multi-stage Dockerfile - should validate final stage only
+FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 AS builder
+
+WORKDIR /build
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+# Final stage with proper GPU base
+FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
+
+WORKDIR /app
+COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+COPY . .
+
+# Proper PyTorch install
+RUN pip install torch --index-url https://download.pytorch.org/whl/cu121
+
+CMD ["python3", "app.py"]

@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  # Service with deprecated runtime syntax
+  old-style:
+    image: nvidia/cuda:12.1.0-runtime-ubuntu22.04
+    runtime: nvidia
+    command: python /app/main.py
+
+  # Service with GPU image but missing GPU config
+  missing-config:
+    image: pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
+    command: python /app/train.py
+
+  # Service with wrong driver
+  wrong-driver:
+    image: tensorflow/tensorflow:latest-gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: amd
+              count: 1
+              capabilities: [gpu]

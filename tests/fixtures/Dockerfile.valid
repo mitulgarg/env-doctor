@@ -1,0 +1,17 @@
+# Valid Dockerfile with proper GPU configuration
+FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
+
+# Set working directory
+WORKDIR /app
+
+# Install Python
+RUN apt-get update && apt-get install -y python3-pip
+
+# Install PyTorch with correct --index-url
+RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+
+# Copy application code
+COPY . .
+
+# Run the application
+CMD ["python3", "app.py"]

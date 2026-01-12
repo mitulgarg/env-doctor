@@ -5,7 +5,7 @@ import requests
 
 # 1. The URL where your Scraper pushes the latest data
 
-REMOTE_URL = "https://raw.githubusercontent.com/mitulgarg/env-doctor/main/src/env_doctor/compatibility.json"
+REMOTE_URL = "https://raw.githubusercontent.com/mitulgarg/env-doctor/main/src/env_doctor/data/compatibility.json"
 
 # 2. Local Cache File (in user's home dir) so we don't hit GitHub every single run
 CACHE_FILE = os.path.expanduser("~/.env_doctor_cache.json")
@@ -16,7 +16,7 @@ CACHE_TTL = 24 * 60 * 60
 def load_bundled_json():
     """Loads the 'Factory Default' JSON shipped with the package."""
     base_path = os.path.dirname(os.path.abspath(__file__))
-    json_path = os.path.join(base_path, "compatibility.json")
+    json_path = os.path.join(base_path, "data", "compatibility.json")
     try:
         with open(json_path, "r") as f:
             return json.load(f)

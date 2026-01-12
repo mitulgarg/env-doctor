@@ -65,7 +65,7 @@ def scan_imports_in_folder(folder_path="."):
 
 def load_migrations():
     base_path = os.path.dirname(os.path.abspath(__file__))
-    json_path = os.path.join(base_path, "migrations.json")
+    json_path = os.path.join(base_path, "data", "migrations.json")
     try:
         with open(json_path, "r") as f: return json.load(f)
     except FileNotFoundError: return {}

@@ -39,7 +39,7 @@ else:
 # We use absolute paths to ensure it finds the file regardless of where you run it
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-DB_PATH = os.path.join(PROJECT_ROOT, "src", "env_doctor", "compatibility.json")
+DB_PATH = os.path.join(PROJECT_ROOT, "src", "env_doctor", "data", "compatibility.json")
 
 # Logic wrapper to handle Modal existence
 def run_remote_verification(command):

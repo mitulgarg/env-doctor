@@ -344,6 +344,50 @@ env-doctor debug              # Show detailed detector information
 *   **The CLI**: `cli.py` orchestrates all detectors and presents unified diagnostics.
 *   **The Updater**: `db.py` fetches the latest rules from GitHub so you don't need to update the package daily.
 
+## 🔄 Automated Database Updates
+
+Env-Doctor maintains an up-to-date compatibility database through an **automated scraping and validation system**, designed for **future ease of maintainability** while preserving human oversight.
+
+### How It Works
+
+1. **Automated Scraping** (`tools/scraper.py`)
+   - GitHub Actions workflow runs periodically to scrape official PyTorch/TensorFlow/JAX documentation
+   - Extracts latest CUDA compatibility mappings and verified wheel URLs
+   - Updates `compatibility.json` with new versions and URLs
+
+2. **Validation Layer** (`tools/validator.py`) *#BETA-Not-Implemented*
+   - Automatically validates the scraped data structure with cloud GPUs before committing
+   - Ensures version strings are parseable and URLs are well-formed
+   - Catches malformed entries that could break the tool
+
+3. **Human Verification via PR Merge**
+   - Automated updates create pull requests (not auto-merged)
+   - Maintainers review changes before merging to ensure quality
+   - Community members can flag issues or suggest corrections
+   - Provides transparency and accountability for database changes
+
+### Community-Driven Contributions Preferred
+
+While automation handles routine updates, **community contributions are highly valued** for:
+- **Edge Case Detection**: Real-world users catching compatibility issues the scraper misses
+- **Platform-Specific Issues**: WSL2, conda environments, or unusual driver configurations
+- **New Library Support**: Adding new AI frameworks or tools
+- **Verification**: Testing that recommended install commands actually work
+
+This hybrid approach combines automation for maintainability with community oversight for accuracy.
+
+### Running the Tools Locally
+
+```bash
+# Scrape latest compatibility data
+python tools/scraper.py
+
+# Validate the database structure
+python tools/validator.py
+
+# Both tools are also run automatically by GitHub Actions (.github/workflows/update_db.yml)
+```
+
 ## 🤝 Contributing
 
 We love contributions! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to submit pull requests and our development setup.

@@ -1,0 +1,89 @@
+# Example GitHub Actions workflow for validating ML environment
+# Place this file in .github/workflows/ in your repository
+
+name: Validate ML Environment
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install env-doctor
+        run: |
+          pip install env-doctor
+
+      - name: Validate environment
+        run: |
+          env-doctor check --ci
+        # The --ci flag:
+        # - Outputs JSON for machine parsing
+        # - Returns proper exit codes (0 = pass, 1 = warnings, 2 = errors)
+        # - Fails the build if critical issues are detected
+
+      - name: Parse results (optional)
+        if: always()
+        run: |
+          # Store results for analysis
+          env-doctor check --json > env-report.json
+
+          # Example: Extract specific information
+          DRIVER_STATUS=$(cat env-report.json | jq -r '.checks.driver.status')
+          echo "Driver status: $DRIVER_STATUS"
+
+          CUDA_VERSION=$(cat env-report.json | jq -r '.checks.cuda.version // "not found"')
+          echo "CUDA version: $CUDA_VERSION"
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: env-doctor-report
+          path: env-report.json
+
+  # Example: Run only on GPU runners
+  validate-gpu:
+    runs-on: [self-hosted, gpu]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install env-doctor
+        run: pip install env-doctor
+
+      - name: Comprehensive GPU check
+        run: |
+          # Full diagnostics in CI mode
+          env-doctor check --ci
+
+          # Get detailed CUDA info as JSON
+          env-doctor cuda-info --json > cuda-report.json
+
+          # Validate Dockerfile if present
+          if [ -f Dockerfile ]; then
+            env-doctor dockerfile
+          fi
+
+      - name: Conditional installation
+        run: |
+          # Install appropriate PyTorch version based on detection
+          if env-doctor check --json | jq -e '.checks.driver.detected'; then
+            echo "GPU detected, installing GPU PyTorch"
+            pip install torch torchvision
+          else
+            echo "No GPU, installing CPU-only PyTorch"
+            pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          fi

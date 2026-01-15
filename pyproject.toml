@@ -10,6 +10,7 @@ readme = "README.md"
 license = { file = "LICENSE" }
 authors = [
   { name = "Mitul Garg", email = "mitulgarg3@gmail.com" },
+  { name = "Tharun Anand", email = "atharun05@gmail.com" },
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

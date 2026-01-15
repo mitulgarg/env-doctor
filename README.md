@@ -25,7 +25,7 @@ It takes **5 seconds** to find out if your environment is broken — and exactly
 | **⚡ One-Command Diagnosis** | Instantly check compatibility between GPU Driver → CUDA Toolkit → cuDNN → PyTorch/TensorFlow/JAX |
 | **🔧 Deep CUDA Analysis** | `cuda-info` reveals multiple installations, PATH issues, environment misconfigurations |
 | **🧠 cuDNN Detection** | `cudnn-info` finds cuDNN libraries, validates symlinks, checks version compatibility |
-| **🐳 Container Validation** | `dockerfile` & `docker-compose` commands catch GPU config errors before you build/deploy |
+| **🐳 Container Validation** | `dockerfile` & `docker-compose` commands catch GPU config errors with DB-driven recommendations before you build/deploy |
 | **🤖 AI Model Compatibility** | Check if your GPU can run any model (LLMs, Diffusion, Audio) before downloading |
 | **🐧 WSL2 GPU Support** | Detects WSL1/WSL2 environments, validates GPU forwarding, catches common driver conflicts |
 | **🛠️ Compilation Guard** | Warns if system `nvcc` doesn't match PyTorch's CUDA — preventing flash-attention build failures |
@@ -117,12 +117,14 @@ env-doctor dockerfile
 ```
 
 **What it validates:**
-*   **Base Images**: Detects CPU-only images (python:*, ubuntu:*) that won't work with GPU
-*   **PyTorch Installs**: Ensures `pip install torch` has the correct `--index-url`
-*   **TensorFlow Setup**: Validates `tensorflow[and-cuda]` usage
+*   **Base Images**: Detects CPU-only images and provides **DB-driven GPU base image + install command recommendations**
+*   **PyTorch Installs**: Ensures `pip install torch` has the correct `--index-url` using **verified install commands**
+*   **Library Version Compatibility**: Validates pinned versions against DB-verified combinations for your CUDA version
+*   **Multi-Library Support**: Checks that multiple GPU libraries (torch, tensorflow, jax) are compatible with the same CUDA version
+*   **Runtime vs Devel Images**: Detects compilation requirements (flash-attn, xformers) and enforces `-devel` base images
+*   **Deprecated Packages**: Flags deprecated packages like `tensorflow-gpu` and suggests modern alternatives
 *   **Driver Installation**: Flags forbidden NVIDIA driver installs (must be on host, not container)
 *   **CUDA Toolkit**: Warns about unnecessary toolkit installs that bloat images
-*   **Version Matching**: Checks CUDA version consistency between base image and pip installs
 
 *Example Output:*
 ```bash

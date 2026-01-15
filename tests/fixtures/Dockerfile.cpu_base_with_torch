@@ -1,0 +1,2 @@
+FROM python:3.11-slim
+RUN pip install torch==2.0.1 torchvision

@@ -1,0 +1,2 @@
+FROM nvidia/cuda:11.7.0-runtime-ubuntu22.04
+RUN pip install torch==2.5.0 --index-url https://download.pytorch.org/whl/cu117

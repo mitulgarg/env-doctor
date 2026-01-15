@@ -41,5 +41,12 @@
           "fix_cmd": "See migration guide: https://github.com/openai/openai-python"
         }
       }
+    },
+    "pip_packages": {
+      "tensorflow-gpu": {
+        "replacement": "tensorflow[and-cuda]",
+        "recommended_version": "2.15.0",
+        "reason": "tensorflow-gpu is deprecated; GPU support is now included in the main tensorflow package"
+      }
     }
   }

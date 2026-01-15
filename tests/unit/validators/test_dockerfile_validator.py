@@ -196,3 +196,179 @@ RUN pip install torch --index-url https://download.pytorch.org/whl/cu121
             assert result.error_count == 0
         finally:
             os.unlink(temp_path)
+
+
+class TestDockerfileValidatorDBIntegration:
+    """Tests for DB-driven validation features."""
+
+    def test_db_driven_torch_wheel_url_suggestion(self):
+        """Test that DB-verified install commands are used for torch."""
+        from env_doctor.validators.compat_db import CompatibilityDB
+
+        # Create mock DB
+        mock_db_data = {
+            "recommendations": {
+                "12.1": {
+                    "torch": "pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121"
+                }
+            }
+        }
+        mock_db = CompatibilityDB(data=mock_db_data)
+
+        # Test with fixture
+        validator = DockerfileValidator(
+            str(FIXTURES_DIR / "Dockerfile.torch_missing_index_url"),
+            compat_db=mock_db
+        )
+        result = validator.validate()
+
+        # Should have ERROR for missing index-url
+        errors = result.get_issues_by_severity(Severity.ERROR)
+        assert any("missing --index-url" in issue.issue.lower() for issue in errors)
+
+        # Corrected command should contain DB-verified command
+        torch_issue = next((issue for issue in errors if "--index-url" in issue.issue.lower()), None)
+        assert torch_issue is not None
+        assert torch_issue.corrected_command is not None
+        assert "cu121" in torch_issue.corrected_command
+
+    def test_cpu_base_with_gpu_libs_db_recommendation(self):
+        """Test CPU base image with GPU libraries gets DB-driven recommendations."""
+        from env_doctor.validators.compat_db import CompatibilityDB
+
+        # Create mock DB with torch==2.0.1 for CUDA 11.7
+        mock_db_data = {
+            "recommendations": {
+                "11.7": {
+                    "torch": "pip install torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorch.org/whl/cu117"
+                },
+                "12.1": {
+                    "torch": "pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121"
+                }
+            }
+        }
+        mock_db = CompatibilityDB(data=mock_db_data)
+
+        validator = DockerfileValidator(
+            str(FIXTURES_DIR / "Dockerfile.cpu_base_with_torch"),
+            compat_db=mock_db
+        )
+        result = validator.validate()
+
+        # Should have ERROR about CPU-only base
+        errors = result.get_issues_by_severity(Severity.ERROR)
+        cpu_issue = next((issue for issue in errors if "CPU-only" in issue.issue), None)
+        assert cpu_issue is not None
+
+        # Should recommend CUDA base with DB-verified command
+        assert cpu_issue.corrected_command is not None
+        assert "FROM nvidia/cuda:" in cpu_issue.corrected_command
+        assert "11.7" in cpu_issue.corrected_command or "12.1" in cpu_issue.corrected_command
+
+    def test_runtime_needs_compilation_error(self):
+        """Test that compilation packages with runtime base image trigger error."""
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.runtime_needs_compilation"))
+        result = validator.validate()
+
+        # Should have ERROR about runtime needing devel
+        errors = result.get_issues_by_severity(Severity.ERROR)
+        compilation_issue = next((issue for issue in errors if "compilation" in issue.issue.lower()), None)
+        assert compilation_issue is not None
+        assert "-devel" in compilation_issue.recommendation or "-devel" in str(compilation_issue.corrected_command or "")
+
+    def test_pinned_version_mismatch_warning(self):
+        """Test that pinned versions not in DB for CUDA trigger warning."""
+        from env_doctor.validators.compat_db import CompatibilityDB
+
+        # Create mock DB where CUDA 11.7 has torch 2.0.1, but user pins 2.5.0
+        mock_db_data = {
+            "recommendations": {
+                "11.7": {
+                    "torch": "pip install torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorch.org/whl/cu117"
+                },
+                "12.1": {
+                    "torch": "pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121"
+                }
+            }
+        }
+        mock_db = CompatibilityDB(data=mock_db_data)
+
+        validator = DockerfileValidator(
+            str(FIXTURES_DIR / "Dockerfile.pinned_version_mismatch"),
+            compat_db=mock_db
+        )
+        result = validator.validate()
+
+        # Should have WARNING about version mismatch
+        warnings = result.get_issues_by_severity(Severity.WARNING)
+        mismatch_issue = next((issue for issue in warnings if "differs from DB-verified" in issue.issue), None)
+        assert mismatch_issue is not None
+        assert "2.5.0" in mismatch_issue.issue
+        assert "11.7" in mismatch_issue.issue
+
+    def test_multi_library_all_verified_info(self):
+        """Test that multiple verified libraries show INFO summary."""
+        from env_doctor.validators.compat_db import CompatibilityDB
+
+        # Create mock DB with both torch and tensorflow verified for CUDA 12.1
+        mock_db_data = {
+            "recommendations": {
+                "12.1": {
+                    "torch": "pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121",
+                    "tensorflow": "pip install tensorflow==2.15.0"
+                }
+            }
+        }
+        mock_db = CompatibilityDB(data=mock_db_data)
+
+        validator = DockerfileValidator(
+            str(FIXTURES_DIR / "Dockerfile.multi_lib_all_verified"),
+            compat_db=mock_db
+        )
+        result = validator.validate()
+
+        # Should have INFO about multiple libraries
+        infos = result.get_issues_by_severity(Severity.INFO)
+        multi_lib_info = next((issue for issue in infos if "Multiple GPU libraries" in issue.issue), None)
+        assert multi_lib_info is not None
+        assert "torch" in multi_lib_info.issue.lower()
+        assert "tensorflow" in multi_lib_info.issue.lower()
+
+    def test_deprecated_tensorflow_gpu(self):
+        """Test that tensorflow-gpu triggers deprecation warning."""
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.tensorflow_gpu_deprecated"))
+        result = validator.validate()
+
+        # Should have WARNING about deprecated package
+        warnings = result.get_issues_by_severity(Severity.WARNING)
+        deprecation_issue = next((issue for issue in warnings if "tensorflow-gpu" in issue.issue.lower() and "deprecated" in issue.issue.lower()), None)
+        assert deprecation_issue is not None
+
+        # Should suggest replacement
+        assert "tensorflow[and-cuda]" in deprecation_issue.recommendation or "tensorflow[and-cuda]" in str(deprecation_issue.corrected_command or "")
+
+    def test_base_image_flavor_detection(self):
+        """Test that base image flavor (runtime/devel) is correctly detected."""
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.runtime_needs_compilation"))
+        result = validator.validate()
+
+        # After validation, flavor should be detected
+        assert validator.base_image_flavor == "runtime"
+
+    def test_detected_libraries_tracking(self):
+        """Test that detected libraries are tracked correctly."""
+        from env_doctor.validators.compat_db import CompatibilityDB
+
+        mock_db = CompatibilityDB(data={"recommendations": {}})
+
+        validator = DockerfileValidator(
+            str(FIXTURES_DIR / "Dockerfile.multi_lib_all_verified"),
+            compat_db=mock_db
+        )
+        result = validator.validate()
+
+        # Should have detected both torch and tensorflow
+        assert "torch" in validator.detected_libraries
+        assert "tensorflow" in validator.detected_libraries
+        assert validator.detected_libraries["torch"]["line_number"] > 0
+        assert validator.detected_libraries["tensorflow"]["line_number"] > 0

@@ -1,0 +1,2 @@
+FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
+RUN pip install tensorflow-gpu==2.10.0

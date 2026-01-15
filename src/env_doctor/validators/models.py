@@ -148,7 +148,6 @@ class ValidationResult:
         severity_order = {Severity.ERROR: 0, Severity.WARNING: 1, Severity.INFO: 2}
         self.issues.sort(key=lambda x: (x.line_number, severity_order[x.severity]))
 
-
 def get_cuda_wheel_suffix(cuda_version: str) -> Optional[str]:
     """
     Get the pip wheel suffix for a given CUDA version.

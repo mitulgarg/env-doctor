@@ -7,7 +7,10 @@ to the new detector-based system.
 import sys
 import os
 import argparse
-import platform 
+import platform
+import json
+from datetime import datetime
+from typing import Dict, Any, Optional
 from .core.registry import DetectorRegistry
 from .core.detector import Status
 from .db import get_max_cuda_for_driver, get_install_command, DB_DATA
@@ -122,18 +125,18 @@ def print_detection_result(result, emoji="📦"):
 def check_library_compatibility(lib_result, max_cuda):
     """
     Check if a library's CUDA version is compatible with the driver.
-    
+
     Args:
         lib_result: DetectionResult from PythonLibraryDetector
         max_cuda: Maximum CUDA version supported by driver (string)
     """
     if not lib_result.detected or not max_cuda:
         return
-    
+
     lib_cuda = lib_result.metadata.get("cuda_version", "Unknown")
     if lib_cuda == "Unknown" or "CPU" in lib_cuda:
         return
-    
+
     try:
         # Extract numeric CUDA version
         cuda_num = lib_cuda.split(" ")[0].replace("x", "0")
@@ -147,127 +150,275 @@ def check_library_compatibility(lib_result, max_cuda):
         pass
 
 
-def check_command():
+def determine_overall_status(results: Dict[str, Any]) -> str:
+    """
+    Determine overall status from detection results.
+
+    Args:
+        results: Dictionary of detection results
+
+    Returns:
+        str: "pass", "warning", or "fail"
+    """
+    has_errors = False
+    has_warnings = False
+
+    # Check each result
+    for key, result in results.items():
+        if result is None:
+            continue
+
+        if isinstance(result, dict):
+            # Handle libraries dict
+            for lib_result in result.values():
+                if lib_result.status == Status.ERROR:
+                    has_errors = True
+                elif lib_result.status in [Status.WARNING, Status.NOT_FOUND]:
+                    has_warnings = True
+        else:
+            # Handle single result
+            if result.status == Status.ERROR:
+                has_errors = True
+            elif result.status in [Status.WARNING, Status.NOT_FOUND]:
+                has_warnings = True
+
+    if has_errors:
+        return "fail"
+    elif has_warnings:
+        return "warning"
+    else:
+        return "pass"
+
+
+def count_issues(results: Dict[str, Any]) -> int:
+    """
+    Count total issues across all detection results.
+
+    Args:
+        results: Dictionary of detection results
+
+    Returns:
+        int: Total number of issues
+    """
+    count = 0
+
+    for key, result in results.items():
+        if result is None:
+            continue
+
+        if isinstance(result, dict):
+            # Handle libraries dict
+            for lib_result in result.values():
+                count += len(lib_result.issues)
+        else:
+            # Handle single result
+            count += len(result.issues)
+
+    return count
+
+
+def determine_exit_code(results: Dict[str, Any]) -> int:
+    """
+    Determine exit code based on detection results.
+
+    Args:
+        results: Dictionary of detection results
+
+    Returns:
+        int: Exit code (0 = pass, 1 = warnings/failures, 2 = errors)
+    """
+    has_errors = False
+    has_warnings = False
+
+    for key, result in results.items():
+        if result is None:
+            continue
+
+        if isinstance(result, dict):
+            # Handle libraries dict
+            for lib_result in result.values():
+                if lib_result.status == Status.ERROR:
+                    has_errors = True
+                elif lib_result.status in [Status.WARNING, Status.NOT_FOUND]:
+                    has_warnings = True
+        else:
+            # Handle single result
+            if result.status == Status.ERROR:
+                has_errors = True
+            elif result.status in [Status.WARNING, Status.NOT_FOUND]:
+                has_warnings = True
+
+    if has_errors:
+        return 2
+    elif has_warnings:
+        return 1
+    else:
+        return 0
+
+
+def check_command(output_json: bool = False, ci: bool = False):
     """
     Main diagnostic command using detector architecture.
-    
+
     This is the MODERNIZED version that uses DetectorRegistry
     instead of direct function calls.
-    """
-    print("\n🩺  ENV-DOCTOR DIAGNOSIS  🩺")
-    print("==============================")
 
-    # --- Show DB Status ---
-    meta = DB_DATA.get("_metadata", {})
-    if meta:
-        print(f"🛡️  DB Verified: {meta.get('last_verified', 'Unknown')}")
-        print(f"    Method: {meta.get('method', 'Unknown')}")
-        print("------------------------------")
-    
-    # === STEP 1: Environment Detection ===
-    # Use the WSL2Detector to check environment first
+    Args:
+        output_json: Output as JSON (machine-readable)
+        ci: CI-friendly mode (implies JSON + proper exit codes)
+    """
+    # === Collect all detection results ===
+    # STEP 1: Environment Detection
     wsl2_detector = DetectorRegistry.get("wsl2")
-    if wsl2_detector.can_run():
-        wsl2_result = wsl2_detector.detect()
-        print_detection_result(wsl2_result, "🐧")
-        print("------------------------------")
-    
-    # === STEP 2: Hardware Detection ===
-    # Use the new NvidiaDriverDetector
+    wsl2_result = wsl2_detector.detect() if wsl2_detector.can_run() else None
+
+    # STEP 2: Hardware Detection
     driver_detector = DetectorRegistry.get("nvidia_driver")
     driver_result = driver_detector.detect()
-    
-    if driver_result.detected:
-        max_cuda = driver_result.metadata.get("max_cuda_version", "Unknown")
-        print(f"✅  GPU Driver Found: {driver_result.version}")
-        print(f"    → Max Supported CUDA: {max_cuda}")
-        print(f"    → Detection Method: {driver_result.metadata.get('detection_method', 'unknown')}")
-    else:
-        print("⚠️   No NVIDIA Driver detected.")
-        for rec in driver_result.recommendations:
-            print(f"    → {rec}")
-        max_cuda = None
+    max_cuda = driver_result.metadata.get("max_cuda_version", None) if driver_result.detected else None
 
-    # === STEP 3: System CUDA Detection (ENHANCED) ===
+    # STEP 3: System CUDA Detection
     cuda_detector = DetectorRegistry.get("cuda_toolkit")
     cuda_result = cuda_detector.detect()
-    
-    # Print basic summary
-    if cuda_result.detected:
-        print(f"✅  System CUDA (nvcc): {cuda_result.version}")
-        if cuda_result.path:
-            print(f"    Path: {cuda_result.path}")
-        
-        # Show quick status
-        install_count = cuda_result.metadata.get("installation_count", 1)
-        if install_count > 1:
-            print(f"    ⚠️  {install_count} CUDA installations detected")
-        
-        if cuda_result.status == Status.WARNING:
-            print(f"    ⚠️  Configuration issues detected (run 'doctor debug' for details)")
-        elif cuda_result.status == Status.ERROR:
-            print(f"    ❌ Critical issues detected (run 'doctor debug' for details)")
-    else:
-        print("ℹ️   System CUDA (nvcc) not found.")
-        if cuda_result.recommendations:
-            print(f"    → {cuda_result.recommendations[0]}")
 
-    print("------------------------------")
-
-    #cuDNN Detection
-    # In check_command(), after CUDA check
+    # STEP 4: cuDNN Detection
     cudnn_detector = DetectorRegistry.get("cudnn")
-    if cudnn_detector.can_run():
-        cudnn_result = cudnn_detector.detect()
-        if cudnn_result.detected:
-            print(f"✅  cuDNN: v{cudnn_result.version}")
+    cudnn_result = cudnn_detector.detect() if cudnn_detector.can_run() else None
 
-    # === STEP 4: Python Libraries Detection ===
-    # Use the new PythonLibraryDetector for each library
+    # STEP 5: Python Libraries Detection
     libs = ["torch", "tensorflow", "jax"]
     torch_result = None
-    
+    lib_results = {}
+
+    from .detectors.python_libraries import PythonLibraryDetector
+
     for lib in libs:
-        # Import here to avoid circular imports
-        from .detectors.python_libraries import PythonLibraryDetector
-        
         lib_detector = PythonLibraryDetector(lib)
         lib_result = lib_detector.detect()
-        
-        if lib_result.detected:
-            print(f"📦  Found {lib}: v{lib_result.version}")
-            
-            # Show bundled CUDA info
-            cuda_ver = lib_result.metadata.get("cuda_version", "Unknown")
-            if cuda_ver != "Unknown":
-                print(f"    → Bundled CUDA: {cuda_ver}")
-                
-                # Check compatibility with driver
-                if max_cuda:
-                    check_library_compatibility(lib_result, max_cuda)
-            else:
-                print(f"    → Bundled CUDA: Not Detected")
-            
-            # Store torch result for compilation check
-            if lib == "torch":
-                torch_result = lib_result
+        lib_results[lib] = lib_result
+
+        if lib == "torch":
+            torch_result = lib_result
+
+    # Organize results for JSON output
+    results = {
+        "wsl2": wsl2_result,
+        "driver": driver_result,
+        "cuda": cuda_result,
+        "cudnn": cudnn_result,
+        "libraries": lib_results
+    }
+
+    # === Choose output format ===
+    if ci or output_json:
+        # JSON output
+        output = {
+            "status": determine_overall_status(results),
+            "timestamp": datetime.now().isoformat(),
+            "summary": {
+                "driver": "found" if driver_result.detected else "not_found",
+                "cuda": "found" if cuda_result.detected else "not_found",
+                "cudnn": "found" if (cudnn_result and cudnn_result.detected) else "not_found",
+                "issues_count": count_issues(results)
+            },
+            "checks": {
+                "wsl2": wsl2_result.to_dict() if wsl2_result else None,
+                "driver": driver_result.to_dict(),
+                "cuda": cuda_result.to_dict(),
+                "cudnn": cudnn_result.to_dict() if cudnn_result else None,
+                "libraries": {
+                    lib: result.to_dict()
+                    for lib, result in lib_results.items()
+                }
+            }
+        }
+        print(json.dumps(output, indent=2))
+        sys.exit(determine_exit_code(results))
+    else:
+        # Human output (existing code)
+        print("\n🩺  ENV-DOCTOR DIAGNOSIS  🩺")
+        print("==============================")
+
+        # --- Show DB Status ---
+        meta = DB_DATA.get("_metadata", {})
+        if meta:
+            print(f"🛡️  DB Verified: {meta.get('last_verified', 'Unknown')}")
+            print(f"    Method: {meta.get('method', 'Unknown')}")
+            print("------------------------------")
+
+        # === STEP 1: Environment Detection ===
+        if wsl2_result:
+            print_detection_result(wsl2_result, "🐧")
+            print("------------------------------")
+
+        # === STEP 2: Hardware Detection ===
+        if driver_result.detected:
+            print(f"✅  GPU Driver Found: {driver_result.version}")
+            print(f"    → Max Supported CUDA: {max_cuda}")
+            print(f"    → Detection Method: {driver_result.metadata.get('detection_method', 'unknown')}")
         else:
-            print(f"❌  {lib} is NOT installed.")
+            print("⚠️   No NVIDIA Driver detected.")
+            for rec in driver_result.recommendations:
+                print(f"    → {rec}")
 
-    # === STEP 5: Compilation Health Check ===
-    if torch_result and torch_result.detected:
-        check_compilation_health(cuda_result, torch_result)
-    
-    # === STEP 6: System Path Check ===
-    check_system_path()
-    
-    # === STEP 7: Code Migration Check ===
-    # (Not yet refactored - still using legacy function)
-    check_broken_imports()
+        # === STEP 3: System CUDA Detection ===
+        if cuda_result.detected:
+            print(f"✅  System CUDA (nvcc): {cuda_result.version}")
+            if cuda_result.path:
+                print(f"    Path: {cuda_result.path}")
 
-    # === STEP 8: Offer detailed analysis ===
-    if cuda_result.detected and (cuda_result.issues or cuda_result.metadata.get("installation_count", 1) > 1):
-        print("\n💡  TIP: Run 'env-doctor cuda-info' for detailed CUDA analysis")
+            # Show quick status
+            install_count = cuda_result.metadata.get("installation_count", 1)
+            if install_count > 1:
+                print(f"    ⚠️  {install_count} CUDA installations detected")
+
+            if cuda_result.status == Status.WARNING:
+                print(f"    ⚠️  Configuration issues detected (run 'doctor debug' for details)")
+            elif cuda_result.status == Status.ERROR:
+                print(f"    ❌ Critical issues detected (run 'doctor debug' for details)")
+        else:
+            print("ℹ️   System CUDA (nvcc) not found.")
+            if cuda_result.recommendations:
+                print(f"    → {cuda_result.recommendations[0]}")
+
+        print("------------------------------")
+
+        # cuDNN Detection
+        if cudnn_result and cudnn_result.detected:
+            print(f"✅  cuDNN: v{cudnn_result.version}")
+
+        # === STEP 4: Python Libraries Detection ===
+        for lib, lib_result in lib_results.items():
+            if lib_result.detected:
+                print(f"📦  Found {lib}: v{lib_result.version}")
+
+                # Show bundled CUDA info
+                cuda_ver = lib_result.metadata.get("cuda_version", "Unknown")
+                if cuda_ver != "Unknown":
+                    print(f"    → Bundled CUDA: {cuda_ver}")
+
+                    # Check compatibility with driver
+                    if max_cuda:
+                        check_library_compatibility(lib_result, max_cuda)
+                else:
+                    print(f"    → Bundled CUDA: Not Detected")
+            else:
+                print(f"❌  {lib} is NOT installed.")
+
+        # === STEP 5: Compilation Health Check ===
+        if torch_result and torch_result.detected:
+            check_compilation_health(cuda_result, torch_result)
+
+        # === STEP 6: System Path Check ===
+        check_system_path()
+
+        # === STEP 7: Code Migration Check ===
+        # (Not yet refactored - still using legacy function)
+        check_broken_imports()
+
+        # === STEP 8: Offer detailed analysis ===
+        if cuda_result.detected and (cuda_result.issues or cuda_result.metadata.get("installation_count", 1) > 1):
+            print("\n💡  TIP: Run 'env-doctor cuda-info' for detailed CUDA analysis")
 
 
 
@@ -298,22 +449,41 @@ def install_command(package_name):
     print("---------------------------------------------------")
 
 
-def scan_command():
+def scan_command(output_json: bool = False):
     """
     Scan local directory for AI library imports.
-    
+
+    Args:
+        output_json: Output as JSON (machine-readable)
+
     Note: This still uses legacy function as it's not environment detection.
     """
-    print("\n🔍  SCANNING CURRENT DIRECTORY...")
     libs = scan_imports_in_folder()
-    if libs:
-        print(f"Found imports for: {', '.join(libs)}")
-        print("\nTo get safe install commands for these, run:")
-        for lib in libs:
-            if lib in ["torch", "tensorflow", "jax"]:
-                print(f"  env-doctor install {lib}")
+
+    if output_json:
+        # JSON output
+        output = {
+            "status": "pass" if len(libs) > 0 else "fail",
+            "timestamp": datetime.now().isoformat(),
+            "dependencies": libs,
+            "issues": [] if len(libs) > 0 else ["No common AI imports found"],
+            "recommendations": [
+                f"env-doctor install {lib}" for lib in libs if lib in ["torch", "tensorflow", "jax"]
+            ]
+        }
+        print(json.dumps(output, indent=2))
+        sys.exit(0)
     else:
-        print("No common AI imports found.")
+        # Human output
+        print("\n🔍  SCANNING CURRENT DIRECTORY...")
+        if libs:
+            print(f"Found imports for: {', '.join(libs)}")
+            print("\nTo get safe install commands for these, run:")
+            for lib in libs:
+                if lib in ["torch", "tensorflow", "jax"]:
+                    print(f"  env-doctor install {lib}")
+        else:
+            print("No common AI imports found.")
 
 
 def debug_command():
@@ -469,14 +639,21 @@ def print_cuda_detailed_info(cuda_result):
 
 
 # New command: cuda-info
-def cuda_info_command():
+def cuda_info_command(output_json: bool = False):
     """
     Display comprehensive CUDA toolkit information.
+
+    Args:
+        output_json: Output as JSON (machine-readable)
     """
     cuda_detector = DetectorRegistry.get("cuda_toolkit")
     cuda_result = cuda_detector.detect()
 
-    print_cuda_detailed_info(cuda_result)
+    if output_json:
+        print(json.dumps(cuda_result.to_dict(), indent=2))
+        sys.exit(0 if cuda_result.status in [Status.SUCCESS, Status.WARNING] else 1)
+    else:
+        print_cuda_detailed_info(cuda_result)
 
 
 def print_cudnn_detailed_info(cudnn_result):
@@ -567,17 +744,29 @@ def print_cudnn_detailed_info(cudnn_result):
     print("\n" + "="*60)
 
 
-def cudnn_info_command():
+def cudnn_info_command(output_json: bool = False):
     """
     Display comprehensive cuDNN library information.
+
+    Args:
+        output_json: Output as JSON (machine-readable)
     """
     cudnn_detector = DetectorRegistry.get("cudnn")
     if not cudnn_detector.can_run():
-        print("❌  cuDNN detector not supported on this platform")
+        if output_json:
+            print(json.dumps({"error": "cuDNN detector not supported on this platform"}))
+        else:
+            print("❌  cuDNN detector not supported on this platform")
+        sys.exit(1)
         return
 
     cudnn_result = cudnn_detector.detect()
-    print_cudnn_detailed_info(cudnn_result)
+
+    if output_json:
+        print(json.dumps(cudnn_result.to_dict(), indent=2))
+        sys.exit(0 if cudnn_result.status in [Status.SUCCESS, Status.WARNING] else 1)
+    else:
+        print_cudnn_detailed_info(cudnn_result)
 
 
 def dockerfile_command(dockerfile_path: str = "Dockerfile"):
@@ -871,21 +1060,41 @@ Examples:
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Check command
-    subparsers.add_parser(
+    check_parser = subparsers.add_parser(
         "check",
         help="Diagnose environment compatibility"
     )
+    check_parser.add_argument(
+        '--json',
+        action='store_true',
+        help='Output as JSON (machine-readable)'
+    )
+    check_parser.add_argument(
+        '--ci',
+        action='store_true',
+        help='CI-friendly mode (implies --json with proper exit codes)'
+    )
 
     # CUDA Info command (NEW)
-    subparsers.add_parser(
+    cuda_info_parser = subparsers.add_parser(
         "cuda-info",
         help="Detailed CUDA toolkit analysis"
     )
+    cuda_info_parser.add_argument(
+        '--json',
+        action='store_true',
+        help='Output as JSON (machine-readable)'
+    )
 
     # cuDNN Info command (NEW)
-    subparsers.add_parser(
+    cudnn_info_parser = subparsers.add_parser(
         "cudnn-info",
         help="Detailed cuDNN library analysis"
+    )
+    cudnn_info_parser.add_argument(
+        '--json',
+        action='store_true',
+        help='Output as JSON (machine-readable)'
     )
 
     # Dockerfile validation command (NEW)
@@ -923,9 +1132,14 @@ Examples:
     )
 
     # Scan command
-    subparsers.add_parser(
-        "scan", 
+    scan_parser = subparsers.add_parser(
+        "scan",
         help="Scan local files for AI library imports"
+    )
+    scan_parser.add_argument(
+        '--json',
+        action='store_true',
+        help='Output as JSON (machine-readable)'
     )
     
     # Debug command
@@ -959,11 +1173,18 @@ Examples:
 
     # Route to appropriate command
     if args.command == "check":
-        check_command()
+        check_command(
+            output_json=getattr(args, 'json', False),
+            ci=getattr(args, 'ci', False)
+        )
     elif args.command == "cuda-info":
-        cuda_info_command()
+        cuda_info_command(
+            output_json=getattr(args, 'json', False)
+        )
     elif args.command == "cudnn-info":
-        cudnn_info_command()
+        cudnn_info_command(
+            output_json=getattr(args, 'json', False)
+        )
     elif args.command == "dockerfile":
         dockerfile_command(args.path)
     elif args.command == "docker-compose":
@@ -978,7 +1199,9 @@ Examples:
     elif args.command == "install":
         install_command(args.library)
     elif args.command == "scan":
-        scan_command()
+        scan_command(
+            output_json=getattr(args, 'json', False)
+        )
     elif args.command == "debug":
         debug_command()
     else:

@@ -105,3 +105,134 @@ def test_registry_get_names():
     names = DetectorRegistry.get_names()
     assert isinstance(names, list)
     assert "unit_test_reg_1" in names
+
+
+# --- DetectionResult.to_dict() Tests ---
+
+def test_detection_result_to_dict_basic():
+    """Test basic to_dict serialization."""
+    result = DetectionResult(
+        component="test_component",
+        status=Status.SUCCESS,
+        version="1.0",
+        path="/test/path"
+    )
+
+    data = result.to_dict()
+
+    assert data["component"] == "test_component"
+    assert data["status"] == "success"
+    assert data["detected"] is True
+    assert data["version"] == "1.0"
+    assert data["path"] == "/test/path"
+    assert data["metadata"] == {}
+    assert data["issues"] == []
+    assert data["recommendations"] == []
+
+
+def test_detection_result_to_dict_with_metadata():
+    """Test to_dict with metadata."""
+    result = DetectionResult(
+        component="cuda_toolkit",
+        status=Status.SUCCESS,
+        version="12.2",
+        metadata={
+            "installation_count": 2,
+            "cuda_home": {"status": "set", "value": "/usr/local/cuda"},
+            "driver_compatibility": {"compatible": True}
+        }
+    )
+
+    data = result.to_dict()
+
+    assert data["metadata"]["installation_count"] == 2
+    assert data["metadata"]["cuda_home"]["status"] == "set"
+    assert data["metadata"]["driver_compatibility"]["compatible"] is True
+
+
+def test_detection_result_to_dict_with_issues():
+    """Test to_dict with issues and recommendations."""
+    result = DetectionResult(
+        component="cuda_toolkit",
+        status=Status.WARNING,
+        version="11.8"
+    )
+    result.add_issue("CUDA_HOME not set")
+    result.add_issue("Multiple CUDA installations detected")
+    result.add_recommendation("Set CUDA_HOME to /usr/local/cuda-11.8")
+    result.add_recommendation("Remove old CUDA installations")
+
+    data = result.to_dict()
+
+    assert len(data["issues"]) == 2
+    assert "CUDA_HOME not set" in data["issues"]
+    assert "Multiple CUDA installations detected" in data["issues"]
+    assert len(data["recommendations"]) == 2
+    assert "Set CUDA_HOME to /usr/local/cuda-11.8" in data["recommendations"]
+
+
+def test_detection_result_to_dict_not_found():
+    """Test to_dict with NOT_FOUND status."""
+    result = DetectionResult(
+        component="nvidia_driver",
+        status=Status.NOT_FOUND
+    )
+
+    data = result.to_dict()
+
+    assert data["status"] == "not_found"
+    assert data["detected"] is False
+    assert data["version"] is None
+    assert data["path"] is None
+
+
+def test_detection_result_to_dict_error():
+    """Test to_dict with ERROR status."""
+    result = DetectionResult(
+        component="test",
+        status=Status.ERROR
+    )
+    result.add_issue("Critical failure detected")
+
+    data = result.to_dict()
+
+    assert data["status"] == "error"
+    assert data["detected"] is False
+    assert "Critical failure detected" in data["issues"]
+
+
+def test_detection_result_to_dict_json_serializable():
+    """Test that to_dict output is JSON-serializable."""
+    import json
+
+    result = DetectionResult(
+        component="test_component",
+        status=Status.SUCCESS,
+        version="1.0",
+        path="/test/path",
+        metadata={"key": "value", "number": 42, "nested": {"a": 1}},
+    )
+    result.add_issue("test issue")
+    result.add_recommendation("test rec")
+
+    data = result.to_dict()
+
+    # Should not raise exception
+    json_str = json.dumps(data)
+
+    # Verify we can parse it back
+    parsed = json.loads(json_str)
+    assert parsed["component"] == "test_component"
+    assert parsed["status"] == "success"
+    assert parsed["metadata"]["key"] == "value"
+
+
+def test_detection_result_to_dict_all_statuses():
+    """Test to_dict with all possible Status enum values."""
+    statuses = [Status.SUCCESS, Status.WARNING, Status.ERROR, Status.NOT_FOUND]
+    expected_values = ["success", "warning", "error", "not_found"]
+
+    for status, expected_value in zip(statuses, expected_values):
+        result = DetectionResult(component="test", status=status)
+        data = result.to_dict()
+        assert data["status"] == expected_value

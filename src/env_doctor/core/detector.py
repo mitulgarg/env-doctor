@@ -61,6 +61,41 @@ class DetectionResult:
         """Add a recommendation to the result."""
         self.recommendations.append(rec)
 
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert to JSON-serializable dictionary.
+
+        This method serializes the DetectionResult into a dictionary that can be
+        safely converted to JSON for machine-readable output.
+
+        Returns:
+            dict: Complete detection result as a dictionary with the following keys:
+                - component: Name of the component
+                - status: Status as string value ("success", "warning", "error", "not_found")
+                - detected: Boolean indicating if component was successfully detected
+                - version: Version string (or None)
+                - path: Path to component (or None)
+                - metadata: Additional component-specific data
+                - issues: List of detected issues
+                - recommendations: List of suggested fixes
+
+        Example:
+            >>> result = DetectionResult(component="cuda", status=Status.SUCCESS, version="12.2")
+            >>> data = result.to_dict()
+            >>> import json
+            >>> json.dumps(data)  # Can be safely serialized to JSON
+        """
+        return {
+            "component": self.component,
+            "status": self.status.value,
+            "detected": self.detected,
+            "version": self.version,
+            "path": self.path,
+            "metadata": self.metadata,
+            "issues": self.issues,
+            "recommendations": self.recommendations
+        }
+
 class Detector(ABC):
     """
     Abstract base class for all environment detectors.

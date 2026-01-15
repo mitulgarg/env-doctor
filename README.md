@@ -318,10 +318,111 @@ Env-Doctor provides comprehensive WSL2 environment detection and GPU forwarding 
    → Install NVIDIA driver on Windows (version 470.76 or newer)
 ```
 
+## 🤖 JSON Output & CI/CD Integration
+
+**NEW:** All core commands now support machine-readable JSON output for automation and CI/CD pipelines!
+
+### JSON Output
+
+Add `--json` flag to get structured, parseable output:
+
+```bash
+# Get JSON output
+env-doctor check --json
+
+# Example output
+{
+  "status": "warning",
+  "timestamp": "2026-01-15T10:30:00Z",
+  "summary": {
+    "driver": "found",
+    "cuda": "found",
+    "issues_count": 2
+  },
+  "checks": {
+    "driver": {
+      "component": "nvidia_driver",
+      "status": "success",
+      "detected": true,
+      "version": "536.40",
+      "metadata": {"max_cuda_version": "12.2"}
+    },
+    "cuda": {...},
+    "libraries": {...}
+  }
+}
+```
+
+### CI/CD Mode
+
+Use `--ci` flag for CI/CD pipelines (implies `--json` with proper exit codes):
+
+```bash
+env-doctor check --ci
+
+# Exit codes:
+# 0 = All checks passed
+# 1 = Warnings or non-critical issues
+# 2 = Critical errors detected
+```
+
+### GitHub Actions Integration
+
+```yaml
+name: Validate Environment
+on: [push, pull_request]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: pip install env-doctor
+      - run: env-doctor check --ci
+```
+
+See full example at [`examples/github-actions/validate-env.yml`](examples/github-actions/validate-env.yml)
+
+### Commands Supporting JSON
+
+- `env-doctor check --json` or `--ci`
+- `env-doctor cuda-info --json`
+- `env-doctor cudnn-info --json`
+- `env-doctor scan --json`
+
+### Use Cases
+
+**Parse results in scripts:**
+```bash
+# Extract CUDA version
+CUDA_VERSION=$(env-doctor check --json | jq -r '.checks.cuda.version')
+
+# Conditional installation
+if env-doctor check --json | jq -e '.checks.driver.detected'; then
+  pip install torch  # GPU version
+else
+  pip install torch --index-url https://download.pytorch.org/whl/cpu
+fi
+```
+
+**Store results for monitoring:**
+```python
+import json
+import subprocess
+
+result = subprocess.run(["env-doctor", "check", "--json"], capture_output=True, text=True)
+data = json.loads(result.stdout)
+
+# Store in database, send to monitoring system, etc.
+db.insert({"timestamp": data["timestamp"], "status": data["status"], ...})
+```
+
 ## 📋 Quick Command Reference
 
 ```bash
 env-doctor check              # Diagnose your environment
+env-doctor check --json       # Get JSON output
+env-doctor check --ci         # CI/CD mode with exit codes
 env-doctor cuda-info          # Detailed CUDA toolkit analysis
 env-doctor cudnn-info         # Detailed cuDNN library analysis
 env-doctor dockerfile         # Validate Dockerfile for GPU issues

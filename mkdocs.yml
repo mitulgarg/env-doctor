@@ -45,6 +45,8 @@ markdown_extensions:
       custom_fences:
         - name: mermaid
           class: mermaid
+
+
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
@@ -64,6 +66,8 @@ extra:
       link: https://github.com/mitulgarg/env-doctor
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/env-doctor/
+  
+  homepage: https://mitulgarg.github.io/env-doctor/
 
 nav:
   - Home: index.md

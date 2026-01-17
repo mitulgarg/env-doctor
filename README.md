@@ -4,15 +4,25 @@
 
 <h1 align="center">Env-Doctor</h1>
 
+
 <p align="center">
   <strong>The missing link between your GPU and Python AI libraries</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/mitulgarg/env-doctor/blob/main/LICENSE"><img src="https://img.shields.io/github/license/mitulgarg/env-doctor" alt="License"></a>
-  <a href="https://github.com/mitulgarg/env-doctor/actions"><img src="https://img.shields.io/github/actions/workflow/status/mitulgarg/env-doctor/ci.yml" alt="CI Status"></a>
+  <a href="https://mitulgarg.github.io/env-doctor/">
+    <img src="https://img.shields.io/badge/docs-github.io-blueviolet" alt="Documentation">
+  </a>
+  <a href="https://github.com/mitulgarg/env-doctor/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/mitulgarg/env-doctor" alt="License">
+  </a>
+  <a href="https://github.com/mitulgarg/env-doctor/actions">
+    <img src="https://img.shields.io/github/actions/workflow/status/mitulgarg/env-doctor/ci.yml" alt="CI Status">
+  </a>
   <img src="https://img.shields.io/badge/python-3.7+-blue" alt="Python">
-  <a href="https://pypi.org/project/env-doctor/"><img src="https://img.shields.io/pypi/v/env-doctor" alt="PyPI"></a>
+  <a href="https://pypi.org/project/env-doctor/">
+    <img src="https://img.shields.io/pypi/v/env-doctor" alt="PyPI">
+  </a>
 </p>
 
 ---
@@ -23,16 +33,13 @@
 
 **Env-Doctor diagnoses and fixes the #1 frustration in GPU computing:** mismatched CUDA versions between your NVIDIA driver, system toolkit, cuDNN, and Python libraries.
 
-It takes **5 seconds** to find out if your environment is broken — and exactly how to fix it.
+It takes **5 seconds** to find out if your environment is broken - and exactly how to fix it.
 
-## Demo
 
-<!-- Replace with your GIF/Asciinema recording -->
-<!-- ![Env-Doctor Demo](docs/assets/demo.gif) -->
+## Doctor "Check" (Diagnosis)
 
-<p align="center">
-  <em>Demo coming soon</em>
-</p>
+[![Env-Doctor Demo](https://asciinema.org/a/0OBygpGsyreSfn1c.svg)](https://asciinema.org/a/0OBygpGsyreSfn1c)
+
 
 ## Features
 
@@ -41,9 +48,9 @@ It takes **5 seconds** to find out if your environment is broken — and exactly
 | **One-Command Diagnosis** | Check compatibility: GPU Driver → CUDA Toolkit → cuDNN → PyTorch/TensorFlow/JAX |
 | **Safe Install Commands** | Get the exact `pip install` command that works with YOUR driver |
 | **AI Model Compatibility** | Check if LLMs, Diffusion, or Audio models fit on your GPU before downloading |
-| **Container Validation** | Catch GPU config errors in Dockerfiles before you build |
+| **WSL2 GPU Support** | Validate GPU forwarding, detect driver conflicts within WSL2 env for Windows users |
 | **Deep CUDA Analysis** | Find multiple installations, PATH issues, environment misconfigurations |
-| **WSL2 GPU Support** | Validate GPU forwarding, detect driver conflicts |
+| **Container Validation** | Catch GPU config errors in Dockerfiles before you build |
 | **CI/CD Ready** | JSON output and proper exit codes for automation |
 
 ## Installation
@@ -168,6 +175,8 @@ env-doctor check --ci
 ```
 
 ## Documentation
+
+**Full documentation:** https://mitulgarg.github.io/env-doctor/
 
 - [Getting Started](docs/getting-started.md)
 - [Command Reference](docs/commands/check.md)

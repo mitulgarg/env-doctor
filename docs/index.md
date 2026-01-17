@@ -1,6 +1,6 @@
 # Env-Doctor
 
-**The missing link between your GPU and Python AI libraries**
+**Doctor Diagnoses the missing links in your ML Environment**
 
 ---
 
@@ -13,24 +13,6 @@
 Env-Doctor diagnoses and fixes the #1 frustration in GPU computing: mismatched CUDA versions between your NVIDIA driver, system toolkit, cuDNN, and Python libraries.
 
 It takes **5 seconds** to find out if your environment is broken — and exactly how to fix it.
-
-## Quick Demo
-
-<!-- Replace YOUR_RECORDING_ID with your Asciinema recording ID -->
-<!--
-<script src="https://asciinema.org/a/YOUR_RECORDING_ID.js" id="asciicast-YOUR_RECORDING_ID" async data-autoplay="true" data-loop="true" data-speed="1.5"></script>
--->
-
-*Demo coming soon - see [Recording Demos](guides/recording-demos.md) for instructions*
-
-## Model Checker Demo
-
-<!-- Replace YOUR_MODEL_DEMO_ID with your Asciinema recording ID -->
-<!--
-<script src="https://asciinema.org/a/YOUR_MODEL_DEMO_ID.js" id="asciicast-YOUR_MODEL_DEMO_ID" async data-autoplay="true" data-speed="1.5"></script>
--->
-
-*Model compatibility demo coming soon*
 
 ## Features
 
@@ -46,6 +28,8 @@ It takes **5 seconds** to find out if your environment is broken — and exactly
 | **Safe Install Commands** | Prescribes the exact `pip install` command that works with YOUR driver |
 | **Migration Helper** | Scans code for deprecated imports (LangChain, Pydantic) and suggests fixes |
 
+
+
 ## Installation
 
 ```bash
@@ -60,7 +44,7 @@ cd env-doctor
 pip install -e .
 ```
 
-## Quick Start
+## Quick start (Other commands explained extensively seperately)
 
 ```bash
 # Diagnose your environment
@@ -72,6 +56,29 @@ env-doctor install torch
 # Check if a model fits on your GPU
 env-doctor model llama-3-8b
 ```
+
+
+## Quick Sneak Peek (There's WAY more to Env-Doctor)
+
+<!-- For future updates, Replace YOUR_RECORDING_ID with your Asciinema recording ID -->
+
+<div style="max-width: 700px; margin: auto;">
+
+<script src="https://asciinema.org/a/0OBygpGsyreSfn1c.js" id="asciicast-0OBygpGsyreSfn1c" async data-autoplay="true" data-loop="true" data-speed="1.5"></script>
+</div>
+
+
+## Model Checker Demo
+
+<!-- For future updates, Replace YOUR_MODEL_DEMO_ID with your Asciinema recording ID -->
+
+<div style="max-width: 700px; margin: auto;">
+
+<script src="https://asciinema.org/a/ilS2kEWDY5SeVVE4.js" id="asciicast-ilS2kEWDY5SeVVE4" async data-autoplay="true" data-speed="1.5"></script>
+
+</div>
+
+
 
 ## What's Next?
 

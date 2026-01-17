@@ -4,30 +4,20 @@ Understanding how Env-Doctor works internally.
 
 ## Overview
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                          CLI                                │
-│                        (cli.py)                             │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Detector Registry                        │
-│                  (Discovers & runs detectors)               │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-          ┌───────────────┼───────────────┬───────────────┐
-          ▼               ▼               ▼               ▼
-    ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
-    │   WSL2   │   │  Driver  │   │   CUDA   │   │  Python  │
-    │ Detector │   │ Detector │   │ Detector │   │ Detector │
-    └──────────┘   └──────────┘   └──────────┘   └──────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  Compatibility Database                     │
-│                   (compatibility.json)                      │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    CLI["CLI<br/>(cli.py)"]
+    REG["Detector Registry<br/>(Discovers & runs detectors)"]
+
+    CLI --> REG
+
+    REG --> WSL["WSL2<br/>Detector"]
+    REG --> DRV["Driver<br/>Detector"]
+    REG --> CUDA["CUDA<br/>Detector"]
+    REG --> PY["Python<br/>Detector"]
+
+    REG --> DB["Compatibility Database<br/>(compatibility.json)"]
+
 ```
 
 ## Components

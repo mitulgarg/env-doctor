@@ -41,7 +41,10 @@ plugins:
 markdown_extensions:
   - admonition
   - pymdownx.details
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
@@ -79,4 +82,7 @@ nav:
     - WSL2 GPU Support: guides/wsl2.md
     - CI/CD Integration: guides/ci-cd.md
     - Recording Demos: guides/recording-demos.md
-  - Architecture: architecture.md
+
+  - Architecture: 
+    - Overview: architecture.md
+    - Adding New Models: ADDING_MODELS.md

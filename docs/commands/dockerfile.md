@@ -110,4 +110,4 @@ When these packages are detected, `-devel` base image is required:
 ## See Also
 
 - [docker-compose](docker-compose.md) - Validate docker-compose.yml
-- [Docker Validation Guide](../guides/docker-validation.md) - Full guide
+

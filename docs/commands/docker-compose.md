@@ -148,4 +148,3 @@ services:
 ## See Also
 
 - [dockerfile](dockerfile.md) - Validate Dockerfile
-- [Docker Validation Guide](../guides/docker-validation.md) - Full guide

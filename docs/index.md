@@ -1,6 +1,6 @@
 # Env-Doctor
 
-**Doctor Diagnoses the missing links in your ML Environment**
+**I just wasted 3 hours fighting CUDA errors that broke my GPU environment! Been there?**
 
 ---
 
@@ -10,7 +10,7 @@
 
 ---
 
-Env-Doctor diagnoses and fixes the #1 frustration in GPU computing: mismatched CUDA versions between your NVIDIA driver, system toolkit, cuDNN, and Python libraries.
+Env-Doctor diagnoses and fixes the #1 frustration in GPU computing: mismatched CUDA versions between your NVIDIA driver, system toolkit (nvcc compiler), cuDNN, and Python libraries.
 
 It takes **5 seconds** to find out if your environment is broken — and exactly how to fix it.
 
@@ -20,12 +20,12 @@ It takes **5 seconds** to find out if your environment is broken — and exactly
 |---------|--------------|
 | **One-Command Diagnosis** | Instantly check compatibility between GPU Driver → CUDA Toolkit → cuDNN → PyTorch/TensorFlow/JAX |
 | **Deep CUDA Analysis** | Reveals multiple installations, PATH issues, environment misconfigurations |
-| **cuDNN Detection** | Finds cuDNN libraries, validates symlinks, checks version compatibility |
+| **Compilation Guard** | Warns if system `nvcc` doesn't match PyTorch's CUDA — preventing flash-attention build failures |
+| **WSL2 GPU Support** | Detects WSL1/WSL2 environments, validates GPU forwarding, catches common driver conflicts for WSL2 |
+| **Safe Install Commands** | Prescribes the exact `pip install` command that works with YOUR driver |
 | **Container Validation** | Catches GPU config errors in Dockerfiles and docker-compose with DB-driven recommendations |
 | **AI Model Compatibility** | Check if your GPU can run any model (LLMs, Diffusion, Audio) before downloading |
-| **WSL2 GPU Support** | Detects WSL1/WSL2 environments, validates GPU forwarding, catches common driver conflicts |
-| **Compilation Guard** | Warns if system `nvcc` doesn't match PyTorch's CUDA — preventing flash-attention build failures |
-| **Safe Install Commands** | Prescribes the exact `pip install` command that works with YOUR driver |
+| **cuDNN Detection** | Finds cuDNN libraries, validates symlinks, checks version compatibility |
 | **Migration Helper** | Scans code for deprecated imports (LangChain, Pydantic) and suggests fixes |
 
 

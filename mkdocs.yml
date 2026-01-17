@@ -1,0 +1,82 @@
+site_name: Env-Doctor
+site_url: https://mitulgarg.github.io/env-doctor/
+site_description: The missing link between your GPU and Python AI libraries
+site_author: Mitul Garg
+repo_url: https://github.com/mitulgarg/env-doctor
+repo_name: mitulgarg/env-doctor
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    # Dark mode only - the hacker aesthetic
+    scheme: slate
+    primary: custom
+    accent: custom
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+    - header.autohide
+  icon:
+    repo: fontawesome/brands/github
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  font:
+    text: Inter
+    code: JetBrains Mono
+
+extra_css:
+  - stylesheets/extra.css
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+  - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/mitulgarg/env-doctor
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/env-doctor/
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Commands:
+    - check: commands/check.md
+    - install: commands/install.md
+    - model: commands/model.md
+    - cuda-info: commands/cuda-info.md
+    - cudnn-info: commands/cudnn-info.md
+    - dockerfile: commands/dockerfile.md
+    - docker-compose: commands/docker-compose.md
+    - scan: commands/scan.md
+    - debug: commands/debug.md
+  - Guides:
+    - WSL2 GPU Support: guides/wsl2.md
+    - CI/CD Integration: guides/ci-cd.md
+    - Recording Demos: guides/recording-demos.md
+  - Architecture: architecture.md

@@ -38,7 +38,7 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 
 ## Doctor "Check" (Diagnosis)
 
-[![Env-Doctor Demo](https://asciinema.org/a/0OBygpGsyreSfn1c.svg)](https://asciinema.org/a/0OBygpGsyreSfn1c)
+[![Env-Doctor Demo]](https://asciinema.org/a/0OBygpGsyreSfn1c)
 
 
 ## Features

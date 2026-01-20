@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "env-doctor"
-version = "0.1.0"
+version = "0.1.1"
 description = "A CLI tool to verify and fix AI/ML environment compatibility (Driver <-> CUDA <-> Wheels)."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -20,13 +20,13 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: System :: Hardware",
 ]
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 dependencies = [
-    "nvidia-ml-py",
-    "packaging",
-    "click",
-    "requests",  # Required for fetching the database from GitHub
-    "pyyaml",    # Required for docker-compose validation
+    "nvidia-ml-py>=11.0.0,<14.0.0",
+    "packaging>=21.0,<26.0",
+    "click>=8.0.0,<9.0.0",
+    "requests>=2.25.0,<3.0.0",
+    "pyyaml>=5.4,<7.0",
 ]
 
 [project.scripts]

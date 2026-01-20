@@ -1,307 +1,223 @@
 # Publishing Guide for env-doctor
 
-This guide covers how to publish env-doctor to TestPyPI and PyPI, and create GitHub releases.
+This guide covers how to publish new releases of env-doctor to PyPI using automated GitHub Actions.
 
-## Prerequisites
+## Current Status
 
-1. **TestPyPI Account**: Create an account at https://test.pypi.org/account/register/
-2. **TestPyPI API Token**: You mentioned you already have this. Store it securely.
-3. **Build Tools**: Install required tools:
-   ```bash
-   pip install --upgrade build twine
-   ```
+- **Latest Version**: v0.1.0
+- **PyPI Package**: https://pypi.org/project/env-doctor/
+- **Installation**: `pip install env-doctor`
+- **GitHub Releases**: https://github.com/mitulgarg/env-doctor/releases
+- **Documentation**: https://mitulgarg.github.io/env-doctor/
 
-## Step 1: Prepare the Release
+## Release Automation
 
-### 1.1 Verify Version Number
-Check that the version in these files matches:
-- `pyproject.toml` (line 7): `version = "0.1.0"`
-- `src/env_doctor/__init__.py` (line 1): `__version__ = "0.1.0"`
+Starting with v0.1.1, all PyPI releases are **fully automated** via GitHub Actions:
 
-### 1.2 Clean Previous Builds
-Remove any old build artifacts:
+1. Push a git tag (e.g., `v0.1.1`)
+2. GitHub Actions automatically:
+   - Runs tests
+   - Builds the package
+   - Waits for manual approval
+   - Publishes to PyPI
+
+**No API tokens or manual uploads needed** - uses PyPI Trusted Publishing (OIDC).
+
+## How to Create a Release
+
+### Step 1: Prepare the Release
+
+#### 1.1 Update Version Number
+
+Update the version in **both** files:
+- `pyproject.toml` (line 7): `version = "0.1.1"`
+- `src/env_doctor/__init__.py`: `__version__ = "0.1.1"`
+
+#### 1.2 Update Documentation (if needed)
+
+- Update README.md with new features/changes
+- Update docs/ if significant changes
+- Update CHANGELOG.md (create if it doesn't exist)
+
+#### 1.3 Commit Changes
+
 ```bash
-rm -rf dist/ build/ src/*.egg-info
+git add pyproject.toml src/env_doctor/__init__.py
+git commit -m "chore: bump version to v0.1.1"
+git push origin main
 ```
 
-On Windows:
-```powershell
-Remove-Item -Recurse -Force dist, build, src\*.egg-info -ErrorAction SilentlyContinue
-```
+### Step 2: Create and Push Git Tag
 
-### 1.3 Update README (Optional)
-Update the README.md installation section once published:
-```markdown
-## Installation
-
-```bash
-# From TestPyPI (for testing)
-pip install -i https://test.pypi.org/simple/ env-doctor
-
-# From PyPI (official release - coming soon)
-pip install env-doctor
-```
-```
-
-## Step 2: Build the Distribution
-
-Build both wheel and source distribution:
-```bash
-python -m build
-```
-
-This creates:
-- `dist/env_doctor-0.1.0-py3-none-any.whl` (wheel)
-- `dist/env-doctor-0.1.0.tar.gz` (source distribution)
-
-### Verify the Build
-Check that the distribution is valid:
-```bash
-twine check dist/*
-```
-
-Expected output:
-```
-Checking dist/env_doctor-0.1.0-py3-none-any.whl: PASSED
-Checking dist/env-doctor-0.1.0.tar.gz: PASSED
-```
-
-## Step 3: Upload to TestPyPI
-
-### 3.1 Upload Using API Token
-```bash
-twine upload --repository testpypi dist/*
-```
-
-When prompted:
-- **Username**: `__token__`
-- **Password**: Your TestPyPI API token (starts with `pypi-...`)
-
-Alternative (using environment variables):
-```bash
-export TWINE_USERNAME=__token__
-export TWINE_PASSWORD=your-testpypi-api-token-here
-twine upload --repository testpypi dist/*
-```
-
-On Windows (PowerShell):
-```powershell
-$env:TWINE_USERNAME="__token__"
-$env:TWINE_PASSWORD="your-testpypi-api-token-here"
-twine upload --repository testpypi dist/*
-```
-
-### 3.2 Verify Upload
-Visit: https://test.pypi.org/project/env-doctor/
-
-You should see your package with version 0.1.0.
-
-## Step 4: Test Installation from TestPyPI
-
-Create a new virtual environment and test installation:
-```bash
-# Create fresh environment
-python -m venv test-env
-source test-env/bin/activate  # On Windows: test-env\Scripts\activate
-
-# Install from TestPyPI
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ env-doctor
-
-# Test the package
-env-doctor check
-doctor --help
-```
-
-**Note**: The `--extra-index-url` is needed because TestPyPI doesn't have your dependencies (nvidia-ml-py, click, etc.), so pip will fetch them from the regular PyPI.
-
-## Step 5: Create GitHub Release (v0.1.0)
-
-### 5.1 Create a Git Tag
-First, ensure all changes are committed:
-```bash
-git status
-git add .
-git commit -m "Prepare for v0.1.0 release"
-```
-
-Create and push the tag:
 ```bash
 # Create annotated tag
-git tag -a v0.1.0 -m "Release version 0.1.0 - Initial public release"
+git tag -a v0.1.1 -m "Release v0.1.1: CI/CD automation and documentation improvements"
 
-# Push tag to GitHub
-git push origin v0.1.0
+# Push tag to GitHub (this triggers the workflow)
+git push origin v0.1.1
 ```
 
-### 5.2 Create GitHub Release via Web UI
+### Step 3: Monitor GitHub Actions
 
-1. Go to: https://github.com/mitulgarg/env-doctor/releases/new
-2. Fill in:
-   - **Tag**: Select `v0.1.0` (the tag you just created)
-   - **Release title**: `v0.1.0 - Initial Release`
-   - **Description**: Use the template below
+1. Go to: https://github.com/mitulgarg/env-doctor/actions
+2. You'll see the "Publish to PyPI" workflow running
+3. The workflow will:
+   - ✅ Run tests
+   - ✅ Build distribution packages
+   - ⏸️ Wait for your approval
 
-#### Release Description Template:
-```markdown
-# 🎉 Initial Public Release - v0.1.0
+### Step 4: Approve the Release
 
-This is the first official release of **Env-Doctor**, a CLI tool that diagnoses and fixes compatibility issues between GPU drivers, CUDA toolkits, and Python AI libraries.
+1. In the Actions tab, click on the running workflow
+2. Click the "Review deployments" button
+3. Check the `pypi` environment
+4. Click "Approve and deploy"
 
-## 🚀 Features
+The package will be published to PyPI within 1-2 minutes.
 
-- **Environment Diagnosis**: Check compatibility between GPU Driver, CUDA Toolkit, and Python libraries
-- **WSL2 GPU Support**: Detect WSL1/WSL2 environments and validate GPU forwarding
-- **CUDA Analysis**: Deep inspection of CUDA installations, environment variables, and configurations
-- **cuDNN Detection**: Find and validate cuDNN libraries
-- **Docker Validation**: Validate Dockerfiles and docker-compose.yml for GPU configuration issues
-- **Safe Install Commands**: Get the exact `pip install` command that works with your driver
-- **Code Scanning**: Scan projects for deprecated imports (LangChain, Pydantic)
+### Step 5: Create GitHub Release (Optional)
 
-## 📦 Installation
-
-### From PyPI (Recommended)
-```bash
-pip install env-doctor
-```
-
-### From TestPyPI (Testing)
-```bash
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ env-doctor
-```
-
-### From Source
-```bash
-git clone https://github.com/mitulgarg/env-doctor.git
-cd env-doctor
-pip install -e .
-```
-
-## 🛠️ Quick Start
+Create a GitHub release with release notes:
 
 ```bash
-# Diagnose your environment
-env-doctor check
+gh release create v0.1.1 \
+  --title "v0.1.1 - CI/CD Automation" \
+  --notes "### Changes
+- Added automated PyPI publishing via GitHub Actions
+- Updated documentation and README
+- Improved dependency version constraints in pyproject.toml
+- Updated to Python 3.10+ minimum requirement
 
-# Get detailed CUDA analysis
-env-doctor cuda-info
-
-# Get safe install command for PyTorch
-env-doctor install torch
-
-# Validate your Dockerfile
-env-doctor dockerfile
+**Install**: \`pip install env-doctor\`"
 ```
 
-## 📋 Requirements
+Or use the GitHub web UI: https://github.com/mitulgarg/env-doctor/releases/new
 
-- Python 3.7+
-- Linux (native or WSL2) or Windows
-- NVIDIA GPU (for GPU-related diagnostics)
+## Version Numbering (Semantic Versioning)
 
-## 🐛 Known Issues
+Follow semantic versioning: `MAJOR.MINOR.PATCH`
 
-None at this time. Please report issues at https://github.com/mitulgarg/env-doctor/issues
+- **Patch** (0.1.X): Bug fixes, documentation, internal improvements
+- **Minor** (0.X.0): New features, backward compatible
+- **Major** (X.0.0): Breaking changes
 
-## 📝 Full Documentation
+### Examples:
+- v0.1.1: CI/CD automation, README updates (PATCH)
+- v0.2.0: MCP server integration (MINOR - new feature)
+- v1.0.0: Stable API, production ready (MAJOR)
 
-See the [README](https://github.com/mitulgarg/env-doctor/blob/main/README.md) for complete documentation.
+## Rollback a Release
 
----
+If you need to rollback or fix a bad release:
 
-**What's Next?** We're working on expanding model compatibility checking, adding more AI frameworks, and improving WSL2 diagnostics. Stay tuned!
-```
-
-3. **Attachments** (Optional): Upload the distribution files:
-   - `dist/env_doctor-0.1.0-py3-none-any.whl`
-   - `dist/env-doctor-0.1.0.tar.gz`
-
-4. Click **"Publish release"**
-
-### 5.3 Create GitHub Release via CLI (Alternative)
-
-If you have `gh` CLI installed:
-```bash
-gh release create v0.1.0 \
-  --title "v0.1.0 - Initial Release" \
-  --notes-file release-notes.md \
-  dist/env_doctor-0.1.0-py3-none-any.whl \
-  dist/env-doctor-0.1.0.tar.gz
-```
-
-## Step 6: Publish to PyPI (When Ready)
-
-When you're ready to publish to the official PyPI (after testing on TestPyPI):
-
-1. **Get PyPI API Token**: Create at https://pypi.org/manage/account/token/
-
-2. **Upload to PyPI**:
+1. You **cannot delete** PyPI releases
+2. Instead, immediately release a patch version:
    ```bash
-   twine upload dist/*
+   # If v0.1.1 is broken, release v0.1.2 with fixes
+   git tag -a v0.1.2 -m "Release v0.1.2: Fix critical bug from v0.1.1"
+   git push origin v0.1.2
    ```
 
-   Credentials:
-   - **Username**: `__token__`
-   - **Password**: Your PyPI API token
+## Troubleshooting
 
-3. **Verify**: Visit https://pypi.org/project/env-doctor/
+### Workflow fails at "Run Tests"
+- Fix the failing tests
+- Push fixes to main
+- Delete and recreate the tag:
+  ```bash
+  git tag -d v0.1.1
+  git push origin :refs/tags/v0.1.1
+  git tag -a v0.1.1 -m "Release v0.1.1"
+  git push origin v0.1.1
+  ```
 
-## Common Issues and Solutions
+### Workflow fails at "Publish to PyPI"
+- Check that PyPI Trusted Publishing is configured
+- Verify the environment name is `pypi` (case-sensitive)
+- Check workflow permissions in `.github/workflows/publish-pypi.yml`
 
-### Issue: "File already exists"
-**Cause**: You're trying to upload a version that already exists.
-**Solution**: Increment the version number in `pyproject.toml` and `__init__.py`, rebuild, and upload again.
+### "File already exists" error on PyPI
+- You're trying to upload a version that already exists
+- Bump to the next version number and try again
+- PyPI does **not** allow overwriting existing versions
 
-### Issue: "Invalid distribution"
-**Cause**: Missing required metadata or malformed files.
-**Solution**: Run `twine check dist/*` to identify issues.
+## Prerequisites for Maintainers
 
-### Issue: "Wheel is not PEP 517 compatible"
-**Cause**: Build system issues.
-**Solution**: Ensure `pyproject.toml` has correct `[build-system]` configuration.
+### PyPI Trusted Publishing Setup
 
-### Issue: Dependencies not installing from TestPyPI
-**Cause**: Dependencies don't exist on TestPyPI.
-**Solution**: Use `--extra-index-url https://pypi.org/simple/` when installing.
+Already configured for this repository. If you need to reconfigure:
 
-## Version Management
+1. Go to https://pypi.org/manage/project/env-doctor/settings/publishing/
+2. Add publisher:
+   - **PyPI Project Name**: `env-doctor`
+   - **Owner**: `mitulgarg`
+   - **Repository name**: `env-doctor`
+   - **Workflow name**: `publish-pypi.yml`
+   - **Environment name**: `pypi`
 
-For future releases:
+### GitHub Environment Protection
 
-1. Update version in:
-   - `pyproject.toml`
-   - `src/env_doctor/__init__.py`
+To enable manual approval before publishing:
 
-2. Follow semantic versioning:
-   - **Patch** (0.1.X): Bug fixes
-   - **Minor** (0.X.0): New features, backward compatible
-   - **Major** (X.0.0): Breaking changes
+1. Go to: https://github.com/mitulgarg/env-doctor/settings/environments
+2. Click "pypi" environment
+3. Check "Required reviewers"
+4. Add yourself as a reviewer
 
-3. Update CHANGELOG.md (create if needed)
+## Release Checklist
 
-## Checklist for Each Release
+Before tagging a release:
 
-- [ ] Update version numbers in `pyproject.toml` and `__init__.py`
-- [ ] Clean old build artifacts (`rm -rf dist/ build/ *.egg-info`)
-- [ ] Build distributions (`python -m build`)
-- [ ] Verify build (`twine check dist/*`)
-- [ ] Upload to TestPyPI (`twine upload --repository testpypi dist/*`)
-- [ ] Test installation from TestPyPI in clean environment
-- [ ] Create and push git tag (`git tag -a vX.Y.Z`)
-- [ ] Create GitHub release with release notes
-- [ ] Upload to PyPI (`twine upload dist/*`)
-- [ ] Verify on PyPI
-- [ ] Update README.md if needed
+- [ ] Version updated in `pyproject.toml` and `__init__.py`
+- [ ] All tests pass (`pytest`)
+- [ ] README.md updated (if needed)
+- [ ] Documentation updated (if needed)
+- [ ] Changes committed and pushed to main
+- [ ] Ready to create git tag
 
-## Security Note
+After tagging:
 
-**NEVER commit API tokens to version control!**
-- Store tokens securely (password manager)
-- Use environment variables or `.pypirc` (excluded from git)
-- For GitHub Actions, use repository secrets
+- [ ] GitHub Actions workflow triggered
+- [ ] Tests passed in CI
+- [ ] Build succeeded
+- [ ] Approved deployment
+- [ ] Package visible on PyPI
+- [ ] GitHub release created with release notes
+- [ ] Verified installation: `pip install env-doctor`
+
+## Testing Locally Before Release
+
+Test the package build locally before pushing a tag:
+
+```bash
+# Clean old builds
+rm -rf dist/ build/ src/*.egg-info
+
+# Build package
+python -m build
+
+# Check distribution
+pip install twine
+twine check dist/*
+
+# Test install in clean environment
+python -m venv test-env
+source test-env/bin/activate  # Windows: test-env\Scripts\activate
+pip install dist/env_doctor-0.1.1-py3-none-any.whl
+env-doctor check
+deactivate
+rm -rf test-env
+```
+
+## Security
+
+- **No API tokens in repository**: Uses OIDC Trusted Publishing
+- **Manual approval required**: Prevents accidental releases
+- **Signed commits recommended**: Use GPG signing for releases
 
 ## Need Help?
 
+- **GitHub Actions Issues**: https://github.com/mitulgarg/env-doctor/actions
+- **PyPI Package**: https://pypi.org/project/env-doctor/
+- **Report Issues**: https://github.com/mitulgarg/env-doctor/issues
 - **PyPI Documentation**: https://packaging.python.org/
-- **TestPyPI**: https://test.pypi.org/
-- **Twine Guide**: https://twine.readthedocs.io/
-- **Project Issues**: https://github.com/mitulgarg/env-doctor/issues

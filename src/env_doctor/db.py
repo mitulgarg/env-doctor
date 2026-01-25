@@ -92,14 +92,22 @@ def get_max_cuda_for_driver(driver_version: str) -> str:
         return "Unknown"
 
 def get_install_command(library: str, max_cuda: str) -> str:
-    """Returns the install string for a library given the system constraint."""
+    """
     
-    # 1. Exact match in DB
+    Returns the install string for a library given the system constraint. 
+    Checks nvcc and pytorch CUDA match for flash-attn
+    
+    """
+    # flash-attention
+
+
+
+    # Exact match in DB
     if max_cuda in RECOMMENDATIONS:
         val = RECOMMENDATIONS[max_cuda].get(library)
         if val: return val
     
-    # 2. Logic for finding 'closest' if exact CUDA version isn't in our specific map
+    # Logic for finding 'closest' if exact CUDA version isn't in our specific map
     try:
         cuda_float = float(max_cuda)
         if cuda_float >= 12.1:

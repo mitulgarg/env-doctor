@@ -46,6 +46,19 @@ class PythonLibraryDetector(Detector):
                     f"Install {self.library_name} using: env-doctor install {self.library_name}"
                 ]
             )
+
+        except Exception as e:
+            # Handle other import failures (DLL errors, missing dependencies, etc.)
+            return DetectionResult(
+                component=f"python_library_{self.library_name}",
+                status=Status.ERROR,
+                issues=[f"Failed to import {self.library_name}: {str(e)}"],
+                recommendations=[
+                    f"{self.library_name} is installed but failed to load.",
+                    "This is often caused by missing DLLs or incompatible CUDA versions.",
+                    f"Try reinstalling: pip uninstall {self.library_name} && pip install {self.library_name}"
+                ]
+            )
     
     def _detect_torch_cuda(self, lib):
         cuda_ver = "Unknown"

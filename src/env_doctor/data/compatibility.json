@@ -1,5 +1,11 @@
 {
     "driver_to_cuda": {
+        "590": "13.1",
+        "580": "13.0",
+        "575": "12.9",
+        "570": "12.8",
+        "560": "12.6",
+        "555": "12.5",
         "550": "12.4",
         "545": "12.3",
         "535": "12.2",
@@ -15,65 +21,100 @@
         "450": "11.0"
     },
     "recommendations": {
-        "12.4": {
-            "torch": "pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124",
-            "tensorflow": "pip install tensorflow==2.16.1"
-        },
-        "12.1": {
-            "torch": "pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121",
-            "tensorflow": "pip install tensorflow==2.15.0"
-        },
-        "11.8": {
-            "torch": "pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118",
-            "tensorflow": "pip install tensorflow==2.14.0"
-        },
-        "11.7": {
-            "torch": "pip install torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorch.org/whl/cu117",
-            "tensorflow": "pip install tensorflow==2.13.0"
-        },
-        "11.x": {
-            "torch": "pip install torch==1.13.1 --index-url https://download.pytorch.org/whl/cu116",
-            "tensorflow": "pip install tensorflow==2.11.0"
-        },
-        "12.6": {
-            "torch": "pip install torch==2.9.0 torchvision==0.24.0 torchaudio==2.9.0 --index-url https://download.pytorch.org/whl/cu126",
-            "tensorflow": "Manual verification needed"
-        },
-        "12.8": {
-            "torch": "pip install torch==2.9.0 torchvision==0.24.0 torchaudio==2.9.0 --index-url https://download.pytorch.org/whl/cu128",
-            "tensorflow": "Manual verification needed"
+        "13.1": {
+            "torch": "pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130",
+            "tensorflow": "Manual verification needed",
+            "note": "Use cu130 wheels - forward compatible with CUDA 13.1"
         },
         "13.0": {
-            "torch": "pip install torch==2.9.0 torchvision==0.24.0 torchaudio==2.9.0 --index-url https://download.pytorch.org/whl/cu130",
+            "torch": "pip install torch==2.9.1 torchvision==0.24.1 torchaudio==2.9.1 --index-url https://download.pytorch.org/whl/cu130",
             "tensorflow": "Manual verification needed"
         },
         "12.9": {
             "torch": "pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu129",
             "tensorflow": "Manual verification needed"
         },
+        "12.8": {
+            "torch": "pip install torch==2.9.1 torchvision==0.24.1 torchaudio==2.9.1 --index-url https://download.pytorch.org/whl/cu128",
+            "tensorflow": "Manual verification needed"
+        },
+        "12.6": {
+            "torch": "pip install torch==2.9.1 torchvision==0.24.1 torchaudio==2.9.1 --index-url https://download.pytorch.org/whl/cu126",
+            "tensorflow": "Manual verification needed"
+        },
+        "12.5": {
+            "torch": "pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124",
+            "tensorflow": "Manual verification needed",
+            "note": "No cu125 wheel exists - use cu124 (forward compatible)"
+        },
+        "12.4": {
+            "torch": "pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124",
+            "tensorflow": "pip install tensorflow==2.16.1"
+        },
+        "12.3": {
+            "torch": "pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121",
+            "tensorflow": "pip install tensorflow==2.15.0",
+            "note": "No cu123 wheel exists - use cu121 (forward compatible)"
+        },
+        "12.2": {
+            "torch": "pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121",
+            "tensorflow": "pip install tensorflow==2.15.0",
+            "note": "No cu122 wheel exists - use cu121 (forward compatible)"
+        },
+        "12.1": {
+            "torch": "pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121",
+            "tensorflow": "pip install tensorflow==2.15.0"
+        },
+        "12.0": {
+            "torch": "pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121",
+            "tensorflow": "pip install tensorflow==2.14.0",
+            "note": "No cu120 wheel exists - use cu121 (forward compatible)"
+        },
+        "11.8": {
+            "torch": "pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118",
+            "tensorflow": "pip install tensorflow==2.14.0"
+        },
+        "11.7": {
+            "torch": "pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cu117",
+            "tensorflow": "pip install tensorflow==2.13.0"
+        },
         "11.6": {
             "torch": "pip install torch==1.13.1+cu116 torchvision==0.14.1+cu116 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu116",
-            "tensorflow": "Manual verification needed"
+            "tensorflow": "pip install tensorflow==2.12.0"
+        },
+        "11.4": {
+            "torch": "pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu113",
+            "tensorflow": "pip install tensorflow==2.11.0",
+            "note": "No cu114 wheel exists - use cu113 (forward compatible)"
         },
         "11.3": {
             "torch": "pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu113",
-            "tensorflow": "Manual verification needed"
+            "tensorflow": "pip install tensorflow==2.11.0"
         },
-        "10.2": {
-            "torch": "pip install torch==1.12.1+cu102 torchvision==0.13.1+cu102 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu102",
-            "tensorflow": "Manual verification needed"
+        "11.2": {
+            "torch": "pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu113",
+            "tensorflow": "pip install tensorflow==2.10.0",
+            "note": "No cu112 wheel exists - use cu113 (forward compatible)"
         },
         "11.1": {
-            "torch": "pip install torch==1.10.1+cu111 torchvision==0.11.2+cu111 torchaudio==0.10.1 -f https://download.pytorch.org/whl/cu111/torch_stable.html",
-            "tensorflow": "Manual verification needed"
-        },
-        "10.1": {
-            "torch": "pip install torch==1.8.1+cu101 torchvision==0.9.1+cu101 torchaudio==0.8.1 -f https://download.pytorch.org/whl/torch_stable.html",
-            "tensorflow": "Manual verification needed"
+            "torch": "pip install torch==1.10.1+cu111 torchvision==0.11.2+cu111 torchaudio==0.10.1 --extra-index-url https://download.pytorch.org/whl/cu111",
+            "tensorflow": "pip install tensorflow==2.10.0",
+            "note": "Legacy version - limited support"
         },
         "11.0": {
             "torch": "pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 torchaudio==0.7.2 -f https://download.pytorch.org/whl/torch_stable.html",
-            "tensorflow": "Manual verification needed"
+            "tensorflow": "pip install tensorflow==2.9.0",
+            "note": "Legacy version - very old PyTorch"
+        },
+        "10.2": {
+            "torch": "pip install torch==1.12.1+cu102 torchvision==0.13.1+cu102 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu102",
+            "tensorflow": "pip install tensorflow==2.10.0",
+            "note": "Legacy version - last supported in PyTorch 1.12"
+        },
+        "10.1": {
+            "torch": "pip install torch==1.8.1+cu101 torchvision==0.9.1+cu101 torchaudio==0.8.1 -f https://download.pytorch.org/whl/torch_stable.html",
+            "tensorflow": "pip install tensorflow==2.6.0",
+            "note": "Legacy version - very old PyTorch"
         }
     }
 }

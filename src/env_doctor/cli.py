@@ -32,6 +32,14 @@ from .detectors.cudnn import CudnnDetector
 # Import model checker for model compatibility
 from .utilities import ModelChecker
 
+# Compilation packages that require nvcc CUDA version to match PyTorch's bundled CUDA
+COMPILATION_PACKAGES = {
+    "flash-attn": ["flash-attn", "flash-attention", "flash_attn"],
+    "auto-gptq": ["auto-gptq", "autogptq", "auto_gptq"],
+    "apex": ["apex"],
+    "xformers": ["xformers"]
+}
+
 def check_compilation_health(cuda_result, torch_result):
     """
     Check if system CUDA matches PyTorch CUDA for compilation compatibility.
@@ -50,7 +58,12 @@ def check_compilation_health(cuda_result, torch_result):
         return
     
     if not torch_result.detected:
-        print("❓  PyTorch not installed. Skipping check.")
+        if torch_result.status == Status.ERROR:
+            print("❌  PyTorch import failed. Cannot check compilation compatibility.")
+            for issue in torch_result.issues:
+                print(f"    {issue}")
+        else:
+            print("❓  PyTorch not installed. Skipping check.")
         return
     
     torch_cuda = torch_result.metadata.get("cuda_version", "Unknown")
@@ -66,8 +79,9 @@ def check_compilation_health(cuda_result, torch_result):
         print(f"✅  PERFECT SYMMETRY: System ({sys_cuda}) == Torch ({torch_cuda})")
     else:
         print(f"❌  ASYMMETRY DETECTED: System ({sys_cuda}) != Torch ({torch_cuda})")
-        print("    -> pip install flash-attention will likely FAIL.")
-        print(f"    → Consider installing CUDA Toolkit {torch_mm}")
+        print("    -> pip install flash-attn/auto-gptq/apex/xformers will likely FAIL.")
+        print(f"    -> Run 'env-doctor install <package>' to see fix options")
+        print(f"    -> Or manually install CUDA Toolkit {torch_mm}")
 
 
 def check_system_path():
@@ -425,11 +439,19 @@ def check_command(output_json: bool = False, ci: bool = False):
 def install_command(package_name):
     """
     Provide installation prescription for a package.
-    
+
     Uses NvidiaDriverDetector to determine compatible CUDA version.
+    For compilation packages (flash-attn, auto-gptq, apex, xformers),
+    provides special two-option guidance.
     """
+    # Check if this is a compilation package that requires nvcc/PyTorch CUDA matching
+    for canonical_name, aliases in COMPILATION_PACKAGES.items():
+        if package_name.lower() in aliases:
+            compilation_package_install_prescription(canonical_name, package_name)
+            return
+
     print(f"\n🩺  PRESCRIPTION FOR: {package_name}")
-    
+
     # Use detector instead of direct function call
     driver_detector = DetectorRegistry.get("nvidia_driver")
     driver_result = driver_detector.detect()
@@ -447,6 +469,187 @@ def install_command(package_name):
     print("---------------------------------------------------")
     print(command)
     print("---------------------------------------------------")
+
+
+def compilation_package_install_prescription(canonical_name, package_input):
+    """
+    Provide installation prescription for packages requiring nvcc/PyTorch CUDA match.
+
+    Packages like flash-attn, auto-gptq, apex, and xformers need to be compiled from
+    source and require exact CUDA version match between system nvcc and PyTorch's
+    bundled CUDA.
+
+    Args:
+        canonical_name: Canonical package name (e.g., "flash-attn")
+        package_input: User's input (e.g., "flash-attention" or "flash_attn")
+    """
+    print(f"\n🩺  PRESCRIPTION FOR: {canonical_name}")
+
+    # Detect current state using existing detectors
+    cuda_detector = DetectorRegistry.get("cuda_toolkit")
+    cuda_result = cuda_detector.detect()
+
+    torch_detector = PythonLibraryDetector("torch")
+    torch_result = torch_detector.detect()
+
+    # Handle edge case: No nvcc found
+    if not cuda_result.detected:
+        _show_no_nvcc_guidance(canonical_name, torch_result)
+        return
+
+    # Handle edge case: No PyTorch found or import failed
+    if not torch_result.detected:
+        if torch_result.status == Status.ERROR:
+            # PyTorch is installed but failed to import
+            print(f"\n❌  PyTorch import failed!")
+            for issue in torch_result.issues:
+                print(f"    {issue}")
+            print("\n💡  Recommendations:")
+            for rec in torch_result.recommendations:
+                print(f"    • {rec}")
+        else:
+            # PyTorch not installed
+            _show_no_pytorch_guidance(canonical_name)
+        return
+
+    # Extract CUDA versions
+    torch_cuda = torch_result.metadata.get("cuda_version", "Unknown")
+    if torch_cuda == "Unknown":
+        print("\n⚠️  Cannot determine PyTorch's CUDA version.")
+        print(f"    Install {canonical_name} at your own risk:")
+        print(f"    pip install {canonical_name} --no-build-isolation")
+        return
+
+    sys_cuda = cuda_result.version
+    sys_mm = ".".join(sys_cuda.split(".")[:2])  # Major.minor
+    torch_mm = ".".join(torch_cuda.split(".")[:2])  # Major.minor
+
+    # Handle edge case: Versions already match
+    if sys_mm == torch_mm:
+        _show_perfect_match_guidance(canonical_name, sys_cuda, torch_cuda)
+        return
+
+    # Main case: CUDA version mismatch - show two options
+    _show_prescription_header(canonical_name, sys_cuda, torch_cuda)
+    _show_option1_pytorch_downgrade(canonical_name, sys_mm, sys_cuda)
+    _show_option2_nvcc_upgrade(canonical_name, torch_mm, torch_cuda, cuda_result)
+
+
+def _show_no_nvcc_guidance(canonical_name, torch_result):
+    """Show guidance when nvcc is not found."""
+    print(f"\n❌  No nvcc found. You MUST install CUDA Toolkit to compile {canonical_name}")
+
+    if torch_result.detected:
+        torch_cuda = torch_result.metadata.get("cuda_version", "Unknown")
+        if torch_cuda != "Unknown":
+            torch_mm = ".".join(torch_cuda.split(".")[:2])
+            print(f"\n📥  RECOMMENDED ACTION:")
+            print(f"    1. Install CUDA Toolkit {torch_mm}")
+            print(f"       https://developer.nvidia.com/cuda-{torch_mm.replace('.', '-')}-0-download-archive")
+            print("    2. Verify: nvcc --version")
+            print(f"    3. Install: pip install {canonical_name} --no-build-isolation")
+        else:
+            print(f"\n    Install CUDA Toolkit and then: pip install {canonical_name} --no-build-isolation")
+    else:
+        print(f"\n    Install CUDA Toolkit and PyTorch first.")
+
+
+def _show_no_pytorch_guidance(canonical_name):
+    """Show guidance when PyTorch is not found."""
+    print(f"\n❌  PyTorch not installed. Install PyTorch first.")
+    print("    Run: env-doctor install torch")
+    print(f"\n    Then install {canonical_name} after PyTorch is ready.")
+
+
+def _show_perfect_match_guidance(canonical_name, sys_cuda, torch_cuda):
+    """Show success path when nvcc and PyTorch CUDA versions match."""
+    print(f"\n✅  PERFECT MATCH: nvcc ({sys_cuda}) == PyTorch ({torch_cuda})")
+    print(f"\n🎯  You can install {canonical_name} directly:")
+    print(f"    pip install {canonical_name} --no-build-isolation")
+
+
+def _show_prescription_header(canonical_name, sys_cuda, torch_cuda):
+    """Show the mismatch warning header."""
+    print(f"\n⚠️   CUDA VERSION MISMATCH DETECTED")
+    print(f"     System nvcc: {sys_cuda}")
+    print(f"     PyTorch CUDA: {torch_cuda}")
+    print(f"\n🔧  {canonical_name} requires EXACT CUDA version match for compilation.")
+    print("    You have TWO options to fix this:")
+
+
+def _show_option1_pytorch_downgrade(canonical_name, sys_mm, sys_cuda):
+    """Show Option 1: Install PyTorch matching nvcc."""
+    print("\n" + "=" * 60)
+    print(f"📦  OPTION 1: Install PyTorch matching your nvcc ({sys_mm})")
+    print("=" * 60)
+    print("\nTrade-offs:")
+    print("  ✅ No system changes needed")
+    print("  ✅ Faster to implement")
+    print("  ❌ Older PyTorch version (may lack new features)")
+
+    # Get PyTorch install command for this CUDA version
+    torch_command = get_install_command("torch", sys_mm)
+
+    print("\nCommands:")
+    print("  # Uninstall current PyTorch")
+    print("  pip uninstall torch torchvision torchaudio -y")
+    print(f"\n  # Install PyTorch for CUDA {sys_mm}")
+    if torch_command and torch_command != "Could not determine safe version.":
+        print(f"  {torch_command}")
+    else:
+        print(f"  pip install torch --index-url https://download.pytorch.org/whl/cu{sys_mm.replace('.', '')}")
+    print(f"\n  # Install {canonical_name}")
+    print(f"  pip install {canonical_name} --no-build-isolation")
+
+
+def _show_option2_nvcc_upgrade(canonical_name, torch_mm, torch_cuda, cuda_result):
+    """Show Option 2: Upgrade nvcc to match PyTorch."""
+    print("\n" + "=" * 60)
+    print(f"⚙️   OPTION 2: Upgrade nvcc to match PyTorch ({torch_mm})")
+    print("=" * 60)
+    print("\nTrade-offs:")
+    print("  ✅ Keep latest PyTorch")
+    print("  ✅ Better long-term solution")
+    print("  ❌ Requires system-level changes")
+    print(f"  ❌ Verify driver supports CUDA {torch_mm}")
+
+    # Check driver compatibility
+    driver_detector = DetectorRegistry.get("nvidia_driver")
+    driver_result = driver_detector.detect()
+
+    if driver_result.detected:
+        max_cuda = driver_result.metadata.get("max_cuda_version", "Unknown")
+        if max_cuda != "Unknown":
+            try:
+                torch_float = float(torch_mm)
+                max_float = float(max_cuda)
+                if torch_float > max_float:
+                    print(f"\n⚠️   WARNING: Your driver ({driver_result.version}) only supports CUDA {max_cuda}")
+                    print(f"    PyTorch requires CUDA {torch_mm}")
+                    print("    You may need to update your NVIDIA driver first!")
+            except ValueError:
+                pass
+
+    # Check for WSL2
+    wsl2_detector = DetectorRegistry.get("wsl2")
+    if wsl2_detector and wsl2_detector.can_run():
+        wsl2_result = wsl2_detector.detect()
+        if wsl2_result.detected:
+            print("\n⚠️   WSL2 DETECTED:")
+            print("    Install CUDA inside WSL2, not Windows")
+            print("    Guide: https://docs.nvidia.com/cuda/wsl-user-guide/")
+
+    print("\nSteps:")
+    print("  1. Check driver compatibility:")
+    print("     env-doctor check")
+    print(f"\n  2. Download CUDA Toolkit {torch_mm}:")
+    print(f"     https://developer.nvidia.com/cuda-{torch_mm.replace('.', '-')}-0-download-archive")
+    print("\n  3. Install CUDA Toolkit (follow NVIDIA's platform-specific guide)")
+    print("\n  4. Verify installation:")
+    print("     nvcc --version")
+    print(f"\n  5. Install {canonical_name}:")
+    print(f"     pip install {canonical_name} --no-build-isolation")
+    print("\n" + "=" * 60)
 
 
 def scan_command(output_json: bool = False):
@@ -889,7 +1092,6 @@ def model_command(model_name: str, precision: str = None):
         print()
         return
 
-    print_model_compatibility(result)
 
 
 def print_model_compatibility(result: dict):

@@ -47,6 +47,7 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 |---------|--------------|
 | **One-Command Diagnosis** | Check compatibility: GPU Driver → CUDA Toolkit → cuDNN → PyTorch/TensorFlow/JAX |
 | **Safe Install Commands** | Get the exact `pip install` command that works with YOUR driver |
+| **Extension Library Support** | Install compilation packages (flash-attn, SageAttention, auto-gptq, apex, xformers) with CUDA version matching |
 | **AI Model Compatibility** | Check if LLMs, Diffusion, or Audio models fit on your GPU before downloading |
 | **WSL2 GPU Support** | Validate GPU forwarding, detect driver conflicts within WSL2 env for Windows users |
 | **Deep CUDA Analysis** | Find multiple installations, PATH issues, environment misconfigurations |
@@ -108,6 +109,72 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 ---------------------------------------------------
 ```
 
+### Install Compilation Packages (Extension Libraries)
+
+For extension libraries like **flash-attn**, **SageAttention**, **auto-gptq**, **apex**, and **xformers** that require compilation from source, `env-doctor` provides special guidance to handle CUDA version mismatches:
+
+```bash
+env-doctor install flash-attn
+```
+
+**Example output (with CUDA mismatch):**
+```
+🩺  PRESCRIPTION FOR: flash-attn
+
+⚠️   CUDA VERSION MISMATCH DETECTED
+     System nvcc: 12.1.1
+     PyTorch CUDA: 12.4.1
+
+🔧  flash-attn requires EXACT CUDA version match for compilation.
+    You have TWO options to fix this:
+
+============================================================
+📦  OPTION 1: Install PyTorch matching your nvcc (12.1)
+============================================================
+
+Trade-offs:
+  ✅ No system changes needed
+  ✅ Faster to implement
+  ❌ Older PyTorch version (may lack new features)
+
+Commands:
+  # Uninstall current PyTorch
+  pip uninstall torch torchvision torchaudio -y
+
+  # Install PyTorch for CUDA 12.1
+  pip install torch --index-url https://download.pytorch.org/whl/cu121
+
+  # Install flash-attn
+  pip install flash-attn --no-build-isolation
+
+============================================================
+⚙️   OPTION 2: Upgrade nvcc to match PyTorch (12.4)
+============================================================
+
+Trade-offs:
+  ✅ Keep latest PyTorch
+  ✅ Better long-term solution
+  ❌ Requires system-level changes
+  ❌ Verify driver supports CUDA 12.4
+
+Steps:
+  1. Check driver compatibility:
+     env-doctor check
+
+  2. Download CUDA Toolkit 12.4:
+     https://developer.nvidia.com/cuda-12-4-0-download-archive
+
+  3. Install CUDA Toolkit (follow NVIDIA's platform-specific guide)
+
+  4. Verify installation:
+     nvcc --version
+
+  5. Install flash-attn:
+     pip install flash-attn --no-build-isolation
+
+============================================================
+```
+
 ### Check Model Compatibility
 
 ```bash
@@ -149,7 +216,7 @@ env-doctor dockerfile
 | Command | Purpose |
 |---------|---------|
 | `env-doctor check` | Full environment diagnosis |
-| `env-doctor install <lib>` | Safe install command for PyTorch/TensorFlow/JAX |
+| `env-doctor install <lib>` | Safe install command for PyTorch/TensorFlow/JAX, extension libraries (flash-attn, auto-gptq, apex, xformers, SageAttention, etc.) |
 | `env-doctor model <name>` | Check model VRAM requirements |
 | `env-doctor cuda-info` | Detailed CUDA toolkit analysis |
 | `env-doctor cudnn-info` | cuDNN library analysis |

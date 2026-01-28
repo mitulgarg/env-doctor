@@ -37,7 +37,8 @@ COMPILATION_PACKAGES = {
     "flash-attn": ["flash-attn", "flash-attention", "flash_attn"],
     "auto-gptq": ["auto-gptq", "autogptq", "auto_gptq"],
     "apex": ["apex"],
-    "xformers": ["xformers"]
+    "xformers": ["xformers"],
+    "sageattention": ["sageattention", "sage-attention", "sage_attention"]
 }
 
 def check_compilation_health(cuda_result, torch_result):

@@ -38,7 +38,7 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 
 ## Doctor "Check" (Diagnosis)
 
-![Env-Doctor Demo](https://raw.githubusercontent.com/mitulgarg/env-doctor/main/docs/assets/envdoctordemo.mp4)
+![Env-Doctor Demo](https://raw.githubusercontent.com/mitulgarg/env-doctor/main/docs/assets/envdoctordemo.gif)
 
 
 ## Features

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/logo.svg" alt="Env-Doctor Logo" width="80" height="80">
+  <img src="https://raw.githubusercontent.com/mitulgarg/env-doctor/main/docs/assets/logo.svg" alt="Env-Doctor Logo" width="80" height="80">
 </p>
 
 <h1 align="center">Env-Doctor</h1>
@@ -38,7 +38,7 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 
 ## Doctor "Check" (Diagnosis)
 
-[![Env-Doctor Demo](https://asciinema.org/a/0OBygpGsyreSfn1c.svg)](https://asciinema.org/a/0OBygpGsyreSfn1c)
+![Env-Doctor Demo](https://raw.githubusercontent.com/mitulgarg/env-doctor/main/docs/assets/demo.gif)
 
 
 ## Features

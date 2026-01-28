@@ -1,0 +1,303 @@
+/* Env-Doctor Theme: Black + Neon Green "Hacker" Aesthetic */
+
+:root {
+  /* Neon green palette */
+  --md-primary-fg-color: #00ff88;
+  --md-primary-fg-color--light: #33ff9f;
+  --md-primary-fg-color--dark: #00cc6a;
+  --md-accent-fg-color: #00ff88;
+  --md-accent-fg-color--transparent: rgba(0, 255, 136, 0.1);
+
+  /* Dark background colors */
+  --md-default-bg-color: #0d1117;
+  --md-default-bg-color--light: #161b22;
+  --md-default-bg-color--lighter: #21262d;
+  --md-default-bg-color--lightest: #30363d;
+
+  /* Text colors */
+  --md-default-fg-color: #e6edf3;
+  --md-default-fg-color--light: #8b949e;
+  --md-default-fg-color--lighter: #6e7681;
+  --md-default-fg-color--lightest: #484f58;
+
+  /* Code block colors */
+  --md-code-bg-color: #161b22;
+  --md-code-fg-color: #e6edf3;
+
+  /* Typeset colors */
+  --md-typeset-color: #e6edf3;
+  --md-typeset-a-color: #00ff88;
+
+  /* Footer */
+  --md-footer-bg-color: #0d1117;
+  --md-footer-bg-color--dark: #010409;
+}
+
+/* Slate scheme overrides for darker feel */
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #0d1117;
+  --md-default-bg-color--light: #161b22;
+  --md-code-bg-color: #161b22;
+  --md-typeset-kbd-color: #21262d;
+  --md-typeset-kbd-border-color: #30363d;
+  --md-typeset-kbd-accent-color: #484f58;
+}
+
+/* Header styling */
+.md-header {
+  background-color: #010409;
+  border-bottom: 1px solid #21262d;
+}
+
+.md-header__title {
+  color: #00ff88;
+  font-weight: 600;
+}
+
+/* Navigation */
+.md-nav__link {
+  color: #8b949e;
+}
+
+.md-nav__link:hover,
+.md-nav__link--active {
+  color: #00ff88;
+}
+
+.md-nav__item--active > .md-nav__link {
+  color: #00ff88;
+  font-weight: 600;
+}
+
+/* Sidebar */
+.md-sidebar {
+  background-color: #0d1117;
+}
+
+/* Links */
+.md-typeset a {
+  color: #00ff88;
+}
+
+.md-typeset a:hover {
+  color: #33ff9f;
+  text-decoration: underline;
+}
+
+/* Code blocks with green accent */
+.md-typeset code {
+  background-color: #21262d;
+  color: #00ff88;
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+}
+
+.md-typeset pre > code {
+  background-color: #161b22;
+  color: #e6edf3;
+}
+
+/* Inline code in headers */
+.md-typeset h1 code,
+.md-typeset h2 code,
+.md-typeset h3 code {
+  background-color: transparent;
+  color: #00ff88;
+}
+
+/* Tables */
+.md-typeset table:not([class]) {
+  border: 1px solid #30363d;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: #161b22;
+  color: #00ff88;
+  border-bottom: 2px solid #00ff88;
+}
+
+.md-typeset table:not([class]) td {
+  border-color: #21262d;
+}
+
+.md-typeset table:not([class]) tr:hover {
+  background-color: rgba(0, 255, 136, 0.05);
+}
+
+/* Admonitions */
+.md-typeset .admonition,
+.md-typeset details {
+  border-color: #00ff88;
+  background-color: #161b22;
+}
+
+.md-typeset .admonition-title,
+.md-typeset summary {
+  background-color: rgba(0, 255, 136, 0.1);
+}
+
+/* Tip admonition */
+.md-typeset .admonition.tip,
+.md-typeset details.tip {
+  border-color: #00ff88;
+}
+
+.md-typeset .tip > .admonition-title,
+.md-typeset .tip > summary {
+  background-color: rgba(0, 255, 136, 0.1);
+}
+
+/* Search */
+.md-search__input {
+  background-color: #21262d;
+  color: #e6edf3;
+}
+
+.md-search__input::placeholder {
+  color: #6e7681;
+}
+
+/* Buttons */
+.md-typeset .md-button {
+  border-color: #00ff88;
+  color: #00ff88;
+}
+
+.md-typeset .md-button:hover {
+  background-color: #00ff88;
+  color: #0d1117;
+}
+
+.md-typeset .md-button--primary {
+  background-color: #00ff88;
+  color: #0d1117;
+  border-color: #00ff88;
+}
+
+.md-typeset .md-button--primary:hover {
+  background-color: #33ff9f;
+  border-color: #33ff9f;
+}
+
+/* Footer */
+.md-footer {
+  background-color: #010409;
+  border-top: 1px solid #21262d;
+}
+
+/* Blockquotes - styled for the hook quote */
+.md-typeset blockquote {
+  border-left: 4px solid #00ff88;
+  background-color: #161b22;
+  padding: 1em 1.5em;
+  margin: 1.5em 0;
+}
+
+.md-typeset blockquote p {
+  color: #8b949e;
+}
+
+.md-typeset blockquote strong {
+  color: #e6edf3;
+}
+
+/* Horizontal rules */
+.md-typeset hr {
+  border-color: #30363d;
+}
+
+/* Grid cards (for the home page) */
+.md-typeset .grid.cards > ul > li {
+  background-color: #161b22;
+  border: 1px solid #30363d;
+}
+
+.md-typeset .grid.cards > ul > li:hover {
+  border-color: #00ff88;
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.1);
+}
+
+/* Copy button */
+.md-clipboard {
+  color: #6e7681;
+}
+
+.md-clipboard:hover {
+  color: #00ff88;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00ff88;
+}
+
+/* Selection highlight */
+::selection {
+  background-color: rgba(0, 255, 136, 0.3);
+  color: #e6edf3;
+}
+
+/* Tab styling */
+.md-typeset .tabbed-labels > label {
+  color: #8b949e;
+}
+
+.md-typeset .tabbed-labels > label:hover {
+  color: #00ff88;
+}
+
+.md-typeset .tabbed-set > input:checked + label {
+  color: #00ff88;
+  border-color: #00ff88;
+}
+
+/* Content tabs */
+.md-typeset .tabbed-content {
+  border-color: #30363d;
+}
+
+/* Keyboard keys */
+.md-typeset kbd {
+  background-color: #21262d;
+  border-color: #30363d;
+  box-shadow: 0 2px 0 1px #30363d;
+  color: #e6edf3;
+}
+
+/* Version badge styling (if used) */
+.md-typeset .headerlink {
+  color: #6e7681;
+}
+
+.md-typeset .headerlink:hover {
+  color: #00ff88;
+}
+
+/* Logo glow effect */
+.md-header__button.md-logo {
+  filter: drop-shadow(0 0 4px rgba(0, 255, 136, 0.5));
+}
+
+/* Announcement bar (if used) */
+.md-banner {
+  background-color: #00ff88;
+  color: #0d1117;
+}
+
+.md-banner a {
+  color: #0d1117;
+}

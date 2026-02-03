@@ -1,8 +1,8 @@
 {
   "_metadata": {
-    "version": "1.0",
-    "last_updated": "2026-01-10",
-    "description": "AI model VRAM requirements - hybrid measured + calculated values",
+    "version": "2.0",
+    "last_updated": "2026-02-04",
+    "description": "AI model VRAM requirements - hybrid measured + calculated values. Extended with 60+ popular models across LLM, vision, multimodal, and diffusion categories.",
     "sources": [
       "HuggingFace model cards",
       "Community measurements",
@@ -228,6 +228,340 @@
       "family": "t5",
       "hf_id": "t5-large",
       "notes": "Largest standard T5 variant"
+    },
+    "gpt2": {
+      "params_b": 0.124,
+      "category": "llm",
+      "family": "gpt2",
+      "hf_id": "openai-community/gpt2",
+      "notes": "Original GPT-2 model, very lightweight"
+    },
+    "gpt2-medium": {
+      "params_b": 0.355,
+      "category": "llm",
+      "family": "gpt2",
+      "hf_id": "openai-community/gpt2-medium"
+    },
+    "gpt2-large": {
+      "params_b": 0.774,
+      "category": "llm",
+      "family": "gpt2",
+      "hf_id": "openai-community/gpt2-large"
+    },
+    "gpt2-xl": {
+      "params_b": 1.5,
+      "category": "llm",
+      "family": "gpt2",
+      "hf_id": "openai-community/gpt2-xl"
+    },
+    "llama-2-7b": {
+      "params_b": 7.0,
+      "category": "llm",
+      "family": "llama-2",
+      "hf_id": "meta-llama/Llama-2-7b-hf",
+      "notes": "Llama 2 base model"
+    },
+    "llama-2-13b": {
+      "params_b": 13.0,
+      "category": "llm",
+      "family": "llama-2",
+      "hf_id": "meta-llama/Llama-2-13b-hf"
+    },
+    "llama-2-70b": {
+      "params_b": 70.0,
+      "category": "llm",
+      "family": "llama-2",
+      "hf_id": "meta-llama/Llama-2-70b-hf"
+    },
+    "codellama-7b": {
+      "params_b": 7.0,
+      "category": "llm",
+      "family": "codellama",
+      "hf_id": "codellama/CodeLlama-7b-hf",
+      "notes": "Code-specialized Llama variant"
+    },
+    "codellama-13b": {
+      "params_b": 13.0,
+      "category": "llm",
+      "family": "codellama",
+      "hf_id": "codellama/CodeLlama-13b-hf"
+    },
+    "codellama-34b": {
+      "params_b": 34.0,
+      "category": "llm",
+      "family": "codellama",
+      "hf_id": "codellama/CodeLlama-34b-hf"
+    },
+    "codellama-70b": {
+      "params_b": 70.0,
+      "category": "llm",
+      "family": "codellama",
+      "hf_id": "codellama/CodeLlama-70b-hf"
+    },
+    "falcon-7b": {
+      "params_b": 7.0,
+      "category": "llm",
+      "family": "falcon",
+      "hf_id": "tiiuae/falcon-7b",
+      "notes": "TII UAE's Falcon model"
+    },
+    "falcon-40b": {
+      "params_b": 40.0,
+      "category": "llm",
+      "family": "falcon",
+      "hf_id": "tiiuae/falcon-40b"
+    },
+    "falcon-180b": {
+      "params_b": 180.0,
+      "category": "llm",
+      "family": "falcon",
+      "hf_id": "tiiuae/falcon-180B",
+      "notes": "Very large model, requires 8+ GPUs"
+    },
+    "gemma-2b": {
+      "params_b": 2.0,
+      "category": "llm",
+      "family": "gemma",
+      "hf_id": "google/gemma-2b",
+      "vram": {
+        "fp16": 5000,
+        "int4": 2500
+      },
+      "notes": "Google's lightweight open model"
+    },
+    "gemma-7b": {
+      "params_b": 7.0,
+      "category": "llm",
+      "family": "gemma",
+      "hf_id": "google/gemma-7b",
+      "vram": {
+        "fp16": 16000,
+        "int4": 4500
+      }
+    },
+    "phi-2": {
+      "params_b": 2.7,
+      "category": "llm",
+      "family": "phi",
+      "hf_id": "microsoft/phi-2",
+      "vram": {
+        "fp16": 6000,
+        "int4": 2000
+      },
+      "notes": "Microsoft's efficient small language model"
+    },
+    "phi-3-mini": {
+      "params_b": 3.8,
+      "category": "llm",
+      "family": "phi",
+      "hf_id": "microsoft/Phi-3-mini-4k-instruct",
+      "notes": "Phi-3 mini variant"
+    },
+    "phi-3-small": {
+      "params_b": 7.0,
+      "category": "llm",
+      "family": "phi",
+      "hf_id": "microsoft/Phi-3-small-8k-instruct"
+    },
+    "phi-3-medium": {
+      "params_b": 14.0,
+      "category": "llm",
+      "family": "phi",
+      "hf_id": "microsoft/Phi-3-medium-4k-instruct"
+    },
+    "yi-6b": {
+      "params_b": 6.0,
+      "category": "llm",
+      "family": "yi",
+      "hf_id": "01-ai/Yi-6B",
+      "notes": "01.AI's Yi model"
+    },
+    "yi-34b": {
+      "params_b": 34.0,
+      "category": "llm",
+      "family": "yi",
+      "hf_id": "01-ai/Yi-34B"
+    },
+    "deepseek-7b": {
+      "params_b": 7.0,
+      "category": "llm",
+      "family": "deepseek",
+      "hf_id": "deepseek-ai/deepseek-llm-7b-base",
+      "notes": "DeepSeek base model"
+    },
+    "deepseek-67b": {
+      "params_b": 67.0,
+      "category": "llm",
+      "family": "deepseek",
+      "hf_id": "deepseek-ai/deepseek-llm-67b-base"
+    },
+    "deepseek-coder-6.7b": {
+      "params_b": 6.7,
+      "category": "llm",
+      "family": "deepseek",
+      "hf_id": "deepseek-ai/deepseek-coder-6.7b-base",
+      "notes": "Code-specialized DeepSeek"
+    },
+    "deepseek-coder-33b": {
+      "params_b": 33.0,
+      "category": "llm",
+      "family": "deepseek",
+      "hf_id": "deepseek-ai/deepseek-coder-33b-base"
+    },
+    "vicuna-7b": {
+      "params_b": 7.0,
+      "category": "llm",
+      "family": "vicuna",
+      "hf_id": "lmsys/vicuna-7b-v1.5",
+      "notes": "LMSYS Vicuna chatbot"
+    },
+    "vicuna-13b": {
+      "params_b": 13.0,
+      "category": "llm",
+      "family": "vicuna",
+      "hf_id": "lmsys/vicuna-13b-v1.5"
+    },
+    "starcoder": {
+      "params_b": 15.5,
+      "category": "llm",
+      "family": "starcoder",
+      "hf_id": "bigcode/starcoder",
+      "notes": "BigCode's StarCoder for code generation"
+    },
+    "starcoder2-15b": {
+      "params_b": 15.0,
+      "category": "llm",
+      "family": "starcoder",
+      "hf_id": "bigcode/starcoder2-15b"
+    },
+    "mpt-7b": {
+      "params_b": 7.0,
+      "category": "llm",
+      "family": "mpt",
+      "hf_id": "mosaicml/mpt-7b",
+      "notes": "MosaicML's MPT model"
+    },
+    "mpt-30b": {
+      "params_b": 30.0,
+      "category": "llm",
+      "family": "mpt",
+      "hf_id": "mosaicml/mpt-30b"
+    },
+    "clip-vit-base": {
+      "params_b": 0.15,
+      "category": "vision",
+      "family": "clip",
+      "hf_id": "openai/clip-vit-base-patch32",
+      "vram": {
+        "fp16": 600
+      },
+      "notes": "OpenAI CLIP vision-language model"
+    },
+    "clip-vit-large": {
+      "params_b": 0.43,
+      "category": "vision",
+      "family": "clip",
+      "hf_id": "openai/clip-vit-large-patch14",
+      "vram": {
+        "fp16": 1700
+      }
+    },
+    "sam-vit-base": {
+      "params_b": 0.09,
+      "category": "vision",
+      "family": "sam",
+      "hf_id": "facebook/sam-vit-base",
+      "vram": {
+        "fp16": 400
+      },
+      "notes": "Segment Anything Model (SAM) base"
+    },
+    "sam-vit-large": {
+      "params_b": 0.31,
+      "category": "vision",
+      "family": "sam",
+      "hf_id": "facebook/sam-vit-large",
+      "vram": {
+        "fp16": 1200
+      }
+    },
+    "sam-vit-huge": {
+      "params_b": 0.64,
+      "category": "vision",
+      "family": "sam",
+      "hf_id": "facebook/sam-vit-huge",
+      "vram": {
+        "fp16": 2500
+      }
+    },
+    "dinov2-small": {
+      "params_b": 0.022,
+      "category": "vision",
+      "family": "dinov2",
+      "hf_id": "facebook/dinov2-small",
+      "notes": "Meta's DINOv2 self-supervised vision model"
+    },
+    "dinov2-base": {
+      "params_b": 0.086,
+      "category": "vision",
+      "family": "dinov2",
+      "hf_id": "facebook/dinov2-base"
+    },
+    "dinov2-large": {
+      "params_b": 0.3,
+      "category": "vision",
+      "family": "dinov2",
+      "hf_id": "facebook/dinov2-large"
+    },
+    "llava-1.5-7b": {
+      "params_b": 7.0,
+      "category": "multimodal",
+      "family": "llava",
+      "hf_id": "llava-hf/llava-1.5-7b-hf",
+      "vram": {
+        "fp16": 15000
+      },
+      "notes": "Visual instruction tuning multimodal model"
+    },
+    "llava-1.5-13b": {
+      "params_b": 13.0,
+      "category": "multimodal",
+      "family": "llava",
+      "hf_id": "llava-hf/llava-1.5-13b-hf",
+      "vram": {
+        "fp16": 28000
+      }
+    },
+    "cogvlm-17b": {
+      "params_b": 17.0,
+      "category": "multimodal",
+      "family": "cogvlm",
+      "hf_id": "THUDM/cogvlm-chat-hf",
+      "notes": "Visual language model from Tsinghua"
+    },
+    "qwen-vl": {
+      "params_b": 9.6,
+      "category": "multimodal",
+      "family": "qwen",
+      "hf_id": "Qwen/Qwen-VL",
+      "notes": "Alibaba's vision-language model"
+    },
+    "controlnet-sd15": {
+      "params_b": 1.4,
+      "category": "diffusion",
+      "family": "controlnet",
+      "hf_id": "lllyasviel/control_v11p_sd15_canny",
+      "vram": {
+        "fp16": 5000
+      },
+      "notes": "ControlNet for Stable Diffusion 1.5"
+    },
+    "animatediff": {
+      "params_b": 0.3,
+      "category": "diffusion",
+      "family": "animatediff",
+      "hf_id": "guoyww/animatediff-motion-adapter-v1-5-2",
+      "notes": "Motion module for animating SD images"
     }
   },
   "aliases": {
@@ -236,6 +570,9 @@
     "llama3-70b": "llama-3-70b",
     "llama-70b": "llama-3-70b",
     "llama3-405b": "llama-3.1-405b",
+    "llama2-7b": "llama-2-7b",
+    "llama2-13b": "llama-2-13b",
+    "llama2-70b": "llama-2-70b",
     "mistral-7b-v01": "mistral-7b",
     "mixtral-moe": "mixtral-8x7b",
     "sd-1.5": "stable-diffusion-1.5",
@@ -244,6 +581,43 @@
     "sdxl": "stable-diffusion-xl",
     "sd3": "stable-diffusion-3",
     "flux": "flux-dev",
-    "flux-1": "flux-dev"
+    "flux-1": "flux-dev",
+    "gpt-2": "gpt2",
+    "codellama": "codellama-7b",
+    "code-llama": "codellama-7b",
+    "gemma": "gemma-7b",
+    "phi2": "phi-2",
+    "phi3": "phi-3-mini",
+    "falcon": "falcon-7b",
+    "yi": "yi-6b",
+    "deepseek": "deepseek-7b",
+    "deepseek-coder": "deepseek-coder-6.7b",
+    "vicuna": "vicuna-7b",
+    "starcoder2": "starcoder2-15b",
+    "mpt": "mpt-7b",
+    "clip": "clip-vit-base",
+    "sam": "sam-vit-base",
+    "dino": "dinov2-base",
+    "dinov2": "dinov2-base",
+    "llava": "llava-1.5-7b",
+    "cogvlm": "cogvlm-17b",
+    "controlnet": "controlnet-sd15"
+  },
+  "hf_cache": {
+    "bert-base-uncased": {
+      "params_b": 0.110106428,
+      "hf_id": "bert-base-uncased",
+      "source": "huggingface_api"
+    },
+    "distilbert-base-uncased": {
+      "params_b": 0.06698553,
+      "hf_id": "distilbert-base-uncased",
+      "source": "huggingface_api"
+    },
+    "sentence-transformers/all-minilm-l6-v2": {
+      "params_b": 0.022713728,
+      "hf_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "source": "huggingface_api"
+    }
   }
 }

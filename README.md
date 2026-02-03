@@ -195,6 +195,15 @@ env-doctor model llama-3-8b
 
 List all models: `env-doctor model --list`
 
+Automatic HuggingFace Support (New ✨)
+If a model isn’t found locally, env-doctor automatically checks the HuggingFace Hub, fetches its parameter metadata, and caches it locally for future runs — no manual setup required.
+
+# Fetches from HuggingFace on first run, cached afterward
+env-doctor model bert-base-uncased
+env-doctor model sentence-transformers/all-MiniLM-L6-v2
+
+
+
 ### Validate Dockerfiles
 
 ```bash

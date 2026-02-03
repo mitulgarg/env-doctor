@@ -1092,7 +1092,8 @@ def model_command(model_name: str, precision: str = None):
             print(f"\n    Run 'env-doctor model --list' to see all available models")
         print()
         return
-
+    
+    print_model_compatibility(result)
 
 
 def print_model_compatibility(result: dict):
@@ -1110,6 +1111,8 @@ def print_model_compatibility(result: dict):
 
     # Header
     print(f"\n🤖  Checking: {result['model_name'].upper()}")
+    if result.get("fetched_from_hf"):
+        print(f"    (Fetched from HuggingFace API - cached for future use)")
     print(f"    Parameters: {model_info['params_b']}B")
     if model_info.get("hf_id"):
         print(f"    HuggingFace: {model_info['hf_id']}")

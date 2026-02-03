@@ -4,7 +4,7 @@ This guide covers how to publish new releases of env-doctor to PyPI using automa
 
 ## Current Status
 
-- **Latest Version**: v0.1.0
+- **Latest Version**: v0.1.3
 - **PyPI Package**: https://pypi.org/project/env-doctor/
 - **Installation**: `pip install env-doctor`
 - **GitHub Releases**: https://github.com/mitulgarg/env-doctor/releases

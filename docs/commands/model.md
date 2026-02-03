@@ -12,8 +12,8 @@ env-doctor model <model-name>
 
 | Option | Description |
 |--------|-------------|
-| `--list` | List all available models |
-| `--precision <type>` | Check specific precision (fp32, fp16, int8, int4) |
+| `--list` | List all available models in local database |
+| `--precision <type>` | Check specific precision (fp32, fp16, bf16, int8, int4, fp8) |
 
 ## Example
 
@@ -131,6 +131,74 @@ Common aliases are supported:
 - `sdxl` → `stable-diffusion-xl`
 - `sd15` → `stable-diffusion-1.5`
 - `llama3` → `llama-3-8b`
+- `gemma` → `gemma-7b`
+- `phi2` → `phi-2`
+- `codellama` → `codellama-7b`
+- `clip` → `clip-vit-base`
+- `sam` → `sam-vit-base`
+
+## HuggingFace API Integration
+
+!!! tip "New Feature"
+    Models not in the local database are automatically fetched from HuggingFace Hub!
+
+### 3-Tier Fallback System
+
+When you query a model, env-doctor uses a smart 3-tier lookup:
+
+```
+Tier 1: Local Database (75+ models) → Fastest, measured VRAM values
+    ↓ (if not found)
+Tier 2: HF Cache → Previously fetched models, no network call
+    ↓ (if not found)
+Tier 3: HuggingFace Hub API → Dynamic fetch, then cached
+```
+
+### Checking Any HuggingFace Model
+
+You can check **any public model** from HuggingFace Hub:
+
+```bash
+# Using HuggingFace model ID
+env-doctor model bert-base-uncased
+env-doctor model sentence-transformers/all-MiniLM-L6-v2
+env-doctor model distilbert-base-uncased
+```
+
+**Output for HuggingFace-fetched model:**
+
+```
+🤖  Checking: BERT-BASE-UNCASED
+    (Fetched from HuggingFace API - cached for future use)
+    Parameters: 0.11B
+    HuggingFace: bert-base-uncased
+
+🖥️   Your Hardware:
+    RTX 3090 (24GB VRAM)
+
+💾  VRAM Requirements & Compatibility
+  ✅  FP16:  264 MB - Fits easily!
+
+💡  Recommendations:
+1. Use fp16 for best quality on your GPU
+```
+
+### Automatic Caching
+
+Once fetched, models are cached in the local database for instant lookup on future queries - no network calls needed!
+
+```bash
+# First call: fetches from HuggingFace (2-3 seconds)
+env-doctor model sentence-transformers/all-MiniLM-L6-v2
+
+# Second call: uses cache (instant)
+env-doctor model sentence-transformers/all-MiniLM-L6-v2
+```
+
+### Limitations
+
+!!! warning "Gated Models"
+    HuggingFace models that require authentication (signup/access request) cannot be fetched automatically. Use models from the local database or public HuggingFace models.
 
 ## When a Model Won't Fit
 

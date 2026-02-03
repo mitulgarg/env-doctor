@@ -1092,7 +1092,8 @@ def model_command(model_name: str, precision: str = None):
             print(f"\n    Run 'env-doctor model --list' to see all available models")
         print()
         return
-
+    
+    print_model_compatibility(result)
 
 
 def print_model_compatibility(result: dict):

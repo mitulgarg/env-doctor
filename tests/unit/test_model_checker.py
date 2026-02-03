@@ -344,5 +344,112 @@ class TestModelCheckerBestPrecision:
         assert best == "int4"
 
 
+class TestModelCheckerHuggingFaceIntegration:
+    """Test ModelChecker with HuggingFace API integration."""
+
+    @patch("env_doctor.utilities.model_checker.DetectorRegistry.get")
+    @patch("env_doctor.utilities.vram_calculator.HF_AVAILABLE", True)
+    @patch("env_doctor.utilities.vram_calculator.model_info")
+    def test_model_fetched_from_hf(self, mock_model_info, mock_registry):
+        """Test that model is fetched from HuggingFace when not in local DB"""
+        # Mock HuggingFace API response
+        mock_info = MagicMock()
+        mock_info.safetensors = {"total": 7_000_000_000}  # 7B params
+        mock_info.card_data = None
+        mock_model_info.return_value = mock_info
+
+        # Mock GPU
+        mock_detector = MagicMock()
+        mock_result = DetectionResult(
+            component="nvidia_driver",
+            status=Status.SUCCESS,
+            metadata={
+                "gpu_count": 1,
+                "total_vram_mb": 24576,
+                "primary_gpu_name": "RTX 3090",
+                "primary_gpu_vram_mb": 24576,
+                "gpus": [{"total_vram_mb": 24576}],
+            },
+        )
+        mock_detector.detect.return_value = mock_result
+        mock_registry.return_value = mock_detector
+
+        # Create temp db without the model
+        import tempfile
+        import json
+        import os
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump({
+                "_metadata": {"version": "1.0"},
+                "models": {},
+                "aliases": {},
+                "hf_cache": {}
+            }, f)
+            temp_path = f.name
+
+        try:
+            from env_doctor.utilities.vram_calculator import VRAMCalculator
+            # Patch the VRAMCalculator used by ModelChecker
+            with patch.object(ModelChecker, '__init__', lambda self: None):
+                checker = ModelChecker()
+                checker.vram_calc = VRAMCalculator(db_path=temp_path)
+
+                result = checker.check_compatibility("test-org/new-model-7b")
+
+                assert result["success"] is True
+                assert result.get("fetched_from_hf") is True
+        finally:
+            os.unlink(temp_path)
+
+    @patch("env_doctor.utilities.model_checker.DetectorRegistry.get")
+    def test_fetched_from_hf_flag_false_for_local_model(self, mock_registry):
+        """Test that fetched_from_hf is False for models in local DB"""
+        mock_detector = MagicMock()
+        mock_result = DetectionResult(
+            component="nvidia_driver",
+            status=Status.SUCCESS,
+            metadata={
+                "gpu_count": 1,
+                "total_vram_mb": 24576,
+                "primary_gpu_name": "RTX 3090",
+                "primary_gpu_vram_mb": 24576,
+                "gpus": [{"total_vram_mb": 24576}],
+            },
+        )
+        mock_detector.detect.return_value = mock_result
+        mock_registry.return_value = mock_detector
+
+        checker = ModelChecker()
+        result = checker.check_compatibility("llama-3-8b")
+
+        assert result["success"] is True
+        assert result.get("fetched_from_hf", False) is False
+
+    @patch("env_doctor.utilities.model_checker.DetectorRegistry.get")
+    @patch("env_doctor.utilities.vram_calculator.HF_AVAILABLE", False)
+    def test_error_message_when_hf_unavailable(self, mock_registry):
+        """Test error message suggests installing huggingface_hub"""
+        mock_detector = MagicMock()
+        mock_result = DetectionResult(
+            component="nvidia_driver",
+            status=Status.SUCCESS,
+            metadata={
+                "gpu_count": 1,
+                "total_vram_mb": 24576,
+                "primary_gpu_name": "RTX 3090",
+                "primary_gpu_vram_mb": 24576,
+                "gpus": [{"total_vram_mb": 24576}],
+            },
+        )
+        mock_detector.detect.return_value = mock_result
+        mock_registry.return_value = mock_detector
+
+        checker = ModelChecker()
+        result = checker.check_compatibility("nonexistent-model-xyz")
+
+        assert result["success"] is False
+        assert "huggingface_hub" in result["error"].lower()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

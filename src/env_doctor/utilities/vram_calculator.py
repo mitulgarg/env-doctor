@@ -1,14 +1,31 @@
 """
 VRAM calculation utilities for AI models.
 
-Provides hybrid approach:
+Provides three-tier hybrid approach:
 1. Measured VRAM values (when available in database) - most accurate
-2. Formula-based estimation (parameter-based calculation) - good enough for any model
+2. HuggingFace Hub API (fetch model parameters dynamically) - accurate for any HF model
+3. Formula-based estimation (parameter-based calculation) - fallback for any model
 """
 
 import json
 import os
 from typing import Dict, List, Optional, Any
+from datetime import datetime, timedelta
+
+# HuggingFace Hub integration (optional dependency)
+try:
+    from huggingface_hub import model_info, HfApi
+    from huggingface_hub.utils import RepositoryNotFoundError, HfHubHTTPError
+    HF_AVAILABLE = True
+except ImportError:
+    HF_AVAILABLE = False
+    # Define dummy exception classes for type checking when HF not available
+    class RepositoryNotFoundError(Exception):
+        pass
+    class HfHubHTTPError(Exception):
+        pass
+    model_info = None
+    HfApi = None
 
 
 class VRAMCalculator:
@@ -27,6 +44,9 @@ class VRAMCalculator:
         "fp8": 1.0,
     }
 
+    # HuggingFace API timeout (seconds)
+    HF_TIMEOUT = 5
+
     def __init__(self, db_path: Optional[str] = None):
         """
         Initialize calculator with model database.
@@ -40,6 +60,8 @@ class VRAMCalculator:
             base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             db_path = os.path.join(base_path, "data", "model_requirements.json")
 
+        self.db_path = db_path
+
         try:
             with open(db_path, "r") as f:
                 self.db = json.load(f)
@@ -51,63 +73,101 @@ class VRAMCalculator:
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in model database: {e}")
 
+        # Initialize hf_cache section if not present
+        if "hf_cache" not in self.db:
+            self.db["hf_cache"] = {}
+
     def calculate_vram(
         self, model_name: str, precision: str = "fp16"
     ) -> Dict[str, Any]:
         """
-        Calculate VRAM requirement for a model.
+        Calculate VRAM requirement for a model using 3-tier fallback.
 
         Strategy:
-        1. Normalize model name (lowercase, resolve aliases)
-        2. Check if model exists in database
-        3. If measured VRAM exists for precision: use it (most accurate)
-        4. Otherwise: calculate using formula (good enough)
+        1. Check if model exists in local database (models section)
+        2. Check if model exists in hf_cache
+        3. If not found, try fetching from HuggingFace API
+        4. Use measured VRAM if available, otherwise estimate from params
 
         Args:
-            model_name: Name of the model (e.g., "llama-3-8b")
+            model_name: Name of the model (e.g., "llama-3-8b" or "meta-llama/Llama-2-7b-hf")
             precision: Precision level (fp32, fp16, bf16, int8, int4, fp8)
 
         Returns:
             Dict with keys:
                 - vram_mb: Required VRAM in MB
-                - source: "measured" or "estimated"
+                - source: "measured", "estimated", or "huggingface_api"
                 - params_b: Model parameter count in billions
                 - formula (if estimated): The calculation formula used
+                - fetched_from_hf (if applicable): True if data came from HF API
 
         Raises:
-            ValueError: If model not found in database
+            ValueError: If model not found anywhere
             KeyError: If precision not supported
         """
         # Normalize model name (lowercase, resolve aliases)
         normalized_name = self._normalize_model_name(model_name)
+        model_data = None
+        fetched_from_hf = False
 
-        # Check if model exists
-        if normalized_name not in self.db["models"]:
+        # Tier 1: Check local database (models section)
+        if normalized_name in self.db["models"]:
+            model_data = self.db["models"][normalized_name]
+
+        # Tier 2: Check hf_cache
+        elif normalized_name in self.db.get("hf_cache", {}):
+            model_data = self.db["hf_cache"][normalized_name]
+            fetched_from_hf = True
+
+        # Tier 3: Try fetching from HuggingFace API
+        else:
+            # Try the model_name as a HuggingFace ID directly
+            hf_result = self._fetch_from_huggingface(model_name)
+
+            if hf_result:
+                model_data = hf_result
+                fetched_from_hf = True
+                # Cache the result for future use
+                self._save_to_cache(normalized_name, model_data)
+
+        # If still not found, raise error
+        if model_data is None:
+            hf_note = ""
+            if HF_AVAILABLE:
+                hf_note = " Also tried HuggingFace API but model was not found."
+            else:
+                hf_note = " Install 'huggingface_hub' to enable automatic model lookup."
+
             raise ValueError(
-                f"Model '{model_name}' not found in database. "
+                f"Model '{model_name}' not found in database.{hf_note} "
                 f"Use 'env-doctor model --list' to see available models."
             )
 
-        model_data = self.db["models"][normalized_name]
         params_b = model_data["params_b"]
 
-        # 1. Try measured VRAM first (highest accuracy)
+        # Try measured VRAM first (highest accuracy) - only available for local DB models
         if "vram" in model_data and precision in model_data["vram"]:
-            return {
+            result = {
                 "vram_mb": model_data["vram"][precision],
                 "source": "measured",
                 "params_b": params_b,
             }
+            if fetched_from_hf:
+                result["fetched_from_hf"] = True
+            return result
 
-        # 2. Fallback to formula-based calculation
+        # Fallback to formula-based calculation
         vram_mb = self._calculate_from_params(params_b, precision)
 
-        return {
+        result = {
             "vram_mb": vram_mb,
-            "source": "estimated",
+            "source": "huggingface_api" if fetched_from_hf else "estimated",
             "params_b": params_b,
             "formula": f"{params_b}B × {self.BYTES_PER_PARAM[precision]} bytes/param × {self.OVERHEAD_MULTIPLIER} overhead",
         }
+        if fetched_from_hf:
+            result["fetched_from_hf"] = True
+        return result
 
     def calculate_all_precisions(self, model_name: str) -> Dict[str, Dict[str, Any]]:
         """
@@ -119,17 +179,100 @@ class VRAMCalculator:
         Returns:
             Dict mapping precision -> vram_info
             Example: {"fp16": {...}, "int8": {...}, "int4": {...}}
+
+        Raises:
+            ValueError: If model not found in database or HuggingFace
         """
         results = {}
+        model_not_found_error = None
 
         for precision in ["fp32", "fp16", "bf16", "int8", "int4", "fp8"]:
             try:
                 results[precision] = self.calculate_vram(model_name, precision)
-            except (ValueError, KeyError):
+            except KeyError:
                 # Skip precisions that aren't supported
                 pass
+            except ValueError as e:
+                # Store model not found error to raise later if no results
+                model_not_found_error = e
+
+        # If no results and we had a model not found error, raise it
+        if not results and model_not_found_error:
+            raise model_not_found_error
 
         return results
+
+    def _fetch_from_huggingface(self, hf_model_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch model parameters from HuggingFace Hub API.
+
+        Args:
+            hf_model_id: HuggingFace model ID (e.g., "meta-llama/Llama-2-7b-hf")
+
+        Returns:
+            Dict with params_b and metadata if successful, None if failed
+        """
+        if not HF_AVAILABLE:
+            return None
+
+        try:
+            # Fetch model info from HuggingFace Hub
+            info = model_info(hf_model_id, timeout=self.HF_TIMEOUT)
+
+            params_b = None
+
+            # Try to get parameter count from safetensors metadata (most accurate)
+            if hasattr(info, 'safetensors') and info.safetensors:
+                if 'total' in info.safetensors:
+                    # Convert to billions
+                    params_b = info.safetensors['total'] / 1_000_000_000
+
+            # Fallback: try to get from model card metadata
+            if params_b is None and hasattr(info, 'card_data') and info.card_data:
+                card = info.card_data
+                if hasattr(card, 'model_index') and card.model_index:
+                    for model in card.model_index:
+                        if 'results' in model:
+                            # Some models have parameter info in results
+                            pass
+
+            # Fallback: try to extract from model name (e.g., "7b", "13b")
+            if params_b is None:
+                import re
+                match = re.search(r'(\d+\.?\d*)b', hf_model_id.lower())
+                if match:
+                    params_b = float(match.group(1))
+
+            if params_b is None:
+                return None
+
+            return {
+                "params_b": params_b,
+                "hf_id": hf_model_id,
+                "source": "huggingface_api",
+            }
+
+        except (RepositoryNotFoundError, HfHubHTTPError):
+            return None
+        except Exception:
+            # Catch any other errors (timeout, network issues, etc.)
+            return None
+
+    def _save_to_cache(self, model_name: str, model_data: Dict[str, Any]) -> None:
+        """
+        Save fetched model data to hf_cache in model_requirements.json.
+
+        Args:
+            model_name: Normalized model name to use as key
+            model_data: Model data dict with params_b, hf_id, etc.
+        """
+        try:
+            self.db["hf_cache"][model_name] = model_data
+            with open(self.db_path, "w") as f:
+                json.dump(self.db, f, indent=2)
+        except (IOError, OSError):
+            # Silently fail if we can't write to cache
+            pass
 
     def _calculate_from_params(self, params_b: float, precision: str) -> int:
         """
@@ -188,7 +331,7 @@ class VRAMCalculator:
 
     def get_model_info(self, model_name: str) -> Optional[Dict[str, Any]]:
         """
-        Get full model information from database.
+        Get full model information from database or hf_cache.
 
         Args:
             model_name: Name of the model
@@ -197,7 +340,16 @@ class VRAMCalculator:
             Model data dict, or None if not found
         """
         normalized_name = self._normalize_model_name(model_name)
-        return self.db["models"].get(normalized_name)
+
+        # Check local models first
+        if normalized_name in self.db["models"]:
+            return self.db["models"][normalized_name]
+
+        # Check hf_cache
+        if normalized_name in self.db.get("hf_cache", {}):
+            return self.db["hf_cache"][normalized_name]
+
+        return None
 
     def list_all_models(self) -> Dict[str, List[Dict[str, Any]]]:
         """

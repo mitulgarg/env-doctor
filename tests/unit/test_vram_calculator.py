@@ -8,6 +8,7 @@ import pytest
 import json
 import os
 import tempfile
+from unittest.mock import patch, MagicMock
 from env_doctor.utilities.vram_calculator import VRAMCalculator
 
 
@@ -358,6 +359,260 @@ class TestVRAMCalculatorDatabaseIntegrity:
         """Test database has at least 20 models"""
         calc = VRAMCalculator()
         assert len(calc.db["models"]) >= 20
+
+
+class TestVRAMCalculatorHuggingFaceIntegration:
+    """Test HuggingFace API integration for 3-tier fallback."""
+
+    def test_hf_cache_initialized(self):
+        """Test that hf_cache section is initialized in db"""
+        calc = VRAMCalculator()
+        assert "hf_cache" in calc.db
+
+    def test_db_path_stored(self):
+        """Test that db_path is stored for cache writing"""
+        calc = VRAMCalculator()
+        assert hasattr(calc, "db_path")
+        assert calc.db_path is not None
+
+    @patch("env_doctor.utilities.vram_calculator.HF_AVAILABLE", False)
+    def test_fetch_from_hf_disabled_when_not_available(self):
+        """Test HF fetch returns None when huggingface_hub not installed"""
+        calc = VRAMCalculator()
+        result = calc._fetch_from_huggingface("meta-llama/Llama-2-7b-hf")
+        assert result is None
+
+    @patch("env_doctor.utilities.vram_calculator.HF_AVAILABLE", True)
+    @patch("env_doctor.utilities.vram_calculator.model_info")
+    def test_fetch_from_hf_safetensors_metadata(self, mock_model_info):
+        """Test fetching params from safetensors metadata"""
+        mock_info = MagicMock()
+        mock_info.safetensors = {"total": 7_000_000_000}  # 7B params
+        mock_info.card_data = None
+        mock_model_info.return_value = mock_info
+
+        calc = VRAMCalculator()
+        result = calc._fetch_from_huggingface("test-org/test-model-7b")
+
+        assert result is not None
+        assert result["params_b"] == 7.0
+        assert result["hf_id"] == "test-org/test-model-7b"
+        assert result["source"] == "huggingface_api"
+
+    @patch("env_doctor.utilities.vram_calculator.HF_AVAILABLE", True)
+    @patch("env_doctor.utilities.vram_calculator.model_info")
+    def test_fetch_from_hf_fallback_to_name_parsing(self, mock_model_info):
+        """Test fallback to extracting params from model name"""
+        mock_info = MagicMock()
+        mock_info.safetensors = None  # No safetensors metadata
+        mock_info.card_data = None
+        mock_model_info.return_value = mock_info
+
+        calc = VRAMCalculator()
+        result = calc._fetch_from_huggingface("some-org/my-model-13b")
+
+        assert result is not None
+        assert result["params_b"] == 13.0
+
+    @patch("env_doctor.utilities.vram_calculator.HF_AVAILABLE", True)
+    @patch("env_doctor.utilities.vram_calculator.model_info")
+    def test_fetch_from_hf_not_found(self, mock_model_info):
+        """Test handling of model not found on HuggingFace"""
+        # Create a mock exception class for RepositoryNotFoundError
+        class MockRepoNotFoundError(Exception):
+            pass
+
+        # Patch the exception class in the module
+        with patch("env_doctor.utilities.vram_calculator.RepositoryNotFoundError", MockRepoNotFoundError):
+            mock_model_info.side_effect = MockRepoNotFoundError("Not found")
+
+            calc = VRAMCalculator()
+            result = calc._fetch_from_huggingface("nonexistent/model")
+
+            assert result is None
+
+    @patch("env_doctor.utilities.vram_calculator.HF_AVAILABLE", True)
+    @patch("env_doctor.utilities.vram_calculator.model_info")
+    def test_fetch_from_hf_timeout_handling(self, mock_model_info):
+        """Test handling of timeout/network errors"""
+        mock_model_info.side_effect = Exception("Connection timeout")
+
+        calc = VRAMCalculator()
+        result = calc._fetch_from_huggingface("some-org/model")
+
+        assert result is None  # Should gracefully return None
+
+    def test_save_to_cache(self):
+        """Test saving model data to hf_cache"""
+        # Create a temporary database file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump({
+                "_metadata": {"version": "1.0"},
+                "models": {},
+                "aliases": {},
+                "hf_cache": {}
+            }, f)
+            temp_path = f.name
+
+        try:
+            calc = VRAMCalculator(db_path=temp_path)
+            test_data = {"params_b": 7.0, "hf_id": "test/model", "source": "huggingface_api"}
+            calc._save_to_cache("test-model", test_data)
+
+            # Reload and verify
+            with open(temp_path, 'r') as f:
+                saved_db = json.load(f)
+
+            assert "test-model" in saved_db["hf_cache"]
+            assert saved_db["hf_cache"]["test-model"]["params_b"] == 7.0
+        finally:
+            os.unlink(temp_path)
+
+
+class TestVRAMCalculatorThreeTierFallback:
+    """Test the 3-tier fallback system in calculate_vram."""
+
+    def test_tier1_local_database(self):
+        """Test Tier 1: Model found in local database"""
+        calc = VRAMCalculator()
+        result = calc.calculate_vram("llama-3-8b", "fp16")
+
+        assert result["source"] == "measured"
+        assert "fetched_from_hf" not in result or result.get("fetched_from_hf") is False
+
+    def test_tier2_hf_cache(self):
+        """Test Tier 2: Model found in hf_cache"""
+        # Create a temporary database with cached model
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump({
+                "_metadata": {"version": "1.0"},
+                "models": {},
+                "aliases": {},
+                "hf_cache": {
+                    "cached-model": {
+                        "params_b": 5.0,
+                        "hf_id": "test/cached-model",
+                        "source": "huggingface_api"
+                    }
+                }
+            }, f)
+            temp_path = f.name
+
+        try:
+            calc = VRAMCalculator(db_path=temp_path)
+            result = calc.calculate_vram("cached-model", "fp16")
+
+            assert result["fetched_from_hf"] is True
+            assert result["params_b"] == 5.0
+        finally:
+            os.unlink(temp_path)
+
+    @patch("env_doctor.utilities.vram_calculator.HF_AVAILABLE", True)
+    @patch("env_doctor.utilities.vram_calculator.model_info")
+    def test_tier3_huggingface_api(self, mock_model_info):
+        """Test Tier 3: Fetch from HuggingFace API"""
+        mock_info = MagicMock()
+        mock_info.safetensors = {"total": 3_000_000_000}  # 3B params
+        mock_info.card_data = None
+        mock_model_info.return_value = mock_info
+
+        # Create temp db without the model
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump({
+                "_metadata": {"version": "1.0"},
+                "models": {},
+                "aliases": {},
+                "hf_cache": {}
+            }, f)
+            temp_path = f.name
+
+        try:
+            calc = VRAMCalculator(db_path=temp_path)
+            result = calc.calculate_vram("test-org/new-model-3b", "fp16")
+
+            assert result["fetched_from_hf"] is True
+            assert result["params_b"] == 3.0
+
+            # Verify it was cached
+            with open(temp_path, 'r') as f:
+                saved_db = json.load(f)
+            assert "test-org/new-model-3b" in saved_db["hf_cache"]
+        finally:
+            os.unlink(temp_path)
+
+    @patch("env_doctor.utilities.vram_calculator.HF_AVAILABLE", False)
+    def test_model_not_found_without_hf(self):
+        """Test error message when model not found and HF unavailable"""
+        calc = VRAMCalculator()
+        with pytest.raises(ValueError) as exc_info:
+            calc.calculate_vram("nonexistent-model", "fp16")
+
+        error_msg = str(exc_info.value)
+        assert "huggingface_hub" in error_msg.lower()
+
+    @patch("env_doctor.utilities.vram_calculator.HF_AVAILABLE", True)
+    @patch("env_doctor.utilities.vram_calculator.model_info")
+    def test_model_not_found_with_hf(self, mock_model_info):
+        """Test error message when model not found even with HF API"""
+        # Create a mock exception class for RepositoryNotFoundError
+        class MockRepoNotFoundError(Exception):
+            pass
+
+        with patch("env_doctor.utilities.vram_calculator.RepositoryNotFoundError", MockRepoNotFoundError):
+            mock_model_info.side_effect = MockRepoNotFoundError("Not found")
+
+            calc = VRAMCalculator()
+            with pytest.raises(ValueError) as exc_info:
+                calc.calculate_vram("completely-fake-model", "fp16")
+
+            error_msg = str(exc_info.value)
+            assert "not found" in error_msg.lower()
+            assert "huggingface" in error_msg.lower()
+
+
+class TestVRAMCalculatorGetModelInfoWithCache:
+    """Test get_model_info with hf_cache support."""
+
+    def test_get_model_info_from_local_db(self):
+        """Test getting model info from local database"""
+        calc = VRAMCalculator()
+        info = calc.get_model_info("llama-3-8b")
+
+        assert info is not None
+        assert info["params_b"] == 8.0
+
+    def test_get_model_info_from_cache(self):
+        """Test getting model info from hf_cache"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump({
+                "_metadata": {"version": "1.0"},
+                "models": {},
+                "aliases": {},
+                "hf_cache": {
+                    "cached-model": {
+                        "params_b": 10.0,
+                        "hf_id": "test/cached",
+                        "source": "huggingface_api"
+                    }
+                }
+            }, f)
+            temp_path = f.name
+
+        try:
+            calc = VRAMCalculator(db_path=temp_path)
+            info = calc.get_model_info("cached-model")
+
+            assert info is not None
+            assert info["params_b"] == 10.0
+            assert info["source"] == "huggingface_api"
+        finally:
+            os.unlink(temp_path)
+
+    def test_get_model_info_not_found(self):
+        """Test get_model_info returns None for unknown model"""
+        calc = VRAMCalculator()
+        info = calc.get_model_info("nonexistent-model")
+        assert info is None
 
 
 if __name__ == "__main__":

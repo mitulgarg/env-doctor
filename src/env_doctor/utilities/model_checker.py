@@ -43,38 +43,35 @@ class ModelChecker:
         # 1. Get GPU info from NvidiaDriverDetector
         gpu_info = self._get_gpu_info()
 
-        # 2. Get model info from VRAMCalculator
+        # 2. Calculate VRAM requirements (this triggers 3-tier fallback: DB -> hf_cache -> HF API)
         try:
-            normalized_name = self.vram_calc._normalize_model_name(model_name)
-            model_info = self.vram_calc.get_model_info(normalized_name)
-
-            if not model_info:
-                return {
-                    "success": False,
-                    "error": f"Model '{model_name}' not found in database",
-                    "suggestions": self._suggest_similar_models(model_name),
+            if precision:
+                vram_reqs = {
+                    precision: self.vram_calc.calculate_vram(model_name, precision)
                 }
+            else:
+                vram_reqs = self.vram_calc.calculate_all_precisions(model_name)
         except ValueError as e:
             return {
                 "success": False,
                 "error": str(e),
                 "suggestions": self._suggest_similar_models(model_name),
             }
+        except KeyError as e:
+            return {
+                "success": False,
+                "error": f"Error calculating VRAM: {str(e)}",
+                "suggestions": [],
+            }
 
-        # 3. Calculate VRAM for specific precision or all
-        if precision:
-            try:
-                vram_reqs = {
-                    precision: self.vram_calc.calculate_vram(normalized_name, precision)
-                }
-            except (ValueError, KeyError) as e:
-                return {
-                    "success": False,
-                    "error": f"Error calculating VRAM for {precision}: {str(e)}",
-                    "suggestions": [],
-                }
-        else:
-            vram_reqs = self.vram_calc.calculate_all_precisions(normalized_name)
+        # 3. Get model info (now available after calculate_vram succeeded)
+        normalized_name = self.vram_calc._normalize_model_name(model_name)
+        model_info = self.vram_calc.get_model_info(normalized_name)
+
+        # Check if model was fetched from HuggingFace API
+        fetched_from_hf = any(
+            req.get("fetched_from_hf", False) for req in vram_reqs.values()
+        )
 
         # 4. Analyze compatibility
         compatibility = self._analyze_compatibility(vram_reqs, gpu_info)
@@ -92,6 +89,7 @@ class ModelChecker:
             "vram_requirements": vram_reqs,
             "compatibility": compatibility,
             "recommendations": recommendations,
+            "fetched_from_hf": fetched_from_hf,
         }
 
     def _get_gpu_info(self) -> Dict[str, Any]:

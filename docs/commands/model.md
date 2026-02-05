@@ -92,41 +92,36 @@ env-doctor model stable-diffusion-xl --precision int4
 ✅  This model WILL FIT at INT4 precision!
 ```
 
-## Supported Model Categories
+## Model Database
 
-### LLMs
+env-doctor includes a curated local database of **75+ popular models** with measured VRAM usage, plus access to **thousands of models** via HuggingFace Hub API.
 
-Large Language Models for text generation:
+### Supported Model Categories
 
-| Model | Parameters | FP16 VRAM |
-|-------|------------|-----------|
-| Llama-3-8B | 8B | ~19GB |
-| Llama-3-70B | 70B | ~140GB |
-| Mistral-7B | 7B | ~16GB |
-| Mixtral-8x7B | 46.7B | ~93GB |
+The local database includes models across multiple categories:
 
-### Diffusion Models
+- **LLMs**: Llama 3 (8B-405B), Mistral, Mixtral, Qwen, Gemma, Phi, CodeLlama
+- **Diffusion**: Stable Diffusion (1.5, XL, 3), Flux (Schnell, Dev), Pixart
+- **Audio**: Whisper (all sizes), Bark
+- **Vision**: CLIP, SAM, DINOv2
+- **Language**: BERT, T5, RoBERTa, DistilBERT
 
-Image generation models:
+### Example Models from Local Database
 
-| Model | VRAM (FP16) |
-|-------|-------------|
-| Stable Diffusion 1.5 | ~4GB |
-| Stable Diffusion XL | ~8GB |
-| Flux Schnell | ~12GB |
+| Category | Example Models | Typical VRAM (FP16) |
+|----------|----------------|---------------------|
+| Small LLMs | Llama-3-8B, Mistral-7B, Gemma-7B | 14-19GB |
+| Large LLMs | Llama-3-70B, Mixtral-8x7B | 93-140GB |
+| Diffusion | SD 1.5, SD XL, Flux Schnell | 4-12GB |
+| Audio | Whisper Tiny/Base/Large | 1-10GB |
+| Vision | CLIP, SAM, BERT | 0.5-2GB |
 
-### Audio Models
+!!! info "Beyond the Local Database"
+    Can't find your model? No problem! Any public HuggingFace model can be checked automatically. See [HuggingFace API Integration](#huggingface-api-integration) below.
 
-Speech recognition and synthesis:
+### Model Aliases
 
-| Model | VRAM |
-|-------|------|
-| Whisper Tiny | ~1GB |
-| Whisper Large | ~10GB |
-
-## Model Aliases
-
-Common aliases are supported:
+Common aliases are supported for quick access:
 
 - `sdxl` → `stable-diffusion-xl`
 - `sd15` → `stable-diffusion-1.5`

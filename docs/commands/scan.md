@@ -1,6 +1,6 @@
 # scan
 
-Scan your project for deprecated AI library imports and suggest fixes.
+Scan your project for deprecated AI library imports and suggest fixes. [BETA]
 
 ## Usage
 

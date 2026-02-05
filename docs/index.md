@@ -25,7 +25,7 @@
     "ratingValue": "5",
     "ratingCount": "1"
   },
-  "keywords": "CUDA, GPU, PyTorch, TensorFlow, JAX, NVIDIA, Docker, AI, ML, Deep Learning, diagnostics",
+  "keywords": "CUDA version mismatch, PyTorch CUDA error, GPU diagnostics, NVIDIA driver compatibility, torch not compiled with CUDA, cuDNN error, flash-attention build failed, docker GPU troubleshooting, WSL2 GPU, AI model VRAM calculator, LLM GPU requirements, GPU environment setup, CUDA debugging tool",
   "codeRepository": "https://github.com/mitulgarg/env-doctor",
   "programmingLanguage": "Python",
   "softwareRequirements": "Python 3.7+",

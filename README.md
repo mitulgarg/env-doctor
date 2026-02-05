@@ -10,19 +10,25 @@
 </p>
 
 <p align="center">
+
   <a href="https://mitulgarg.github.io/env-doctor/">
-    <img src="https://img.shields.io/badge/docs-github.io-blueviolet" alt="Documentation">
+    <img src="https://img.shields.io/badge/docs-online-blueviolet?style=flat-square" alt="Documentation">
   </a>
-  <a href="https://github.com/mitulgarg/env-doctor/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/mitulgarg/env-doctor" alt="License">
-  </a>
-  <a href="https://github.com/mitulgarg/env-doctor/actions">
-    <img src="https://img.shields.io/github/actions/workflow/status/mitulgarg/env-doctor/ci.yml" alt="CI Status">
-  </a>
-  <img src="https://img.shields.io/badge/python-3.7+-blue" alt="Python">
+
   <a href="https://pypi.org/project/env-doctor/">
-    <img src="https://img.shields.io/pypi/v/env-doctor" alt="PyPI">
+    <img src="https://img.shields.io/pypi/v/env-doctor?style=flat-square&color=blue&label=PyPI" alt="PyPI">
   </a>
+
+  <a href="https://pypi.org/project/env-doctor/">
+    <img src="https://img.shields.io/pypi/dm/env-doctor?style=flat-square&color=success&label=Downloads" alt="Downloads">
+  </a>
+
+  <img src="https://img.shields.io/badge/python-3.7+-blue?style=flat-square" alt="Python">
+
+  <a href="https://github.com/mitulgarg/env-doctor/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/mitulgarg/env-doctor?style=flat-square&color=green" alt="License">
+  </a>
+
 </p>
 
 ---
@@ -196,11 +202,31 @@ env-doctor model llama-3-8b
 List all models: `env-doctor model --list`
 
 Automatic HuggingFace Support (New ✨)
-If a model isn’t found locally, env-doctor automatically checks the HuggingFace Hub, fetches its parameter metadata, and caches it locally for future runs — no manual setup required.
+If a model isn't found locally, env-doctor automatically checks the HuggingFace Hub, fetches its parameter metadata, and caches it locally for future runs — no manual setup required.
 
+```bash
 # Fetches from HuggingFace on first run, cached afterward
 env-doctor model bert-base-uncased
 env-doctor model sentence-transformers/all-MiniLM-L6-v2
+```
+
+**Output:**
+
+```
+🤖  Checking: BERT-BASE-UNCASED
+    (Fetched from HuggingFace API - cached for future use)
+    Parameters: 0.11B
+    HuggingFace: bert-base-uncased
+
+🖥️   Your Hardware:
+    RTX 3090 (24GB VRAM)
+
+💾  VRAM Requirements & Compatibility
+  ✅  FP16:  264 MB - Fits easily!
+
+💡  Recommendations:
+1. Use fp16 for best quality on your GPU
+```
 
 
 

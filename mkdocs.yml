@@ -1,13 +1,17 @@
 site_name: Env-Doctor
 site_url: https://mitulgarg.github.io/env-doctor/
-site_description: The missing link between your GPU and Python AI libraries
+site_description: The missing link between your GPU and Python AI libraries. Diagnose and fix CUDA version mismatches, validate Docker GPU configurations, and check AI model compatibility with your hardware.
 site_author: Mitul Garg
 repo_url: https://github.com/mitulgarg/env-doctor
 repo_name: mitulgarg/env-doctor
 edit_uri: edit/main/docs/
 
+# SEO and Analytics
+copyright: Copyright &copy; 2024-2026 Mitul Garg
+
 theme:
   name: material
+  language: en
   palette:
     # Dark mode only - the hacker aesthetic
     scheme: slate
@@ -36,7 +40,9 @@ extra_css:
   - stylesheets/extra.css
 
 plugins:
-  - search
+  - search:
+      lang: en
+  - tags
 
 markdown_extensions:
   - admonition
@@ -61,13 +67,102 @@ markdown_extensions:
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
 extra:
+  # Google Analytics
+  analytics:
+    provider: google
+    property: G-ZDJZHX2VFC
+    feedback:
+      title: Was this page helpful?
+      ratings:
+        - icon: material/thumb-up-outline
+          name: This page was helpful
+          data: 1
+          note: >-
+            Thanks for your feedback!
+        - icon: material/thumb-down-outline
+          name: This page could be improved
+          data: 0
+          note: >-
+            Thanks for your feedback! Help us improve by opening an issue.
+
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/mitulgarg/env-doctor
+      name: Env-Doctor on GitHub
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/env-doctor/
-  
+      name: Env-Doctor on PyPI
+
   homepage: https://mitulgarg.github.io/env-doctor/
+
+  # SEO Optimization
+  meta:
+    # Google Search Console Verification
+    - name: google-site-verification
+      content: hq2bb1iCFVBQJMnz_ApgtxcP_taH-pIPvRdAs9zbdP8
+
+    - name: keywords
+      content: CUDA, GPU, PyTorch, TensorFlow, JAX, NVIDIA, Docker, AI, ML, Deep Learning, GPU Diagnostics, CUDA Toolkit, cuDNN, Environment Setup, VRAM, Model Compatibility, WSL2, GPU Computing
+    - name: author
+      content: Mitul Garg
+    - name: robots
+      content: index, follow
+    - name: googlebot
+      content: index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1
+    - name: bingbot
+      content: index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1
+
+    # Open Graph / Facebook
+    - property: og:type
+      content: website
+    - property: og:site_name
+      content: Env-Doctor
+    - property: og:title
+      content: Env-Doctor - GPU Environment Diagnostics Tool
+    - property: og:description
+      content: The missing link between your GPU and Python AI libraries. Diagnose CUDA mismatches, validate Docker GPU configs, and check AI model compatibility.
+    - property: og:url
+      content: https://mitulgarg.github.io/env-doctor/
+    - property: og:image
+      content: https://raw.githubusercontent.com/mitulgarg/env-doctor/main/docs/assets/logo.svg
+    - property: og:locale
+      content: en_US
+
+    # Twitter Card
+    - name: twitter:card
+      content: summary_large_image
+    - name: twitter:title
+      content: Env-Doctor - GPU Environment Diagnostics Tool
+    - name: twitter:description
+      content: Diagnose and fix CUDA version mismatches, validate Docker GPU configurations, and check AI model compatibility with your hardware.
+    - name: twitter:image
+      content: https://raw.githubusercontent.com/mitulgarg/env-doctor/main/docs/assets/logo.svg
+    - name: twitter:creator
+      content: "@mitulgarg"
+
+    # Geographic and Language Targeting
+    - name: geo.region
+      content: US
+    - name: geo.placename
+      content: United States
+    - name: language
+      content: English
+    - http-equiv: content-language
+      content: en-US
+
+    # Mobile Optimization
+    - name: viewport
+      content: width=device-width, initial-scale=1.0
+    - name: theme-color
+      content: "#1a1a1a"
+
+    # Additional SEO
+    - name: rating
+      content: general
+    - name: revisit-after
+      content: 7 days
+    - name: distribution
+      content: global
 
 nav:
   - Home: index.md

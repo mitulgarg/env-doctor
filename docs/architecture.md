@@ -83,7 +83,7 @@ Fetches the latest compatibility rules from GitHub so you don't need to update t
 
 The compatibility database is maintained through automation:
 
-### Scraper (`tools/scraper.py`)
+### Scraper (`tools/scraper.py`) (Batch Job currently paused)
 
 - GitHub Actions runs periodically
 - Scrapes official PyTorch/TensorFlow/JAX documentation
@@ -96,7 +96,7 @@ The compatibility database is maintained through automation:
 - Ensures version strings are parseable
 - Catches malformed entries
 
-### Human Review
+### Human Review (Currently prioritised as main source)
 
 - Automated updates create PRs (not auto-merged)
 - Maintainers review before merging

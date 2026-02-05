@@ -10,25 +10,22 @@
 </p>
 
 <p align="center">
-
   <a href="https://mitulgarg.github.io/env-doctor/">
-    <img src="https://img.shields.io/badge/docs-online-blueviolet?style=flat-square" alt="Documentation">
+    <img src="https://img.shields.io/badge/docs-github.io-blueviolet?style=flat-square" alt="Documentation">
   </a>
-
   <a href="https://pypi.org/project/env-doctor/">
     <img src="https://img.shields.io/pypi/v/env-doctor?style=flat-square&color=blue&label=PyPI" alt="PyPI">
   </a>
-
   <a href="https://pypi.org/project/env-doctor/">
     <img src="https://img.shields.io/pypi/dm/env-doctor?style=flat-square&color=success&label=Downloads" alt="Downloads">
   </a>
-
   <img src="https://img.shields.io/badge/python-3.7+-blue?style=flat-square" alt="Python">
-
   <a href="https://github.com/mitulgarg/env-doctor/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/mitulgarg/env-doctor?style=flat-square&color=green" alt="License">
   </a>
-
+  <a href="https://github.com/mitulgarg/env-doctor/stargazers">
+    <img src="https://img.shields.io/github/stars/mitulgarg/env-doctor?style=flat-square&color=yellow" alt="GitHub Stars">
+  </a>
 </p>
 
 ---

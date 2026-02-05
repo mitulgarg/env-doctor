@@ -12,6 +12,7 @@ copyright: Copyright &copy; 2024-2026 Mitul Garg
 theme:
   name: material
   language: en
+  custom_dir: overrides
   palette:
     # Dark mode only - the hacker aesthetic
     scheme: slate

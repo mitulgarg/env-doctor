@@ -55,6 +55,7 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 | **WSL2 GPU Support** | Validate GPU forwarding, detect driver conflicts within WSL2 env for Windows users |
 | **Deep CUDA Analysis** | Find multiple installations, PATH issues, environment misconfigurations |
 | **Container Validation** | Catch GPU config errors in Dockerfiles before you build |
+| **MCP Server** | Expose diagnostics to AI assistants (Claude Desktop, Zed) via Model Context Protocol |
 | **CI/CD Ready** | JSON output and proper exit codes for automation |
 
 ## Installation
@@ -273,12 +274,55 @@ env-doctor check --ci
 - run: env-doctor check --ci
 ```
 
+## MCP Server (AI Assistant Integration)
+
+Env-Doctor includes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes diagnostic tools to AI assistants like Claude Desktop.
+
+### Quick Setup for Claude Desktop
+
+1. **Install env-doctor:**
+   ```bash
+   pip install env-doctor
+   ```
+
+2. **Add to Claude Desktop config** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+   ```json
+   {
+     "mcpServers": {
+       "env-doctor": {
+         "command": "env-doctor-mcp"
+       }
+     }
+   }
+   ```
+
+3. **Restart Claude Desktop** - the tools will be available automatically.
+
+### Available Tools
+
+- `env_check` - Full GPU/CUDA environment diagnostics
+- `env_check_component` - Check specific component (driver, CUDA, cuDNN, etc.)
+- `model_check` - Analyze if AI models fit on your GPU
+- `model_list` - List all available models in database
+- `dockerfile_validate` - Validate Dockerfiles for GPU issues
+
+### Example Usage
+
+Ask Claude Desktop:
+- "Check my GPU environment"
+- "Can I run Llama 3 70B on my GPU?"
+- "Validate this Dockerfile for GPU issues"
+- "What CUDA version does my PyTorch require?"
+
+**Learn more:** [MCP Integration Guide](docs/guides/mcp-integration.md)
+
 ## Documentation
 
 **Full documentation:** https://mitulgarg.github.io/env-doctor/
 
 - [Getting Started](docs/getting-started.md)
 - [Command Reference](docs/commands/check.md)
+- [MCP Integration Guide](docs/guides/mcp-integration.md)
 - [WSL2 GPU Guide](docs/guides/wsl2.md)
 - [CI/CD Integration](docs/guides/ci-cd.md)
 - [Architecture](docs/architecture.md)

@@ -1,7 +1,19 @@
 import json
 import os
+import sys
 import time
 import requests
+
+
+def _safe_print(msg: str, **kwargs) -> None:
+    """Print with fallback for encoding issues (e.g., emojis on Windows cp1252)."""
+    try:
+        print(msg, **kwargs)
+    except UnicodeEncodeError:
+        # Strip emojis and non-ASCII characters for terminals that can't handle them
+        safe_msg = msg.encode('ascii', errors='ignore').decode('ascii')
+        print(safe_msg, **kwargs)
+
 
 # 1. The URL where your Scraper pushes the latest data
 
@@ -44,7 +56,7 @@ def load_database():
 
     # Step B: Try Fetching Remote
     # We use print with end="" to show status without cluttering if it's fast
-    print("🌐 Checking for latest compatibility data...", end=" ", flush=True)
+    _safe_print("Checking for latest compatibility data...", end=" ", flush=True)
     try:
         response = requests.get(REMOTE_URL, timeout=1.5) # Short timeout so CLI feels snappy
         if response.status_code == 200:
@@ -52,12 +64,12 @@ def load_database():
             # Save to cache
             with open(CACHE_FILE, "w") as f:
                 json.dump(data, f)
-            print("Updated. ✅")
+            _safe_print("Updated.")
             return data
         else:
-            print("Server error. Using local DB. ⚠️")
+            _safe_print("Server error. Using local DB.")
     except requests.RequestException:
-        print("Offline. Using local DB. 🔌")
+        _safe_print("Offline. Using local DB.")
 
     # Step C: Fallback to Bundled
     return load_bundled_json()

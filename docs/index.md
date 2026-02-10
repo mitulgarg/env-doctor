@@ -1,5 +1,50 @@
 # Env-Doctor
 
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Env-Doctor",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Linux, Windows, macOS",
+  "description": "The missing link between your GPU and Python AI libraries. Diagnose and fix CUDA version mismatches, validate Docker GPU configurations, and check AI model compatibility.",
+  "url": "https://mitulgarg.github.io/env-doctor/",
+  "downloadUrl": "https://pypi.org/project/env-doctor/",
+  "softwareVersion": "latest",
+  "author": {
+    "@type": "Person",
+    "name": "Mitul Garg"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "5",
+    "ratingCount": "1"
+  },
+  "keywords": "CUDA version mismatch, PyTorch CUDA error, GPU diagnostics, NVIDIA driver compatibility, torch not compiled with CUDA, cuDNN error, flash-attention build failed, docker GPU troubleshooting, WSL2 GPU, AI model VRAM calculator, LLM GPU requirements, GPU environment setup, CUDA debugging tool",
+  "codeRepository": "https://github.com/mitulgarg/env-doctor",
+  "programmingLanguage": "Python",
+  "softwareRequirements": "Python 3.7+",
+  "license": "https://opensource.org/licenses/MIT",
+  "potentialAction": {
+    "@type": "InstallAction",
+    "target": {
+      "@type": "EntryPoint",
+      "urlTemplate": "pip install env-doctor",
+      "actionPlatform": [
+        "http://schema.org/DesktopWebPlatform",
+        "http://schema.org/IOSPlatform",
+        "http://schema.org/AndroidPlatform"
+      ]
+    }
+  }
+}
+</script>
+
 **I just wasted 3 hours fighting CUDA errors that broke my GPU environment! Been there?**
 
 ---

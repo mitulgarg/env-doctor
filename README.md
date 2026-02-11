@@ -64,14 +64,6 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 pip install env-doctor
 ```
 
-Or from source:
-
-```bash
-git clone https://github.com/mitulgarg/env-doctor.git
-cd env-doctor
-pip install -e .
-```
-
 ## Usage
 
 ### Diagnose Your Environment

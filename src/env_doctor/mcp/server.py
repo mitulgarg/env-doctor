@@ -106,6 +106,87 @@ async def list_tools() -> list[Tool]:
                 "required": ["content"],
             },
         ),
+        Tool(
+            name="docker_compose_validate",
+            description=(
+                "Validate docker-compose.yml content for GPU configuration issues. "
+                "Checks for: missing deploy.resources.reservations.devices, "
+                "incorrect GPU driver settings, missing runtime: nvidia, "
+                "and other GPU passthrough configuration problems."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "description": "docker-compose.yml content to validate",
+                    },
+                },
+                "required": ["content"],
+            },
+        ),
+        Tool(
+            name="install_command",
+            description=(
+                "Get the safe pip install command for an AI library based on the detected GPU driver. "
+                "Automatically determines the correct CUDA version and wheel URL for libraries like "
+                "PyTorch, TensorFlow, and JAX."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "library": {
+                        "type": "string",
+                        "description": "Library name (e.g., 'torch', 'tensorflow', 'jax')",
+                    },
+                },
+                "required": ["library"],
+            },
+        ),
+        Tool(
+            name="cuda_info",
+            description=(
+                "Get detailed CUDA toolkit information including: nvcc version and path, "
+                "all CUDA installations, CUDA_HOME configuration, PATH/LD_LIBRARY_PATH status, "
+                "libcudart runtime library, and driver compatibility analysis."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        ),
+        Tool(
+            name="cudnn_info",
+            description=(
+                "Get detailed cuDNN library information including: version, library paths, "
+                "symlink status (Linux), PATH configuration (Windows), multiple version detection, "
+                "and CUDA compatibility."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        ),
+        Tool(
+            name="cuda_install",
+            description=(
+                "Get step-by-step CUDA Toolkit installation instructions tailored to the user's platform. "
+                "Detects OS/distro, recommends the best CUDA version based on GPU driver, "
+                "and provides copy-paste installation commands for Ubuntu, Debian, RHEL, Fedora, WSL2, Windows, and Conda."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "version": {
+                        "type": "string",
+                        "description": "Optional specific CUDA version to install (e.g., '12.6', '12.4', '12.1', '11.8'). If not specified, auto-detects best version from GPU driver.",
+                    },
+                },
+                "required": [],
+            },
+        ),
     ]
 
 
@@ -134,6 +215,24 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     elif name == "dockerfile_validate":
         content = arguments.get("content", "")
         result = tools.dockerfile_validate(content)
+
+    elif name == "docker_compose_validate":
+        content = arguments.get("content", "")
+        result = tools.docker_compose_validate(content)
+
+    elif name == "install_command":
+        library = arguments.get("library", "")
+        result = tools.install_command(library)
+
+    elif name == "cuda_info":
+        result = tools.cuda_info()
+
+    elif name == "cudnn_info":
+        result = tools.cudnn_info()
+
+    elif name == "cuda_install":
+        version = arguments.get("version")
+        result = tools.cuda_install(version)
 
     else:
         result = {"error": f"Unknown tool: {name}"}

@@ -72,9 +72,49 @@ class CudaToolkitDetector(Detector):
         
         if not installations:
             result.status = Status.NOT_FOUND
-            result.add_recommendation(
-                "Install CUDA Toolkit: https://developer.nvidia.com/cuda-downloads"
-            )
+
+            # Try to get driver info for targeted recommendation
+            try:
+                driver_detector = DetectorRegistry.get("nvidia_driver")
+                driver_result = driver_detector.detect()
+
+                if driver_result.detected:
+                    max_cuda = driver_result.metadata.get("max_cuda_version")
+                    if max_cuda:
+                        result.metadata["recommended_cuda_version"] = max_cuda
+                        result.metadata["driver_version"] = driver_result.version
+
+                        from env_doctor.db import get_recommended_cuda_toolkit
+                        recommended = get_recommended_cuda_toolkit(max_cuda)
+                        if recommended:
+                            result.metadata["recommended_toolkit"] = recommended
+                            result.add_recommendation(
+                                f"Install CUDA Toolkit {recommended} "
+                                f"(your driver supports up to CUDA {max_cuda})"
+                            )
+                            result.add_recommendation(
+                                "Run 'env-doctor cuda-install' for step-by-step instructions"
+                            )
+                        else:
+                            result.add_recommendation(
+                                "Install CUDA Toolkit: "
+                                "https://developer.nvidia.com/cuda-downloads"
+                            )
+                    else:
+                        result.add_recommendation(
+                            "Install CUDA Toolkit: "
+                            "https://developer.nvidia.com/cuda-downloads"
+                        )
+                else:
+                    result.add_recommendation(
+                        "Install NVIDIA driver first, then CUDA Toolkit"
+                    )
+            except Exception:
+                result.add_recommendation(
+                    "Install CUDA Toolkit: "
+                    "https://developer.nvidia.com/cuda-downloads"
+                )
+
             result.add_recommendation(
                 "Or use pip-installed libraries with bundled CUDA (inference only)"
             )

@@ -46,6 +46,7 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 | Feature | What It Does |
 |---------|--------------|
 | **One-Command Diagnosis** | Check compatibility: GPU Driver → CUDA Toolkit → cuDNN → PyTorch/TensorFlow/JAX |
+| **CUDA Installation Guide** | Get platform-specific, copy-paste CUDA installation commands for your system |
 | **Safe Install Commands** | Get the exact `pip install` command that works with YOUR driver |
 | **Extension Library Support** | Install compilation packages (flash-attn, SageAttention, auto-gptq, apex, xformers) with CUDA version matching |
 | **AI Model Compatibility** | Check if LLMs, Diffusion, or Audio models fit on your GPU before downloading |
@@ -109,6 +110,58 @@ env-doctor install torch
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 ---------------------------------------------------
 ```
+
+### Get CUDA Installation Instructions
+
+```bash
+env-doctor cuda-install
+```
+
+```
+============================================================
+CUDA TOOLKIT INSTALLATION GUIDE
+============================================================
+
+Detected Platform:
+    Linux (ubuntu 22.04, x86_64)
+
+Driver: 535.146.02 (supports up to CUDA 12.2)
+Recommended CUDA Toolkit: 12.1
+
+============================================================
+Ubuntu 22.04 (x86_64) - Network Install
+============================================================
+
+Installation Steps:
+------------------------------------------------------------
+    1. wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+    2. sudo dpkg -i cuda-keyring_1.1-1_all.deb
+    3. sudo apt-get update
+    4. sudo apt-get -y install cuda-toolkit-12-1
+
+Post-Installation Setup:
+------------------------------------------------------------
+    export PATH=/usr/local/cuda-12.1/bin${PATH:+:${PATH}}
+    export LD_LIBRARY_PATH=/usr/local/cuda-12.1/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+
+    TIP: Add the above exports to ~/.bashrc or ~/.zshrc
+
+Verify Installation:
+------------------------------------------------------------
+    nvcc --version
+
+Official Download Page:
+    https://developer.nvidia.com/cuda-12-1-0-download-archive
+```
+
+**Supported Platforms:**
+- Ubuntu 20.04, 22.04, 24.04
+- Debian 11, 12
+- RHEL 8, 9 / Rocky Linux / AlmaLinux
+- Fedora 39+
+- WSL2 (Ubuntu)
+- Windows 10/11
+- Conda (all platforms)
 
 ### Install Compilation Packages (Extension Libraries)
 
@@ -226,6 +279,7 @@ env-doctor dockerfile
 | Command | Purpose |
 |---------|---------|
 | `env-doctor check` | Full environment diagnosis |
+| `env-doctor cuda-install` | Step-by-step CUDA Toolkit installation guide |
 | `env-doctor install <lib>` | Safe install command for PyTorch/TensorFlow/JAX, extension libraries (flash-attn, auto-gptq, apex, xformers, SageAttention, etc.) |
 | `env-doctor model <name>` | Check model VRAM requirements |
 | `env-doctor cuda-info` | Detailed CUDA toolkit analysis |
@@ -275,21 +329,29 @@ Env-Doctor includes a built-in [Model Context Protocol (MCP)](https://modelconte
 
 3. **Restart Claude Desktop** - the tools will be available automatically.
 
-### Available Tools
+### Available Tools (10 Total)
 
 - `env_check` - Full GPU/CUDA environment diagnostics
 - `env_check_component` - Check specific component (driver, CUDA, cuDNN, etc.)
+- `cuda_info` - Detailed CUDA toolkit information
+- `cudnn_info` - Detailed cuDNN library information
+- `cuda_install` - Step-by-step CUDA installation instructions
+- `install_command` - Get safe pip install commands for AI libraries
 - `model_check` - Analyze if AI models fit on your GPU
 - `model_list` - List all available models in database
 - `dockerfile_validate` - Validate Dockerfiles for GPU issues
+- `docker_compose_validate` - Validate docker-compose.yml for GPU configuration
 
 ### Example Usage
 
 Ask Claude Desktop:
 - "Check my GPU environment"
+- "How do I install CUDA Toolkit on Ubuntu?"
+- "Get me the pip install command for PyTorch"
 - "Can I run Llama 3 70B on my GPU?"
 - "Validate this Dockerfile for GPU issues"
 - "What CUDA version does my PyTorch require?"
+- "Show me detailed CUDA toolkit information"
 
 **Learn more:** [MCP Integration Guide](docs/guides/mcp-integration.md)
 

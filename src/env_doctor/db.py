@@ -130,3 +130,83 @@ def get_install_command(library: str, max_cuda: str) -> str:
             return RECOMMENDATIONS.get("11.7", {}).get(library, "Unknown")
     except:
         return "Could not determine safe version."
+
+
+# --- CUDA Toolkit Install Data ---
+
+def load_cuda_toolkit_install_data():
+    """Load CUDA Toolkit installation instructions from JSON."""
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    json_path = os.path.join(base_path, "data", "cuda_toolkit_install.json")
+    try:
+        with open(json_path, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {"cuda_versions": {}, "version_recommendation_map": {}}
+
+
+CUDA_INSTALL_DATA = load_cuda_toolkit_install_data()
+
+
+def get_recommended_cuda_toolkit(max_cuda: str):
+    """
+    Given the driver's max CUDA version, return the recommended
+    CUDA Toolkit version to install.
+
+    Args:
+        max_cuda: Maximum CUDA version supported by driver (e.g., "12.6")
+
+    Returns:
+        Recommended toolkit version string (e.g., "12.6"), or None
+    """
+    version_map = CUDA_INSTALL_DATA.get("version_recommendation_map", {})
+
+    # Exact match
+    if max_cuda in version_map:
+        return version_map[max_cuda]
+
+    # Closest lower bound (same logic as driver_to_cuda)
+    try:
+        cuda_float = float(max_cuda)
+        available = sorted(
+            [(float(k), v) for k, v in version_map.items()],
+            reverse=True
+        )
+        for version, toolkit in available:
+            if cuda_float >= version:
+                return toolkit
+    except ValueError:
+        pass
+
+    return None
+
+
+def get_cuda_install_steps(toolkit_version: str, platform_keys: list):
+    """
+    Get installation steps for a specific CUDA Toolkit version and platform.
+
+    Args:
+        toolkit_version: CUDA Toolkit version (e.g., "12.6")
+        platform_keys: List of platform keys to try, in priority order
+
+    Returns:
+        Dict with installation steps, or None if not found
+    """
+    versions = CUDA_INSTALL_DATA.get("cuda_versions", {})
+    version_data = versions.get(toolkit_version)
+
+    if not version_data:
+        return None
+
+    platforms = version_data.get("platforms", {})
+
+    # Try each platform key in order
+    for key in platform_keys:
+        if key in platforms:
+            result = platforms[key].copy()
+            result["cuda_version"] = toolkit_version
+            result["display_name"] = version_data.get("display_name", f"CUDA Toolkit {toolkit_version}")
+            result["download_page"] = version_data.get("download_page", "")
+            return result
+
+    return None

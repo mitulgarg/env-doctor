@@ -62,12 +62,68 @@ class TestCudaToolkitDetector:
         mock_which.return_value = None
         mock_exists.return_value = False
         mock_glob.return_value = []
-        
+
         with patch.dict(os.environ, {}, clear=True):
             result = detector.detect()
-        
+
         assert result.status == Status.NOT_FOUND
         assert "Install CUDA Toolkit" in result.recommendations[0]
+
+    # ===== Test: Enhanced recommendations when driver is detected =====
+
+    @patch('shutil.which')
+    @patch('os.path.exists')
+    @patch('glob.glob')
+    @patch('env_doctor.core.registry.DetectorRegistry.get')
+    def test_nvcc_not_found_with_driver_detected(self, mock_registry_get,
+                                                  mock_glob, mock_exists, mock_which, detector):
+        """Test enhanced recommendations when CUDA not found but driver is detected."""
+        mock_which.return_value = None
+        mock_exists.return_value = False
+        mock_glob.return_value = []
+
+        # Mock driver detector to return driver with max CUDA 12.2
+        mock_driver_detector = MagicMock()
+        mock_driver_result = MagicMock()
+        mock_driver_result.detected = True
+        mock_driver_result.version = "535.146.02"
+        mock_driver_result.metadata = {"max_cuda_version": "12.2"}
+        mock_driver_detector.detect.return_value = mock_driver_result
+        mock_registry_get.return_value = mock_driver_detector
+
+        with patch.dict(os.environ, {}, clear=True):
+            result = detector.detect()
+
+        assert result.status == Status.NOT_FOUND
+        # Should have enhanced recommendations with specific version
+        recommendations = " ".join(result.recommendations)
+        assert "12.1" in recommendations  # 12.2 should map to 12.1
+        assert "cuda-install" in recommendations.lower()
+
+    @patch('shutil.which')
+    @patch('os.path.exists')
+    @patch('glob.glob')
+    @patch('env_doctor.core.registry.DetectorRegistry.get')
+    def test_nvcc_not_found_driver_not_detected(self, mock_registry_get,
+                                                 mock_glob, mock_exists, mock_which, detector):
+        """Test fallback recommendations when neither CUDA nor driver detected."""
+        mock_which.return_value = None
+        mock_exists.return_value = False
+        mock_glob.return_value = []
+
+        # Mock driver detector to return no driver
+        mock_driver_detector = MagicMock()
+        mock_driver_result = MagicMock()
+        mock_driver_result.detected = False
+        mock_driver_detector.detect.return_value = mock_driver_result
+        mock_registry_get.return_value = mock_driver_detector
+
+        with patch.dict(os.environ, {}, clear=True):
+            result = detector.detect()
+
+        assert result.status == Status.NOT_FOUND
+        # Should recommend installing driver first, then CUDA
+        assert "driver" in result.recommendations[0].lower() or "Install CUDA Toolkit" in result.recommendations[0]
     
     # ===== Test: CUDA_HOME wrong =====
     

@@ -65,6 +65,16 @@ This command checks:
 
 ## Common Next Steps
 
+### Get CUDA Toolkit Installation Instructions
+
+If you need to install CUDA Toolkit on your system:
+
+```bash
+env-doctor cuda-install
+```
+
+This provides platform-specific, copy-paste installation commands for your system (Ubuntu, Debian, RHEL, Fedora, WSL2, Windows, Conda).
+
 ### Get a Safe Install Command
 
 If you need to install or reinstall PyTorch:
@@ -96,6 +106,7 @@ env-doctor dockerfile path/to/Dockerfile
 | Command | Purpose |
 |---------|---------|
 | `env-doctor check` | Full environment diagnosis |
+| `env-doctor cuda-install` | Get CUDA Toolkit installation guide |
 | `env-doctor install <lib>` | Get safe install command |
 | `env-doctor model <name>` | Check model VRAM requirements |
 | `env-doctor cuda-info` | Detailed CUDA toolkit analysis |

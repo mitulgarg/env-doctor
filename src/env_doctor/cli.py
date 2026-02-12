@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 from .core.registry import DetectorRegistry
 from .core.detector import Status
-from .db import get_max_cuda_for_driver, get_install_command, DB_DATA
+from .db import get_max_cuda_for_driver, get_install_command, DB_DATA, get_recommended_cuda_toolkit, get_cuda_install_steps, CUDA_INSTALL_DATA
 
 # Legacy imports for functions not yet refactored
 from .checks import (
@@ -860,6 +860,130 @@ def cuda_info_command(output_json: bool = False):
         print_cuda_detailed_info(cuda_result)
 
 
+def cuda_install_command(cuda_version: str = None):
+    """
+    Show step-by-step CUDA Toolkit installation instructions.
+
+    If no version is specified, recommends one based on the GPU driver.
+
+    Args:
+        cuda_version: Optional specific CUDA version to install
+    """
+    from .utilities.platform_detect import detect_platform
+
+    print("\n" + "=" * 60)
+    print("CUDA TOOLKIT INSTALLATION GUIDE")
+    print("=" * 60)
+
+    # 1. Detect platform
+    plat = detect_platform()
+    print(f"\nDetected Platform:")
+    if plat["is_wsl2"]:
+        print(f"    WSL2 ({plat['distro']} {plat['distro_version']})")
+    elif plat["os"] == "linux":
+        print(f"    Linux ({plat['distro']} {plat['distro_version']}, {plat['arch']})")
+    elif plat["os"] == "windows":
+        print(f"    Windows ({plat['arch']})")
+    else:
+        print(f"    {plat['os']} ({plat['arch']})")
+
+    # 2. Determine which CUDA version to recommend
+    if cuda_version:
+        recommended = cuda_version
+        print(f"\nRequested CUDA Version: {recommended}")
+    else:
+        # Auto-detect from driver
+        driver_detector = DetectorRegistry.get("nvidia_driver")
+        driver_result = driver_detector.detect()
+
+        if not driver_result.detected:
+            print("\nNo NVIDIA driver detected.")
+            print("    Install the NVIDIA driver first:")
+            print("    https://www.nvidia.com/Download/index.aspx")
+            return
+
+        max_cuda = driver_result.metadata.get("max_cuda_version", "Unknown")
+        print(f"\nDriver: {driver_result.version} (supports up to CUDA {max_cuda})")
+
+        recommended = get_recommended_cuda_toolkit(max_cuda)
+        if not recommended:
+            print(f"\nNo installation instructions available for CUDA {max_cuda}")
+            print(f"    Download manually: https://developer.nvidia.com/cuda-downloads")
+            return
+
+        print(f"Recommended CUDA Toolkit: {recommended}")
+
+    # 3. Get installation steps
+    install_info = get_cuda_install_steps(recommended, plat["platform_keys"])
+
+    if not install_info:
+        print(f"\nNo specific instructions for your platform.")
+        print(f"    Download manually: https://developer.nvidia.com/cuda-downloads")
+
+        # Show available platforms for this version
+        versions = CUDA_INSTALL_DATA.get("cuda_versions", {})
+        version_data = versions.get(recommended, {})
+        available = version_data.get("platforms", {})
+        if available:
+            print(f"\n    Available platforms for CUDA {recommended}:")
+            for key, info in available.items():
+                print(f"      - {info.get('label', key)}")
+        return
+
+    # 4. Print installation steps
+    print(f"\n{'=' * 60}")
+    print(f"{install_info.get('label', f'CUDA {recommended}')}")
+    print(f"{'=' * 60}")
+
+    # Prerequisites (if any)
+    prereqs = install_info.get("prerequisites", [])
+    if prereqs:
+        print(f"\nPrerequisites:")
+        for prereq in prereqs:
+            print(f"    - {prereq}")
+
+    # Installation steps
+    print(f"\nInstallation Steps:")
+    print(f"{'-' * 60}")
+    for i, step in enumerate(install_info["steps"], 1):
+        print(f"    {i}. {step}")
+
+    # Post-install environment
+    post_install = install_info.get("post_install", [])
+    if post_install:
+        print(f"\nPost-Installation Setup:")
+        print(f"{'-' * 60}")
+        for step in post_install:
+            print(f"    {step}")
+
+        persist = install_info.get("persist_env")
+        if persist:
+            print(f"\n    TIP: {persist}")
+
+    # Verification
+    verify = install_info.get("verify")
+    if verify:
+        print(f"\nVerify Installation:")
+        print(f"{'-' * 60}")
+        print(f"    {verify}")
+
+    # Notes
+    notes = install_info.get("notes")
+    if notes:
+        print(f"\nNotes:")
+        print(f"    {notes}")
+
+    # Download page link
+    download = install_info.get("download_page")
+    if download:
+        print(f"\nOfficial Download Page:")
+        print(f"    {download}")
+
+    print(f"\n{'=' * 60}")
+    print("After installation, run 'env-doctor check' to verify.")
+    print(f"{'=' * 60}\n")
+
+
 def print_cudnn_detailed_info(cudnn_result):
     """
     Print detailed cuDNN information from detection.
@@ -1252,6 +1376,8 @@ def main():
 Examples:
   env-doctor check              # Diagnose your environment
   env-doctor cuda-info          # Detailed CUDA toolkit analysis
+  env-doctor cuda-install       # Step-by-step CUDA installation guide
+  env-doctor cuda-install 12.4  # Install specific CUDA version
   env-doctor cudnn-info         # Detailed cuDNN library analysis
   env-doctor dockerfile         # Validate Dockerfile for GPU issues
   env-doctor docker-compose     # Validate docker-compose.yml for GPU issues
@@ -1290,6 +1416,18 @@ Examples:
         '--json',
         action='store_true',
         help='Output as JSON (machine-readable)'
+    )
+
+    # CUDA Install command (NEW)
+    cuda_install_parser = subparsers.add_parser(
+        "cuda-install",
+        help="Step-by-step CUDA Toolkit installation guide"
+    )
+    cuda_install_parser.add_argument(
+        "version",
+        nargs="?",
+        default=None,
+        help="Specific CUDA version to install (default: auto-detect from driver)"
     )
 
     # cuDNN Info command (NEW)
@@ -1387,6 +1525,8 @@ Examples:
         cuda_info_command(
             output_json=getattr(args, 'json', False)
         )
+    elif args.command == "cuda-install":
+        cuda_install_command(getattr(args, 'version', None))
     elif args.command == "cudnn-info":
         cudnn_info_command(
             output_json=getattr(args, 'json', False)

@@ -10,18 +10,8 @@ This guide will help you install Env-Doctor and run your first environment check
 
 ## Installation
 
-### From PyPI (Recommended)
-
 ```bash
 pip install env-doctor
-```
-
-### From Source
-
-```bash
-git clone https://github.com/mitulgarg/env-doctor.git
-cd env-doctor
-pip install -e .
 ```
 
 ## Your First Check

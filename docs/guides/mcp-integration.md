@@ -47,7 +47,7 @@ After saving the configuration, restart Claude Desktop. The env-doctor tools wil
 
 ## Available Tools
 
-The MCP server exposes 5 diagnostic tools:
+The MCP server exposes 10 diagnostic tools:
 
 ### `env_check`
 
@@ -134,6 +134,98 @@ Validate Dockerfile content for GPU/CUDA configuration issues.
 
 **Example prompt:**
 > "Validate this Dockerfile: [paste Dockerfile content]"
+
+---
+
+### `docker_compose_validate`
+
+Validate docker-compose.yml content for GPU configuration issues.
+
+**Parameters:**
+- `content` (required): docker-compose.yml content as a string
+
+**What it checks:**
+- Missing GPU runtime configuration
+- Incorrect device mappings
+- Missing environment variables
+- Volume mount issues
+- GPU resource allocation
+
+**Returns:** List of issues with severity levels and corrected configuration.
+
+**Example prompt:**
+> "Validate this docker-compose.yml: [paste content]"
+
+---
+
+### `install_command`
+
+Get safe installation command for a library based on detected GPU driver.
+
+**Parameters:**
+- `library` (required): Library name (e.g., "torch", "tensorflow", "jax")
+
+**Returns:**
+- Detected driver version and max CUDA support
+- Safe pip install command with correct CUDA version
+
+**Example prompts:**
+> "What's the safe install command for PyTorch?"
+> "How do I install TensorFlow for my GPU?"
+
+---
+
+### `cuda_info`
+
+Get detailed CUDA toolkit information and diagnostics.
+
+**Returns:**
+- All CUDA installations found on system
+- nvcc compiler information
+- CUDA_HOME environment variable status
+- Runtime library locations
+- PATH and LD_LIBRARY_PATH configuration
+- Driver compatibility analysis
+- Detected issues and recommendations
+
+**Example prompt:**
+> "Show me detailed CUDA toolkit information"
+
+---
+
+### `cudnn_info`
+
+Get detailed cuDNN library information and diagnostics.
+
+**Returns:**
+- cuDNN version and installation path
+- All cuDNN libraries found
+- Symlink status (Linux)
+- PATH configuration (Windows)
+- CUDA compatibility analysis
+- Detected issues and recommendations
+
+**Example prompt:**
+> "Check my cuDNN installation"
+
+---
+
+### `cuda_install`
+
+Get step-by-step CUDA Toolkit installation instructions for your platform.
+
+**Parameters:**
+- `version` (optional): Specific CUDA version to install (auto-detects from driver if not specified)
+
+**Returns:**
+- Platform detection (OS, distro, architecture)
+- Recommended CUDA version based on driver
+- Platform-specific installation steps
+- Official download links
+
+**Example prompts:**
+> "How do I install CUDA Toolkit?"
+> "Show me CUDA 12.1 installation steps"
 
 ## Configuration Options
 

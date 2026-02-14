@@ -182,11 +182,9 @@ nav:
   - Guides:
     - WSL2 GPU Support: guides/wsl2.md
     - MCP Integration: guides/mcp-integration.md
+    - MCP Testing: guides/MCP_TESTING.md
     - CI/CD Integration: guides/ci-cd.md
     - Recording Demos: guides/recording-demos.md
-  - MCP Testing:
-    - Quick Start: QUICK_START_MCP.md
-    - Complete Guide: MCP_TESTING.md
   - Architecture:
     - Overview: architecture.md
     - Adding New Models: ADDING_MODELS.md

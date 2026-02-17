@@ -49,6 +49,7 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 | Feature | What It Does |
 |---------|--------------|
 | **One-Command Diagnosis** | Check compatibility: GPU Driver → CUDA Toolkit → cuDNN → PyTorch/TensorFlow/JAX |
+| **Python Version Compatibility** | Detect Python version conflicts with AI libraries and dependency cascade impacts |
 | **CUDA Installation Guide** | Get platform-specific, copy-paste CUDA installation commands for your system |
 | **Safe Install Commands** | Get the exact `pip install` command that works with YOUR driver |
 | **Extension Library Support** | Install compilation packages (flash-attn, SageAttention, auto-gptq, apex, xformers) with CUDA version matching |
@@ -91,6 +92,43 @@ env-doctor check
    ✅ torch 2.1.0+cu121
 
 ✅ All checks passed!
+```
+
+### Check Python Version Compatibility
+
+```bash
+env-doctor python-compat
+```
+
+```
+🐍  PYTHON VERSION COMPATIBILITY CHECK
+============================================================
+Python Version: 3.13 (3.13.0)
+Libraries Checked: 2
+
+❌  2 compatibility issue(s) found:
+
+    tensorflow:
+      tensorflow supports Python <=3.12, but you have Python 3.13
+      Note: TensorFlow 2.15+ requires Python 3.9-3.12. Python 3.13 not yet supported.
+
+    torch:
+      torch supports Python <=3.12, but you have Python 3.13
+      Note: PyTorch 2.x supports Python 3.9-3.12. Python 3.13 support experimental.
+
+⚠️   Dependency Cascades:
+    tensorflow [high]: TensorFlow's Python ceiling propagates to keras and tensorboard
+      Affected: keras, tensorboard, tensorflow-estimator
+    torch [high]: PyTorch's Python version constraint affects all torch ecosystem packages
+      Affected: torchvision, torchaudio, triton
+
+💡  Consider using Python 3.12 or lower for full compatibility
+
+💡  Cascade: tensorflow constraint also affects: keras, tensorboard, tensorflow-estimator
+
+💡  Cascade: torch constraint also affects: torchvision, torchaudio, triton
+
+============================================================
 ```
 
 ### Get Safe Install Command
@@ -294,6 +332,7 @@ env-doctor dockerfile
 | Command | Purpose |
 |---------|---------|
 | `env-doctor check` | Full environment diagnosis |
+| `env-doctor python-compat` | Check Python version compatibility with AI libraries |
 | `env-doctor cuda-install` | Step-by-step CUDA Toolkit installation guide |
 | `env-doctor install <lib>` | Safe install command for PyTorch/TensorFlow/JAX, extension libraries (flash-attn, auto-gptq, apex, xformers, SageAttention, etc.) |
 | `env-doctor model <name>` | Check model VRAM requirements |
@@ -344,10 +383,11 @@ Env-Doctor includes a built-in [Model Context Protocol (MCP)](https://modelconte
 
 3. **Restart Claude Desktop** - the tools will be available automatically.
 
-### Available Tools (10 Total)
+### Available Tools (11 Total)
 
 - `env_check` - Full GPU/CUDA environment diagnostics
 - `env_check_component` - Check specific component (driver, CUDA, cuDNN, etc.)
+- `python_compat_check` - Check Python version compatibility with installed AI libraries
 - `cuda_info` - Detailed CUDA toolkit information
 - `cudnn_info` - Detailed cuDNN library information
 - `cuda_install` - Step-by-step CUDA installation instructions
@@ -361,6 +401,7 @@ Env-Doctor includes a built-in [Model Context Protocol (MCP)](https://modelconte
 
 Ask Claude Desktop:
 - "Check my GPU environment"
+- "Is my Python version compatible with my installed AI libraries?"
 - "How do I install CUDA Toolkit on Ubuntu?"
 - "Get me the pip install command for PyTorch"
 - "Can I run Llama 3 70B on my GPU?"

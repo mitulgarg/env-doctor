@@ -166,6 +166,33 @@ def model_list() -> Dict[str, Any]:
         }
 
 
+def python_compat_check() -> Dict[str, Any]:
+    """
+    Check Python version compatibility with installed AI libraries.
+
+    Returns:
+        Dict with:
+        - detected: Whether check completed
+        - version: Current Python version
+        - conflicts: List of version conflicts found
+        - cascades: List of dependency cascade impacts
+        - issues: List of issue descriptions
+        - recommendations: List of suggested fixes
+    """
+    from env_doctor.detectors import python_compat
+    from env_doctor.core.registry import DetectorRegistry
+
+    try:
+        detector = DetectorRegistry.get("python_compat")
+        result = detector.detect()
+        return result.to_dict()
+    except Exception as e:
+        return {
+            "detected": False,
+            "error": str(e),
+        }
+
+
 def dockerfile_validate(content: str) -> Dict[str, Any]:
     """
     Validate Dockerfile content for GPU/CUDA configuration issues.

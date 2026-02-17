@@ -381,6 +381,8 @@ Ask Claude Desktop:
 - [CI/CD Integration](docs/guides/ci-cd.md)
 - [Architecture](docs/architecture.md)
 
+**Video Tutorial:** [Watch Demo on YouTube](https://youtu.be/mGAwxGuLpxk?si=Buf9yzNTSJmoirMU)
+
 ## Contributing
 
 Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for details.

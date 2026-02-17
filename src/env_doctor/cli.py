@@ -28,6 +28,7 @@ from .detectors.cuda_toolkit import CudaToolkitDetector
 from .detectors.python_libraries import PythonLibraryDetector
 from .detectors.wsl2 import WSL2Detector
 from .detectors.cudnn import CudnnDetector
+from .detectors.python_compat import PythonCompatDetector
 
 # Import model checker for model compatibility
 from .utilities import ModelChecker
@@ -315,13 +316,18 @@ def check_command(output_json: bool = False, ci: bool = False):
         if lib == "torch":
             torch_result = lib_result
 
+    # STEP 6: Python Compatibility Check
+    python_compat_detector = DetectorRegistry.get("python_compat")
+    python_compat_result = python_compat_detector.detect()
+
     # Organize results for JSON output
     results = {
         "wsl2": wsl2_result,
         "driver": driver_result,
         "cuda": cuda_result,
         "cudnn": cudnn_result,
-        "libraries": lib_results
+        "libraries": lib_results,
+        "python_compat": python_compat_result,
     }
 
     # === Choose output format ===
@@ -344,7 +350,8 @@ def check_command(output_json: bool = False, ci: bool = False):
                 "libraries": {
                     lib: result.to_dict()
                     for lib, result in lib_results.items()
-                }
+                },
+                "python_compat": python_compat_result.to_dict(),
             }
         }
         print(json.dumps(output, indent=2))
@@ -420,7 +427,20 @@ def check_command(output_json: bool = False, ci: bool = False):
             else:
                 print(f"❌  {lib} is NOT installed.")
 
-        # === STEP 5: Compilation Health Check ===
+        # === STEP 5: Python Compatibility Check ===
+        print("------------------------------")
+        conflicts = python_compat_result.metadata.get("conflicts", [])
+        if python_compat_result.status == Status.SUCCESS:
+            checked = python_compat_result.metadata.get("constraints_checked", 0)
+            print(f"✅  Python {python_compat_result.version}: Compatible with all {checked} checked libraries")
+        elif python_compat_result.status == Status.ERROR:
+            print(f"❌  Python {python_compat_result.version}: {len(conflicts)} compatibility issue(s)")
+            for conflict in conflicts:
+                print(f"    ⚠️  {conflict['message']}")
+            for rec in python_compat_result.recommendations:
+                print(f"    → {rec}")
+
+        # === STEP 6: Compilation Health Check ===
         if torch_result and torch_result.detected:
             check_compilation_health(cuda_result, torch_result)
 
@@ -435,6 +455,50 @@ def check_command(output_json: bool = False, ci: bool = False):
         if cuda_result.detected and (cuda_result.issues or cuda_result.metadata.get("installation_count", 1) > 1):
             print("\n💡  TIP: Run 'env-doctor cuda-info' for detailed CUDA analysis")
 
+
+
+def python_compat_command(output_json: bool = False):
+    """
+    Check Python version compatibility with installed AI libraries.
+
+    Args:
+        output_json: Output as JSON (machine-readable)
+    """
+    detector = DetectorRegistry.get("python_compat")
+    result = detector.detect()
+
+    if output_json:
+        print(json.dumps(result.to_dict(), indent=2))
+        sys.exit(0 if result.status == Status.SUCCESS else 1)
+    else:
+        print("\n🐍  PYTHON VERSION COMPATIBILITY CHECK")
+        print("=" * 60)
+        print(f"Python Version: {result.version} ({result.metadata.get('python_full_version', '')})")
+        print(f"Libraries Checked: {result.metadata.get('constraints_checked', 0)}")
+
+        conflicts = result.metadata.get("conflicts", [])
+        if not conflicts:
+            print("\n✅  No compatibility issues found!")
+        else:
+            print(f"\n❌  {len(conflicts)} compatibility issue(s) found:")
+            for conflict in conflicts:
+                print(f"\n    {conflict['library']}:")
+                print(f"      {conflict['message']}")
+                if conflict.get("notes"):
+                    print(f"      Note: {conflict['notes']}")
+
+        cascades = result.metadata.get("cascades", [])
+        if cascades:
+            print("\n⚠️   Dependency Cascades:")
+            for cascade in cascades:
+                affected = ", ".join(cascade["affected_dependencies"])
+                print(f"    {cascade['root_library']} [{cascade['severity']}]: {cascade['description']}")
+                print(f"      Affected: {affected}")
+
+        for rec in result.recommendations:
+            print(f"\n💡  {rec}")
+
+        print("\n" + "=" * 60)
 
 
 def install_command(package_name):
@@ -1383,6 +1447,7 @@ Examples:
   env-doctor docker-compose     # Validate docker-compose.yml for GPU issues
   env-doctor model llama-3-8b   # Check if model fits on your GPU
   env-doctor model --list       # List all available models
+  env-doctor python-compat      # Check Python version compatibility
   env-doctor install torch      # Get safe install command for PyTorch
   env-doctor scan               # Scan project for AI library imports
   env-doctor debug              # Show detailed detector information
@@ -1465,6 +1530,17 @@ Examples:
         help="Path to docker-compose.yml (default: ./docker-compose.yml)"
     )
 
+    # Python Compatibility command
+    python_compat_parser = subparsers.add_parser(
+        "python-compat",
+        help="Check Python version compatibility with AI libraries"
+    )
+    python_compat_parser.add_argument(
+        '--json',
+        action='store_true',
+        help='Output as JSON (machine-readable)'
+    )
+
     # Install command
     install_p = subparsers.add_parser(
         "install",
@@ -1535,6 +1611,10 @@ Examples:
         dockerfile_command(args.path)
     elif args.command == "docker-compose":
         docker_compose_command(args.path)
+    elif args.command == "python-compat":
+        python_compat_command(
+            output_json=getattr(args, 'json', False)
+        )
     elif args.command == "model":
         if args.list:
             list_models_command()

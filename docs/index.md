@@ -64,6 +64,7 @@ It takes **5 seconds** to find out if your environment is broken — and exactly
 | Feature | What It Does |
 |---------|--------------|
 | **One-Command Diagnosis** | Instantly check compatibility between GPU Driver → CUDA Toolkit → cuDNN → PyTorch/TensorFlow/JAX |
+| **Python Version Compatibility** | Detect Python version conflicts with AI libraries and dependency cascade impacts |
 | **CUDA Installation Guide** | Get platform-specific, copy-paste CUDA installation commands for Ubuntu, Debian, RHEL, Fedora, WSL2, Windows, and Conda |
 | **Deep CUDA Analysis** | Reveals multiple installations, PATH issues, environment misconfigurations |
 | **Compilation Guard** | Warns if system `nvcc` doesn't match PyTorch's CUDA — preventing flash-attention build failures |
@@ -87,6 +88,9 @@ pip install env-doctor
 ```bash
 # Diagnose your environment
 env-doctor check
+
+# Check Python version compatibility
+env-doctor python-compat
 
 # Get CUDA installation instructions
 env-doctor cuda-install

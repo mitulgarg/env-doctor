@@ -148,6 +148,22 @@ def load_cuda_toolkit_install_data():
 CUDA_INSTALL_DATA = load_cuda_toolkit_install_data()
 
 
+# --- Python Compatibility Data ---
+
+def load_python_compatibility():
+    """Load Python version compatibility data from JSON."""
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    json_path = os.path.join(base_path, "data", "python_compatibility.json")
+    try:
+        with open(json_path, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {"python_version_constraints": [], "dependency_cascades": []}
+
+
+PYTHON_COMPAT_DATA = load_python_compatibility()
+
+
 def get_recommended_cuda_toolkit(max_cuda: str):
     """
     Given the driver's max CUDA version, return the recommended

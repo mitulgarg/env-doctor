@@ -88,6 +88,20 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="python_compat_check",
+            description=(
+                "Check Python version compatibility with installed AI libraries. "
+                "Detects version conflicts where the current Python version is outside "
+                "a library's supported range, and identifies dependency cascades where "
+                "one library's constraint forces version limits on downstream packages."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        ),
+        Tool(
             name="dockerfile_validate",
             description=(
                 "Validate Dockerfile content for GPU/CUDA configuration issues. "
@@ -211,6 +225,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
     elif name == "model_list":
         result = tools.model_list()
+
+    elif name == "python_compat_check":
+        result = tools.python_compat_check()
 
     elif name == "dockerfile_validate":
         content = arguments.get("content", "")

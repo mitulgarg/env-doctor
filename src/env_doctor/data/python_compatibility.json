@@ -1,0 +1,99 @@
+{
+  "_metadata": {
+    "last_verified": "2026-02-18",
+    "schema_version": "1.0",
+    "description": "Python version constraints and dependency cascades for AI libraries"
+  },
+  "python_version_constraints": [
+    {
+      "library": "tensorflow",
+      "import_name": "tensorflow",
+      "min_version": "3.9",
+      "max_version": "3.12",
+      "status": "active",
+      "notes": "TensorFlow 2.15+ requires Python 3.9-3.12. Python 3.13 not yet supported."
+    },
+    {
+      "library": "torch",
+      "import_name": "torch",
+      "min_version": "3.9",
+      "max_version": "3.12",
+      "status": "active",
+      "notes": "PyTorch 2.x supports Python 3.9-3.12. Python 3.13 support experimental."
+    },
+    {
+      "library": "numpy",
+      "import_name": "numpy",
+      "min_version": "3.9",
+      "max_version": "3.13",
+      "status": "active",
+      "notes": "NumPy 1.26+ dropped Python 3.8. NumPy 2.0+ requires Python 3.9+."
+    },
+    {
+      "library": "scipy",
+      "import_name": "scipy",
+      "min_version": "3.9",
+      "max_version": "3.12",
+      "status": "active",
+      "notes": "SciPy 1.12+ requires Python 3.9+. Python 3.13 support limited."
+    },
+    {
+      "library": "onnxruntime",
+      "import_name": "onnxruntime",
+      "min_version": "3.8",
+      "max_version": "3.12",
+      "status": "active",
+      "notes": "ONNX Runtime 1.17+ supports Python 3.8-3.12."
+    },
+    {
+      "library": "transformers",
+      "import_name": "transformers",
+      "min_version": "3.8",
+      "max_version": "3.12",
+      "status": "active",
+      "notes": "HuggingFace Transformers supports Python 3.8+."
+    },
+    {
+      "library": "jax",
+      "import_name": "jax",
+      "min_version": "3.9",
+      "max_version": "3.12",
+      "status": "active",
+      "notes": "JAX 0.4.20+ requires Python 3.9+. Python 3.13 not yet supported."
+    },
+    {
+      "library": "triton",
+      "import_name": "triton",
+      "min_version": "3.8",
+      "max_version": "3.12",
+      "status": "active",
+      "notes": "OpenAI Triton requires Python 3.8-3.12. Used by torch.compile."
+    }
+  ],
+  "dependency_cascades": [
+    {
+      "root_library": "tensorflow",
+      "affected_dependencies": ["keras", "tensorboard", "tensorflow-estimator"],
+      "severity": "high",
+      "description": "TensorFlow's Python ceiling propagates to keras and tensorboard"
+    },
+    {
+      "root_library": "torch",
+      "affected_dependencies": ["torchvision", "torchaudio", "triton"],
+      "severity": "high",
+      "description": "PyTorch's Python version constraint affects all torch ecosystem packages"
+    },
+    {
+      "root_library": "scipy",
+      "affected_dependencies": ["scikit-learn", "scikit-image"],
+      "severity": "medium",
+      "description": "SciPy's Python constraint cascades to scikit-learn and scikit-image"
+    },
+    {
+      "root_library": "numpy",
+      "affected_dependencies": ["pandas", "scipy", "scikit-learn", "matplotlib"],
+      "severity": "high",
+      "description": "NumPy's Python version floor affects nearly all scientific Python packages"
+    }
+  ]
+}

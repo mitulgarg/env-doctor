@@ -67,6 +67,14 @@ class NvidiaDriverDetector(Detector):
                         "free_vram_mb": mem_info.free // (1024 * 1024),
                         "used_vram_mb": mem_info.used // (1024 * 1024),
                     }
+
+                    # Get compute capability
+                    try:
+                        cc_major, cc_minor = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
+                        gpu_info["compute_capability"] = f"{cc_major}.{cc_minor}"
+                    except Exception:
+                        pass
+
                     gpus.append(gpu_info)
             except Exception:
                 # If GPU enumeration fails, still return driver version with empty GPU list
@@ -104,7 +112,7 @@ class NvidiaDriverDetector(Detector):
             # Try to extract GPU information using nvidia-smi --query-gpu
             try:
                 gpu_query_out = subprocess.check_output(
-                    ["nvidia-smi", "--query-gpu=index,name,memory.total", "--format=csv,noheader"],
+                    ["nvidia-smi", "--query-gpu=index,name,memory.total,compute_cap", "--format=csv,noheader"],
                     encoding="utf-8"
                 )
 
@@ -129,6 +137,11 @@ class NvidiaDriverDetector(Detector):
                                     "free_vram_mb": 0,  # We can't get free memory this way
                                     "used_vram_mb": 0,
                                 }
+
+                                # Parse compute capability (4th field)
+                                if len(parts) >= 4 and parts[3]:
+                                    gpu_info["compute_capability"] = parts[3]
+
                                 gpus.append(gpu_info)
                         except (ValueError, IndexError):
                             pass
@@ -210,6 +223,8 @@ class NvidiaDriverDetector(Detector):
             # Store primary GPU info (first GPU)
             metadata["primary_gpu_name"] = gpus[0]["name"]
             metadata["primary_gpu_vram_mb"] = gpus[0]["total_vram_mb"]
+            if gpus[0].get("compute_capability"):
+                metadata["primary_gpu_compute_capability"] = gpus[0]["compute_capability"]
         else:
             # No GPU detected
             metadata["gpu_count"] = 0

@@ -86,6 +86,88 @@ def check_compilation_health(cuda_result, torch_result):
         print(f"    -> Or manually install CUDA Toolkit {torch_mm}")
 
 
+def check_compute_capability_compatibility(driver_result, torch_result):
+    """
+    Check if the GPU's compute capability is supported by the installed PyTorch.
+
+    When new GPUs release, stable PyTorch wheels may lack compiled kernels for the
+    latest SM architecture. This causes torch.cuda.is_available() to return False
+    even though driver and CUDA toolkit work fine.
+
+    Args:
+        driver_result: DetectionResult from NvidiaDriverDetector
+        torch_result: DetectionResult from PythonLibraryDetector (torch)
+
+    Returns:
+        dict with compatibility info for JSON output, or None
+    """
+    from .detectors.compute_capability import (
+        get_sm_for_compute_capability,
+        get_arch_name,
+        is_sm_in_arch_list,
+    )
+
+    gpu_cc = driver_result.metadata.get("primary_gpu_compute_capability")
+    arch_list = torch_result.metadata.get("arch_list", [])
+    gpu_name = driver_result.metadata.get("primary_gpu_name", "Unknown GPU")
+    torch_version = torch_result.version or "Unknown"
+    torch_cuda = torch_result.metadata.get("cuda_version", "Unknown")
+
+    # Build result dict for JSON output
+    compat_info = {
+        "gpu_name": gpu_name,
+        "compute_capability": gpu_cc,
+        "arch_list": arch_list,
+    }
+
+    if not gpu_cc:
+        compat_info["status"] = "unknown"
+        compat_info["message"] = "Could not determine GPU compute capability"
+        return compat_info
+
+    sm = get_sm_for_compute_capability(gpu_cc)
+    arch_name = get_arch_name(gpu_cc)
+
+    compat_info["sm"] = sm
+    compat_info["arch_name"] = arch_name
+
+    if not arch_list:
+        compat_info["status"] = "unknown"
+        compat_info["message"] = "Could not determine PyTorch arch list"
+        return compat_info
+
+    if is_sm_in_arch_list(sm, arch_list):
+        compat_info["status"] = "compatible"
+        compat_info["message"] = f"PyTorch supports {sm} ({arch_name})"
+        print(f"\n\U0001f3af  COMPUTE CAPABILITY CHECK")
+        print(f"    GPU: {gpu_name} (Compute {gpu_cc}, {arch_name}, {sm})")
+        print(f"    PyTorch compiled for: {', '.join(arch_list)}")
+        print(f"    \u2705 COMPATIBLE: PyTorch {torch_version} supports your GPU architecture.")
+    else:
+        compat_info["status"] = "mismatch"
+        compat_info["message"] = f"PyTorch {torch_version} does not support {sm}"
+
+        # Build nightly URL
+        cuda_slug = ""
+        if torch_cuda and torch_cuda != "Unknown":
+            cuda_slug = "cu" + torch_cuda.replace(".", "").split()[0]
+        nightly_url = f"https://download.pytorch.org/whl/nightly/{cuda_slug}" if cuda_slug else "https://download.pytorch.org/whl/nightly/"
+        compat_info["nightly_url"] = nightly_url
+
+        print(f"\n\U0001f3af  COMPUTE CAPABILITY CHECK")
+        print(f"    GPU: {gpu_name} (Compute {gpu_cc}, {arch_name}, {sm})")
+        print(f"    PyTorch compiled for: {', '.join(arch_list)}")
+        print(f"    \u274c ARCHITECTURE MISMATCH: Your GPU needs {sm} but PyTorch {torch_version} doesn't include it.")
+        print()
+        print(f"    This is why torch.cuda.is_available() returns False even though")
+        print(f"    your driver and CUDA toolkit are working correctly.")
+        print()
+        print(f"    FIX: Install PyTorch nightly with {sm} support:")
+        print(f"       pip install --pre torch torchvision torchaudio --index-url {nightly_url}")
+
+    return compat_info
+
+
 def check_system_path():
     """Check LD_LIBRARY_PATH for CUDA linking (TensorFlow/JAX)."""
     print("\n🔗  SYSTEM LINKING (For TensorFlow/JAX)")
@@ -331,6 +413,40 @@ def check_command(output_json: bool = False, ci: bool = False):
     }
 
     # === Choose output format ===
+    # Compute capability check (for both JSON and human output)
+    compute_compat_info = None
+    if torch_result and torch_result.detected and driver_result.detected:
+        # For JSON mode, we compute silently; for human mode, it prints inline
+        if ci or output_json:
+            from .detectors.compute_capability import (
+                get_sm_for_compute_capability,
+                get_arch_name,
+                is_sm_in_arch_list,
+            )
+            gpu_cc = driver_result.metadata.get("primary_gpu_compute_capability")
+            arch_list = torch_result.metadata.get("arch_list", [])
+            gpu_name = driver_result.metadata.get("primary_gpu_name", "Unknown GPU")
+            torch_cuda = torch_result.metadata.get("cuda_version", "Unknown")
+
+            compute_compat_info = {
+                "gpu_name": gpu_name,
+                "compute_capability": gpu_cc,
+                "arch_list": arch_list,
+            }
+
+            if gpu_cc and arch_list:
+                sm = get_sm_for_compute_capability(gpu_cc)
+                arch_name_val = get_arch_name(gpu_cc)
+                compute_compat_info["sm"] = sm
+                compute_compat_info["arch_name"] = arch_name_val
+                compatible = is_sm_in_arch_list(sm, arch_list)
+                compute_compat_info["status"] = "compatible" if compatible else "mismatch"
+                if not compatible and torch_cuda and torch_cuda != "Unknown":
+                    cuda_slug = "cu" + torch_cuda.replace(".", "").split()[0]
+                    compute_compat_info["nightly_url"] = f"https://download.pytorch.org/whl/nightly/{cuda_slug}"
+            else:
+                compute_compat_info["status"] = "unknown"
+
     if ci or output_json:
         # JSON output
         output = {
@@ -352,6 +468,7 @@ def check_command(output_json: bool = False, ci: bool = False):
                     for lib, result in lib_results.items()
                 },
                 "python_compat": python_compat_result.to_dict(),
+                "compute_compatibility": compute_compat_info,
             }
         }
         print(json.dumps(output, indent=2))
@@ -444,7 +561,11 @@ def check_command(output_json: bool = False, ci: bool = False):
         if torch_result and torch_result.detected:
             check_compilation_health(cuda_result, torch_result)
 
-        # === STEP 6: System Path Check ===
+        # === STEP 6b: Compute Capability Check ===
+        if torch_result and torch_result.detected and driver_result.detected:
+            check_compute_capability_compatibility(driver_result, torch_result)
+
+        # === STEP 7: System Path Check ===
         check_system_path()
 
         # === STEP 7: Code Migration Check ===

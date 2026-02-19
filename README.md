@@ -49,6 +49,7 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 | Feature | What It Does |
 |---------|--------------|
 | **One-Command Diagnosis** | Check compatibility: GPU Driver → CUDA Toolkit → cuDNN → PyTorch/TensorFlow/JAX |
+| **Compute Capability Check** | Detect GPU architecture mismatches — catches why `torch.cuda.is_available()` returns `False` on new GPUs (e.g. Blackwell) even when driver and CUDA are healthy |
 | **Python Version Compatibility** | Detect Python version conflicts with AI libraries and dependency cascade impacts |
 | **CUDA Installation Guide** | Get platform-specific, copy-paste CUDA installation commands for your system |
 | **Safe Install Commands** | Get the exact `pip install` command that works with YOUR driver |
@@ -92,6 +93,21 @@ env-doctor check
    ✅ torch 2.1.0+cu121
 
 ✅ All checks passed!
+```
+
+**On new-generation GPUs** (e.g. RTX 5070 / Blackwell), env-doctor also catches architecture mismatches that make `torch.cuda.is_available()` silently return `False`:
+
+```
+🎯  COMPUTE CAPABILITY CHECK
+    GPU: NVIDIA GeForce RTX 5070 (Compute 12.0, Blackwell, sm_120)
+    PyTorch compiled for: sm_50, sm_60, sm_70, sm_80, sm_90, compute_90
+    ❌ ARCHITECTURE MISMATCH: Your GPU needs sm_120 but PyTorch 2.5.1 doesn't include it.
+
+    This is why torch.cuda.is_available() returns False even though
+    your driver and CUDA toolkit are working correctly.
+
+    FIX: Install PyTorch nightly with sm_120 support:
+       pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu126
 ```
 
 ### Check Python Version Compatibility

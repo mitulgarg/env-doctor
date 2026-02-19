@@ -1,0 +1,27 @@
+{
+  "_metadata": {
+    "description": "GPU compute capability to architecture mapping",
+    "source": "https://developer.nvidia.com/cuda-gpus"
+  },
+  "compute_capabilities": {
+    "3.5": { "arch_name": "Kepler", "sm": "sm_35" },
+    "3.7": { "arch_name": "Kepler", "sm": "sm_37" },
+    "5.0": { "arch_name": "Maxwell", "sm": "sm_50" },
+    "5.2": { "arch_name": "Maxwell", "sm": "sm_52" },
+    "5.3": { "arch_name": "Maxwell", "sm": "sm_53" },
+    "6.0": { "arch_name": "Pascal", "sm": "sm_60" },
+    "6.1": { "arch_name": "Pascal", "sm": "sm_61" },
+    "6.2": { "arch_name": "Pascal", "sm": "sm_62" },
+    "7.0": { "arch_name": "Volta", "sm": "sm_70" },
+    "7.2": { "arch_name": "Volta", "sm": "sm_72" },
+    "7.5": { "arch_name": "Turing", "sm": "sm_75" },
+    "8.0": { "arch_name": "Ampere", "sm": "sm_80" },
+    "8.6": { "arch_name": "Ampere", "sm": "sm_86" },
+    "8.7": { "arch_name": "Ampere", "sm": "sm_87" },
+    "8.9": { "arch_name": "Ada Lovelace", "sm": "sm_89" },
+    "9.0": { "arch_name": "Hopper", "sm": "sm_90" },
+    "10.0": { "arch_name": "Blackwell", "sm": "sm_100" },
+    "10.3": { "arch_name": "Blackwell", "sm": "sm_103" },
+    "12.0": { "arch_name": "Blackwell", "sm": "sm_120" }
+  }
+}

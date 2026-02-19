@@ -21,21 +21,27 @@ class PythonLibraryDetector(Detector):
             cuda_ver = "Unknown"
             cudnn_ver = "Unknown"
             
+            arch_list = []
+
             if self.library_name == "torch":
-                cuda_ver, cudnn_ver = self._detect_torch_cuda(lib)
+                cuda_ver, cudnn_ver, arch_list = self._detect_torch_cuda(lib)
             elif self.library_name == "tensorflow":
                 cuda_ver, cudnn_ver = self._detect_tensorflow_cuda(lib)
             elif self.library_name == "jax":
                 cuda_ver = self._detect_jax_cuda()
-            
+
+            metadata = {
+                "cuda_version": cuda_ver,
+                "cudnn_version": cudnn_ver
+            }
+            if arch_list:
+                metadata["arch_list"] = arch_list
+
             return DetectionResult(
                 component=f"python_library_{self.library_name}",
                 status=Status.SUCCESS,
                 version=version,
-                metadata={
-                    "cuda_version": cuda_ver,
-                    "cudnn_version": cudnn_ver
-                }
+                metadata=metadata
             )
         
         except ImportError:
@@ -63,6 +69,7 @@ class PythonLibraryDetector(Detector):
     def _detect_torch_cuda(self, lib):
         cuda_ver = "Unknown"
         cudnn_ver = "Unknown"
+        arch_list = []
         try:
             cuda_ver = lib.version.cuda
             if hasattr(lib.backends, 'cudnn'):
@@ -74,7 +81,14 @@ class PythonLibraryDetector(Detector):
                     cudnn_ver = f"{major}.{minor}.{patch}"
         except AttributeError:
             pass
-        return cuda_ver, cudnn_ver
+
+        try:
+            if hasattr(lib, 'cuda') and hasattr(lib.cuda, 'get_arch_list'):
+                arch_list = lib.cuda.get_arch_list()
+        except Exception:
+            pass
+
+        return cuda_ver, cudnn_ver, arch_list
     
     def _detect_tensorflow_cuda(self, lib):
         cuda_ver = "Unknown"

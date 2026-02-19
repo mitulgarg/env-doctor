@@ -127,6 +127,45 @@ class TestPythonLibraryDetector:
         assert result.status == Status.SUCCESS
         assert result.metadata["cuda_version"] == "12.x (via pip)"
 
+    # ===== Test: Torch detection with arch_list =====
+    def test_torch_detection_with_arch_list(self):
+        """Test that arch_list is captured from torch.cuda.get_arch_list()."""
+        detector = PythonLibraryDetector("torch")
+
+        mock_torch = MagicMock()
+        mock_torch.__version__ = "2.5.0"
+        mock_torch.version.cuda = "12.4"
+        mock_torch.backends.cudnn.version.return_value = 9100
+        mock_torch.cuda.get_arch_list.return_value = [
+            "sm_50", "sm_60", "sm_70", "sm_80", "sm_90", "compute_90"
+        ]
+
+        with patch('importlib.import_module', return_value=mock_torch):
+            result = detector.detect()
+
+        assert result.status == Status.SUCCESS
+        assert result.metadata["arch_list"] == [
+            "sm_50", "sm_60", "sm_70", "sm_80", "sm_90", "compute_90"
+        ]
+
+    # ===== Test: Torch detection without get_arch_list =====
+    def test_torch_detection_no_arch_list(self):
+        """Test that arch_list is empty when get_arch_list is unavailable."""
+        detector = PythonLibraryDetector("torch")
+
+        mock_torch = MagicMock()
+        mock_torch.__version__ = "2.1.0"
+        mock_torch.version.cuda = "12.1"
+        mock_torch.backends.cudnn.version.return_value = 8900
+        # Remove get_arch_list
+        del mock_torch.cuda.get_arch_list
+
+        with patch('importlib.import_module', return_value=mock_torch):
+            result = detector.detect()
+
+        assert result.status == Status.SUCCESS
+        assert "arch_list" not in result.metadata
+
     # ===== Test: Torch without CUDA (CPU-only) =====
     def test_torch_cpu_only(self):
         """Test PyTorch detection when installed without CUDA support."""

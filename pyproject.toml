@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "env-doctor"
-version = "0.2.3"
+version = "0.2.4"
 description = "A CLI tool to verify and fix AI/ML environment compatibility (Driver <-> CUDA <-> Wheels) with platform-specific installation guides."
 readme = "README.md"
 license = { file = "LICENSE" }

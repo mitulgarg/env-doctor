@@ -10,6 +10,29 @@ from env_doctor.detectors.compute_capability import (
     get_arch_name,
     is_sm_in_arch_list,
 )
+from env_doctor.cli import check_compute_capability_compatibility
+
+
+def _make_driver_result(gpu_cc="12.0", gpu_name="NVIDIA GeForce RTX 5090"):
+    """Build a minimal mock driver DetectionResult."""
+    class FakeResult:
+        metadata = {
+            "primary_gpu_compute_capability": gpu_cc,
+            "primary_gpu_name": gpu_name,
+        }
+    return FakeResult()
+
+
+def _make_torch_result(version="2.5.1", arch_list=None, cuda_version="12.1"):
+    """Build a minimal mock torch DetectionResult."""
+    if arch_list is None:
+        arch_list = ["sm_50", "sm_60", "sm_70", "sm_80", "sm_86"]
+    class FakeResult:
+        pass
+    r = FakeResult()
+    r.version = version
+    r.metadata = {"arch_list": arch_list, "cuda_version": cuda_version}
+    return r
 
 
 class TestGetSmForComputeCapability:
@@ -100,3 +123,76 @@ class TestIsSmInArchList:
         arch_list = ["compute_80"]
         assert is_sm_in_arch_list("sm_89", arch_list) is True
         assert is_sm_in_arch_list("sm_70", arch_list) is False
+
+
+class TestCheckComputeCompatibilityMessages:
+    """Tests for check_compute_capability_compatibility() message differentiation."""
+
+    # --- Mismatch: hard failure (cuda_available=False) ---
+
+    def test_hard_failure_message(self, capsys):
+        driver = _make_driver_result(gpu_cc="12.0")
+        torch = _make_torch_result(arch_list=["sm_50", "sm_60", "sm_70", "sm_80", "sm_86"])
+        check_compute_capability_compatibility(driver, torch, cuda_available=False)
+        out = capsys.readouterr().out
+        assert "\u274c ARCHITECTURE MISMATCH" in out
+        assert "ARCHITECTURE MISMATCH (Soft)" not in out
+        assert "likely why torch.cuda.is_available() returns False" in out
+
+    def test_soft_failure_message(self, capsys):
+        driver = _make_driver_result(gpu_cc="7.5", gpu_name="NVIDIA GeForce RTX 2080")
+        torch = _make_torch_result(
+            version="1.13.1",
+            arch_list=["sm_50", "sm_60", "sm_70"],
+            cuda_version="11.7",
+        )
+        check_compute_capability_compatibility(driver, torch, cuda_available=True)
+        out = capsys.readouterr().out
+        assert "ARCHITECTURE MISMATCH (Soft)" in out
+        assert "returned True via NVIDIA's driver-level PTX JIT" in out
+        assert "\u274c ARCHITECTURE MISMATCH" not in out or "Soft" in out
+
+    def test_none_available_treated_as_hard(self, capsys):
+        driver = _make_driver_result(gpu_cc="12.0")
+        torch = _make_torch_result(arch_list=["sm_50", "sm_60", "sm_70", "sm_80", "sm_86"])
+        check_compute_capability_compatibility(driver, torch, cuda_available=None)
+        out = capsys.readouterr().out
+        assert "\u274c ARCHITECTURE MISMATCH" in out
+        assert "ARCHITECTURE MISMATCH (Soft)" not in out
+        assert "likely why torch.cuda.is_available() returns False" in out
+
+    def test_compatible_unaffected(self, capsys):
+        driver = _make_driver_result(gpu_cc="8.6", gpu_name="NVIDIA GeForce RTX 3090")
+        torch = _make_torch_result(arch_list=["sm_50", "sm_60", "sm_70", "sm_80", "sm_86"])
+        result = check_compute_capability_compatibility(driver, torch, cuda_available=True)
+        out = capsys.readouterr().out
+        assert "\u2705 COMPATIBLE" in out
+        assert result["status"] == "compatible"
+
+    # --- JSON / returned dict ---
+
+    def test_json_hard_failure_contains_cuda_available_false(self):
+        driver = _make_driver_result(gpu_cc="12.0")
+        torch = _make_torch_result(arch_list=["sm_50", "sm_60", "sm_70", "sm_80", "sm_86"])
+        result = check_compute_capability_compatibility(driver, torch, cuda_available=False)
+        assert result["status"] == "mismatch"
+        assert result["cuda_available"] is False
+
+    def test_json_soft_failure_contains_cuda_available_true(self):
+        driver = _make_driver_result(gpu_cc="7.5", gpu_name="NVIDIA GeForce RTX 2080")
+        torch = _make_torch_result(
+            version="1.13.1",
+            arch_list=["sm_50", "sm_60", "sm_70"],
+            cuda_version="11.7",
+        )
+        result = check_compute_capability_compatibility(driver, torch, cuda_available=True)
+        assert result["status"] == "mismatch"
+        assert result["cuda_available"] is True
+
+    def test_json_compatible_contains_cuda_available(self):
+        driver = _make_driver_result(gpu_cc="8.6", gpu_name="NVIDIA GeForce RTX 3090")
+        torch = _make_torch_result(arch_list=["sm_50", "sm_60", "sm_70", "sm_80", "sm_86"])
+        result = check_compute_capability_compatibility(driver, torch, cuda_available=True)
+        assert result["status"] == "compatible"
+        assert "cuda_available" in result
+        assert result["cuda_available"] is True

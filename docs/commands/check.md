@@ -36,8 +36,14 @@ env-doctor check
 
 ### GPU Compute Capability
 
-Checks whether the installed PyTorch wheel includes compiled kernels for your GPU's SM architecture. This catches a silent failure mode common with new GPU generations: everything looks healthy (`nvidia-smi`, `nvcc`, driver all pass) but `torch.cuda.is_available()` returns `False` because the stable PyTorch wheel doesn't yet include kernels for the new architecture.
+Checks whether the installed PyTorch wheel includes compiled kernels for your GPU's SM architecture. This catches a silent failure mode common with new GPU generations: everything looks healthy (`nvidia-smi`, `nvcc`, driver all pass) but CUDA may not work correctly because the stable PyTorch wheel doesn't include kernels for the new architecture.
 
+env-doctor probes `torch.cuda.is_available()` at runtime and distinguishes two failure modes:
+
+- **Hard failure** — `is_available()` returns `False`. The GPU cannot be used at all.
+- **Soft failure** — `is_available()` returns `True` via NVIDIA's driver-level PTX JIT, but complex CUDA ops may silently degrade or fail.
+
+Other behaviours:
 - Reads GPU compute capability from the driver (e.g. `12.0` for Blackwell RTX 5070)
 - Reads the compiled SM list from `torch.cuda.get_arch_list()`
 - Handles PTX forward compatibility — `compute_90` in the arch list covers newer SMs via JIT compilation
@@ -83,7 +89,7 @@ Detects "Frankenstein" environments where:
     ✅ COMPATIBLE: PyTorch 2.5.1+cu121 supports your GPU architecture.
 ```
 
-### Compute Capability: Mismatch (new GPU, stable PyTorch)
+### Compute Capability: Hard Mismatch (`is_available()` → `False`)
 
 ```
 🎯  COMPUTE CAPABILITY CHECK
@@ -91,10 +97,25 @@ Detects "Frankenstein" environments where:
     PyTorch compiled for: sm_50, sm_60, sm_70, sm_80, sm_90, compute_90
     ❌ ARCHITECTURE MISMATCH: Your GPU needs sm_120 but PyTorch 2.5.1 doesn't include it.
 
-    This is why torch.cuda.is_available() returns False even though
+    This is likely why torch.cuda.is_available() returns False even though
     your driver and CUDA toolkit are working correctly.
 
     FIX: Install PyTorch nightly with sm_120 support:
+       pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu126
+```
+
+### Compute Capability: Soft Mismatch (`is_available()` → `True` via PTX JIT)
+
+```
+🎯  COMPUTE CAPABILITY CHECK
+    GPU: NVIDIA GeForce RTX 5070 (Compute 12.0, Blackwell, sm_120)
+    PyTorch compiled for: sm_50, sm_60, sm_70, sm_80, sm_90, compute_90
+    ⚠️  ARCHITECTURE MISMATCH (Soft): Your GPU needs sm_120 but PyTorch 2.5.1 doesn't include it.
+
+    torch.cuda.is_available() returned True via NVIDIA's driver-level PTX JIT,
+    but you may experience degraded performance or failures with complex CUDA ops.
+
+    FIX: Install a newer PyTorch with native sm_120 support for full compatibility:
        pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu126
 ```
 
@@ -176,6 +197,7 @@ env-doctor check --json
       "arch_name": "Turing",
       "arch_list": ["sm_50", "sm_60", "sm_70", "sm_75", "sm_80", "sm_86", "sm_90"],
       "status": "compatible",
+      "cuda_available": true,
       "message": "PyTorch supports sm_75 (Turing)"
     }
   }

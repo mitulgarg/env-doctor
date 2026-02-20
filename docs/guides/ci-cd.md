@@ -128,6 +128,19 @@ if [ "$STATUS" = "error" ]; then
   echo "Environment check failed!"
   exit 1
 fi
+
+# Detect hard vs soft GPU architecture mismatch
+ARCH_STATUS=$(echo "$RESULT" | jq -r '.checks.compute_compatibility.status // empty')
+CUDA_AVAILABLE=$(echo "$RESULT" | jq -r '.checks.compute_compatibility.cuda_available // empty')
+
+if [ "$ARCH_STATUS" = "mismatch" ]; then
+  if [ "$CUDA_AVAILABLE" = "false" ]; then
+    echo "Hard mismatch: torch.cuda.is_available() is False — install PyTorch nightly"
+    exit 1
+  elif [ "$CUDA_AVAILABLE" = "true" ]; then
+    echo "Soft mismatch: CUDA works via PTX JIT but performance may degrade"
+  fi
+fi
 ```
 
 ### Parsing in Python

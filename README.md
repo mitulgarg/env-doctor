@@ -95,18 +95,33 @@ env-doctor check
 ✅ All checks passed!
 ```
 
-**On new-generation GPUs** (e.g. RTX 5070 / Blackwell), env-doctor also catches architecture mismatches that make `torch.cuda.is_available()` silently return `False`:
+**On new-generation GPUs** (e.g. RTX 5070 / Blackwell), env-doctor catches architecture mismatches and distinguishes between two failure modes:
 
+**Hard failure** — `torch.cuda.is_available()` returns `False`:
 ```
 🎯  COMPUTE CAPABILITY CHECK
     GPU: NVIDIA GeForce RTX 5070 (Compute 12.0, Blackwell, sm_120)
     PyTorch compiled for: sm_50, sm_60, sm_70, sm_80, sm_90, compute_90
     ❌ ARCHITECTURE MISMATCH: Your GPU needs sm_120 but PyTorch 2.5.1 doesn't include it.
 
-    This is why torch.cuda.is_available() returns False even though
+    This is likely why torch.cuda.is_available() returns False even though
     your driver and CUDA toolkit are working correctly.
 
     FIX: Install PyTorch nightly with sm_120 support:
+       pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu126
+```
+
+**Soft failure** — `torch.cuda.is_available()` returns `True` via NVIDIA's PTX JIT, but complex ops may silently degrade:
+```
+🎯  COMPUTE CAPABILITY CHECK
+    GPU: NVIDIA GeForce RTX 5070 (Compute 12.0, Blackwell, sm_120)
+    PyTorch compiled for: sm_50, sm_60, sm_70, sm_80, sm_90, compute_90
+    ⚠️  ARCHITECTURE MISMATCH (Soft): Your GPU needs sm_120 but PyTorch 2.5.1 doesn't include it.
+
+    torch.cuda.is_available() returned True via NVIDIA's driver-level PTX JIT,
+    but you may experience degraded performance or failures with complex CUDA ops.
+
+    FIX: Install a newer PyTorch with native sm_120 support for full compatibility:
        pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu126
 ```
 

@@ -301,3 +301,24 @@
 .md-banner a {
   color: #0d1117;
 }
+
+/* Badge row on the home page */
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+  margin: 1rem 0 1.5rem;
+}
+
+.badge-row img {
+  display: block;
+  transition: filter 0.2s ease, transform 0.2s ease;
+}
+
+.badge-row a:hover img,
+.badge-row img:hover {
+  filter: drop-shadow(0 0 5px rgba(0, 109, 50, 0.8));
+  transform: translateY(-1px);
+}

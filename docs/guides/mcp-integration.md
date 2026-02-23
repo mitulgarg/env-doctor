@@ -1,6 +1,8 @@
 # MCP Server Integration
 
-Env-Doctor includes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes its diagnostic capabilities as read-only tools for AI assistants like Claude Desktop, Zed, and other MCP-compatible clients.
+Env-Doctor includes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes its diagnostic capabilities as read-only tools for AI assistants like Claude Code, Claude Desktop, Zed, and other MCP-compatible clients.
+
+<video src="https://github.com/user-attachments/assets/7e761c28-1f44-44a0-8dfd-cf06cb9939a2" autoplay loop muted playsinline width="100%"></video>
 
 ## What is MCP?
 
@@ -47,7 +49,23 @@ After saving the configuration, restart Claude Desktop. The env-doctor tools wil
 
 ## Available Tools
 
-The MCP server exposes 10 diagnostic tools:
+The MCP server exposes 11 diagnostic tools:
+
+### `python_compat_check`
+
+Check Python version compatibility with installed AI libraries.
+
+**What it checks:**
+- Current Python version against each library's supported range
+- Libraries with version conflicts (PyTorch, TensorFlow, JAX, etc.)
+- Dependency cascades — where one library's Python ceiling forces limits on downstream packages (e.g. `torch` → `torchvision`, `torchaudio`, `triton`)
+
+**Returns:** Python version, list of conflicts with notes, cascade impacts, and recommendations.
+
+**Example prompt:**
+> "Is my Python version compatible with my installed AI libraries?"
+
+---
 
 ### `env_check`
 

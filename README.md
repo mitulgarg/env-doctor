@@ -19,7 +19,7 @@
   <a href="https://pypi.org/project/env-doctor/">
     <img src="https://img.shields.io/pypi/dm/env-doctor?style=flat-square&color=success&label=Downloads" alt="Downloads">
   </a>
-  <img src="https://img.shields.io/badge/python-3.7+-blue?style=flat-square" alt="Python">
+  <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" alt="Python">
   <a href="https://github.com/mitulgarg/env-doctor/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/mitulgarg/env-doctor?style=flat-square&color=green" alt="License">
   </a>
@@ -66,6 +66,64 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 ```bash
 pip install env-doctor
 ```
+
+## MCP Server (AI Assistant Integration)
+
+Env-Doctor includes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes diagnostic tools to AI assistants like Claude Code and Claude Desktop.
+
+### Quick Setup for Claude Desktop
+
+1. **Install env-doctor:**
+   ```bash
+   pip install env-doctor
+   ```
+
+2. **Add to Claude Desktop config** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+   ```json
+   {
+     "mcpServers": {
+       "env-doctor": {
+         "command": "env-doctor-mcp"
+       }
+     }
+   }
+   ```
+
+3. **Restart Claude Desktop** - the tools will be available automatically.
+
+### Available Tools (11 Total)
+
+- `env_check` - Full GPU/CUDA environment diagnostics
+- `env_check_component` - Check specific component (driver, CUDA, cuDNN, etc.)
+- `python_compat_check` - Check Python version compatibility with installed AI libraries
+- `cuda_info` - Detailed CUDA toolkit information
+- `cudnn_info` - Detailed cuDNN library information
+- `cuda_install` - Step-by-step CUDA installation instructions
+- `install_command` - Get safe pip install commands for AI libraries
+- `model_check` - Analyze if AI models fit on your GPU
+- `model_list` - List all available models in database
+- `dockerfile_validate` - Validate Dockerfiles for GPU issues
+- `docker_compose_validate` - Validate docker-compose.yml for GPU configuration
+
+### Demo — Claude Code using env-doctor MCP tools
+
+<video src="https://github.com/user-attachments/assets/7e761c28-1f44-44a0-8dfd-cf06cb9939a2" autoplay loop muted playsinline width="100%"></video>
+
+### Example Usage
+
+Ask your AI assistant:
+- "Check my GPU environment"
+- "Is my Python version compatible with my installed AI libraries?"
+- "How do I install CUDA Toolkit on Ubuntu?"
+- "Get me the pip install command for PyTorch"
+- "Can I run Llama 3 70B on my GPU?"
+- "Validate this Dockerfile for GPU issues"
+- "What CUDA version does my PyTorch require?"
+- "Show me detailed CUDA toolkit information"
+
+**Learn more:** [MCP Integration Guide](docs/guides/mcp-integration.md)
+
+---
 
 ## Usage
 
@@ -389,58 +447,6 @@ env-doctor check --ci
 - run: pip install env-doctor
 - run: env-doctor check --ci
 ```
-
-## MCP Server (AI Assistant Integration)
-
-Env-Doctor includes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes diagnostic tools to AI assistants like Claude Desktop.
-
-### Quick Setup for Claude Desktop
-
-1. **Install env-doctor:**
-   ```bash
-   pip install env-doctor
-   ```
-
-2. **Add to Claude Desktop config** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
-   ```json
-   {
-     "mcpServers": {
-       "env-doctor": {
-         "command": "env-doctor-mcp"
-       }
-     }
-   }
-   ```
-
-3. **Restart Claude Desktop** - the tools will be available automatically.
-
-### Available Tools (11 Total)
-
-- `env_check` - Full GPU/CUDA environment diagnostics
-- `env_check_component` - Check specific component (driver, CUDA, cuDNN, etc.)
-- `python_compat_check` - Check Python version compatibility with installed AI libraries
-- `cuda_info` - Detailed CUDA toolkit information
-- `cudnn_info` - Detailed cuDNN library information
-- `cuda_install` - Step-by-step CUDA installation instructions
-- `install_command` - Get safe pip install commands for AI libraries
-- `model_check` - Analyze if AI models fit on your GPU
-- `model_list` - List all available models in database
-- `dockerfile_validate` - Validate Dockerfiles for GPU issues
-- `docker_compose_validate` - Validate docker-compose.yml for GPU configuration
-
-### Example Usage
-
-Ask Claude Desktop:
-- "Check my GPU environment"
-- "Is my Python version compatible with my installed AI libraries?"
-- "How do I install CUDA Toolkit on Ubuntu?"
-- "Get me the pip install command for PyTorch"
-- "Can I run Llama 3 70B on my GPU?"
-- "Validate this Dockerfile for GPU issues"
-- "What CUDA version does my PyTorch require?"
-- "Show me detailed CUDA toolkit information"
-
-**Learn more:** [MCP Integration Guide](docs/guides/mcp-integration.md)
 
 ## Documentation
 

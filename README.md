@@ -14,17 +14,17 @@
     <img src="https://img.shields.io/badge/docs-github.io-blueviolet?style=flat-square" alt="Documentation">
   </a>
   <a href="https://pypi.org/project/env-doctor/">
-    <img src="https://img.shields.io/pypi/v/env-doctor?style=flat-square&color=blue&label=PyPI" alt="PyPI">
+    <img src="https://img.shields.io/pypi/v/env-doctor?style=flat-square&color=blueviolet&label=PyPI" alt="PyPI">
   </a>
   <a href="https://pypi.org/project/env-doctor/">
-    <img src="https://img.shields.io/pypi/dm/env-doctor?style=flat-square&color=success&label=Downloads" alt="Downloads">
+    <img src="https://img.shields.io/pypi/dm/env-doctor?style=flat-square&color=blueviolet&label=Downloads" alt="Downloads">
   </a>
-  <img src="https://img.shields.io/badge/python-3.7+-blue?style=flat-square" alt="Python">
+  <img src="https://img.shields.io/badge/python-3.10%2B-blueviolet?style=flat-square" alt="Python">
   <a href="https://github.com/mitulgarg/env-doctor/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/mitulgarg/env-doctor?style=flat-square&color=green" alt="License">
+    <img src="https://img.shields.io/github/license/mitulgarg/env-doctor?style=flat-square&color=blueviolet" alt="License">
   </a>
   <a href="https://github.com/mitulgarg/env-doctor/stargazers">
-    <img src="https://img.shields.io/github/stars/mitulgarg/env-doctor?style=flat-square&color=yellow" alt="GitHub Stars">
+    <img src="https://img.shields.io/github/stars/mitulgarg/env-doctor?style=flat-square&color=blueviolet" alt="GitHub Stars">
   </a>
 </p>
 
@@ -428,9 +428,13 @@ Env-Doctor includes a built-in [Model Context Protocol (MCP)](https://modelconte
 - `dockerfile_validate` - Validate Dockerfiles for GPU issues
 - `docker_compose_validate` - Validate docker-compose.yml for GPU configuration
 
+### Demo — Claude Code using env-doctor MCP tools
+
+<video src="https://github.com/user-attachments/assets/7e761c28-1f44-44a0-8dfd-cf06cb9939a2" autoplay loop muted playsinline width="100%"></video>
+
 ### Example Usage
 
-Ask Claude Desktop:
+Ask your AI assistant:
 - "Check my GPU environment"
 - "Is my Python version compatible with my installed AI libraries?"
 - "How do I install CUDA Toolkit on Ubuntu?"

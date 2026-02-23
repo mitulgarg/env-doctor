@@ -1,6 +1,6 @@
 # MCP Tools Testing Guide
 
-This guide explains how to test all 10 env-doctor MCP tools using JSON-RPC.
+This guide explains how to test all 11 env-doctor MCP tools using JSON-RPC.
 
 ## Available MCP Tools
 
@@ -8,20 +8,21 @@ This guide explains how to test all 10 env-doctor MCP tools using JSON-RPC.
 |---|-----------|-------------|
 | 1 | `env_check` | Full GPU/CUDA environment diagnostics |
 | 2 | `env_check_component` | Check specific component (driver, CUDA, cuDNN, etc.) |
-| 3 | `cuda_info` | Detailed CUDA toolkit information |
-| 4 | `cudnn_info` | Detailed cuDNN library information |
-| 5 | `cuda_install` | Step-by-step CUDA installation instructions |
-| 6 | `install_command` | Get safe pip install command for AI libraries |
-| 7 | `model_check` | Check if AI model fits on GPU |
-| 8 | `model_list` | List all available AI models in database |
-| 9 | `dockerfile_validate` | Validate Dockerfile for GPU config issues |
-| 10 | `docker_compose_validate` | Validate docker-compose.yml for GPU config |
+| 3 | `python_compat_check` | Check Python version compatibility with installed AI libraries |
+| 4 | `cuda_info` | Detailed CUDA toolkit information |
+| 5 | `cudnn_info` | Detailed cuDNN library information |
+| 6 | `cuda_install` | Step-by-step CUDA installation instructions |
+| 7 | `install_command` | Get safe pip install command for AI libraries |
+| 8 | `model_check` | Check if AI model fits on GPU |
+| 9 | `model_list` | List all available AI models in database |
+| 10 | `dockerfile_validate` | Validate Dockerfile for GPU config issues |
+| 11 | `docker_compose_validate` | Validate docker-compose.yml for GPU config |
 
 ## Testing Methods
 
 ### Method 1: Automated Test Suite (Recommended)
 
-Run all 10 tools automatically:
+Run all 11 tools automatically:
 
 ```bash
 python tests/test_mcp_tools.py
@@ -39,10 +40,11 @@ This will:
 TESTING ENV-DOCTOR MCP TOOLS
 ================================================================================
 
-[1/11] Listing available tools...
-✓ Found 10 tools:
+[1/12] Listing available tools...
+✓ Found 11 tools:
   - env_check: Run full GPU/CUDA environment diagnostics. Checks NVIDIA...
   - env_check_component: Run diagnostics for a specific component. Avail...
+  - python_compat_check: Check Python version compatibility with installed AI...
   ...
 
 [2/11] Testing env_check...
@@ -69,19 +71,20 @@ python tests/test_mcp_interactive.py
 **Interactive Menu:**
 ```
 Available tools:
-   1. env_check              - Full environment diagnostics
-   2. env_check_component    - Check specific component
-   3. cuda_info              - Detailed CUDA toolkit info
-   4. cudnn_info             - Detailed cuDNN info
-   5. cuda_install           - CUDA installation guide
-   6. install_command        - Get pip install command
-   7. model_check            - Check if model fits on GPU
-   8. model_list             - List available models
-   9. dockerfile_validate    - Validate Dockerfile
-  10. docker_compose_validate - Validate docker-compose.yml
+   1. env_check               - Full environment diagnostics
+   2. env_check_component     - Check specific component
+   3. python_compat_check     - Python version compatibility check
+   4. cuda_info               - Detailed CUDA toolkit info
+   5. cudnn_info              - Detailed cuDNN info
+   6. cuda_install            - CUDA installation guide
+   7. install_command         - Get pip install command
+   8. model_check             - Check if model fits on GPU
+   9. model_list              - List available models
+  10. dockerfile_validate     - Validate Dockerfile
+  11. docker_compose_validate - Validate docker-compose.yml
 
 Commands:
-  - Enter tool number (1-10) to test a tool
+  - Enter tool number (1-11) to test a tool
   - Type 'list' to list tools again
   - Type 'all' to run all tools
   - Type 'quit' or 'exit' to exit
@@ -117,6 +120,8 @@ python -m env_doctor.mcp.server
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | python -m env_doctor.mcp.server
 
 echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"cuda_info","arguments":{}}}' | python -m env_doctor.mcp.server
+
+echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"python_compat_check","arguments":{}}}' | python -m env_doctor.mcp.server
 ```
 
 ## Testing Individual Tools
@@ -154,7 +159,50 @@ result = await session.call_tool("env_check_component", {
 })
 ```
 
-### 3. cuda_info
+### 3. python_compat_check
+```python
+# Check Python version compatibility with installed AI libraries
+result = await session.call_tool("python_compat_check", {})
+
+# Expected response
+{
+  "detected": true,
+  "python_version": "3.13.0",
+  "libraries_checked": 2,
+  "conflicts": [
+    {
+      "library": "torch",
+      "installed_version": "2.5.1",
+      "issue": "torch supports Python <=3.12, but you have Python 3.13",
+      "note": "PyTorch 2.x supports Python 3.9-3.12. Python 3.13 support experimental."
+    },
+    {
+      "library": "tensorflow",
+      "installed_version": "2.15.0",
+      "issue": "tensorflow supports Python <=3.12, but you have Python 3.13",
+      "note": "TensorFlow 2.15+ requires Python 3.9-3.12. Python 3.13 not yet supported."
+    }
+  ],
+  "cascades": [
+    {
+      "library": "torch",
+      "severity": "high",
+      "description": "PyTorch's Python version constraint affects all torch ecosystem packages",
+      "affected": ["torchvision", "torchaudio", "triton"]
+    }
+  ],
+  "issues": [
+    "torch supports Python <=3.12, but you have Python 3.13",
+    "tensorflow supports Python <=3.12, but you have Python 3.13"
+  ],
+  "recommendations": [
+    "Consider using Python 3.12 or lower for full compatibility",
+    "Cascade: torch constraint also affects: torchvision, torchaudio, triton"
+  ]
+}
+```
+
+### 4. cuda_info
 ```python
 # Get detailed CUDA info
 result = await session.call_tool("cuda_info", {})
@@ -172,7 +220,7 @@ result = await session.call_tool("cuda_info", {})
 }
 ```
 
-### 4. cudnn_info
+### 5. cudnn_info
 ```python
 # Get detailed cuDNN info
 result = await session.call_tool("cudnn_info", {})
@@ -185,7 +233,7 @@ result = await session.call_tool("cudnn_info", {})
 }
 ```
 
-### 5. cuda_install
+### 6. cuda_install
 ```python
 # Auto-detect best CUDA version from driver
 result = await session.call_tool("cuda_install", {})
@@ -214,7 +262,7 @@ result = await session.call_tool("cuda_install", {
 }
 ```
 
-### 6. install_command
+### 7. install_command
 ```python
 # Get install command for PyTorch
 result = await session.call_tool("install_command", {
@@ -236,7 +284,7 @@ result = await session.call_tool("install_command", {
 }
 ```
 
-### 7. model_check
+### 8. model_check
 ```python
 # Check if llama-3-8b fits
 result = await session.call_tool("model_check", {
@@ -262,7 +310,7 @@ result = await session.call_tool("model_check", {
 }
 ```
 
-### 8. model_list
+### 9. model_list
 ```python
 # List all models
 result = await session.call_tool("model_list", {})
@@ -281,7 +329,7 @@ result = await session.call_tool("model_list", {})
 }
 ```
 
-### 9. dockerfile_validate
+### 10. dockerfile_validate
 ```python
 # Validate Dockerfile content
 dockerfile = """
@@ -310,7 +358,7 @@ result = await session.call_tool("dockerfile_validate", {
 }
 ```
 
-### 10. docker_compose_validate
+### 11. docker_compose_validate
 ```python
 # Validate docker-compose.yml
 compose = """
@@ -398,7 +446,16 @@ await session.call_tool("dockerfile_validate", {"content": dockerfile})
 await session.call_tool("docker_compose_validate", {"content": compose})
 ```
 
-### Scenario 3: Debugging Installation Issues
+### Scenario 3: Python Version Compatibility Check
+```python
+# 1. Check Python version against installed libraries
+await session.call_tool("python_compat_check", {})
+
+# 2. If conflicts found, get the safe install command for a compatible version
+await session.call_tool("install_command", {"library": "torch"})
+```
+
+### Scenario 4: Debugging Installation Issues
 ```python
 # 1. Full environment check
 await session.call_tool("env_check", {})
@@ -444,6 +501,7 @@ for tool in tools.tools:
 ## Performance Notes
 
 - `env_check` scans all components (~1-2 seconds)
+- `python_compat_check` scans installed libraries against compatibility matrix (~0.3 seconds)
 - `cuda_info` and `cudnn_info` are fast (<0.5 seconds)
 - `model_check` may fetch from HuggingFace API first time (cached afterward)
 - `dockerfile_validate` and `docker_compose_validate` are instant

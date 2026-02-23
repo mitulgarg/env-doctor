@@ -1,6 +1,8 @@
 # MCP Server Integration
 
-Env-Doctor includes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes its diagnostic capabilities as read-only tools for AI assistants like Claude Desktop, Zed, and other MCP-compatible clients.
+Env-Doctor includes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes its diagnostic capabilities as read-only tools for AI assistants like Claude Code, Claude Desktop, Zed, and other MCP-compatible clients.
+
+<video src="https://github.com/user-attachments/assets/7e761c28-1f44-44a0-8dfd-cf06cb9939a2" autoplay loop muted playsinline width="100%"></video>
 
 ## What is MCP?
 

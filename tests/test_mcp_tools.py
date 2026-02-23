@@ -2,7 +2,7 @@
 """
 Test script for env-doctor MCP tools using JSON-RPC.
 
-Tests all 10 MCP tools exposed by the env-doctor MCP server.
+Tests all 11 MCP tools exposed by the env-doctor MCP server.
 """
 import asyncio
 import json

@@ -18,7 +18,7 @@ bash tests/test_mcp_manual.sh
 ## Test Files
 
 ### test_mcp_tools.py
-**Automated test suite** - Runs all 10 MCP tools with sample inputs and displays results.
+**Automated test suite** - Runs all 11 MCP tools with sample inputs and displays results.
 
 **Usage:**
 ```bash
@@ -45,7 +45,7 @@ python tests/test_mcp_interactive.py install_command '{"library":"torch"}'
 ```
 
 **Features:**
-- Menu of all 10 tools
+- Menu of all 11 tools
 - Customizable arguments
 - Run all tools sequentially
 - Individual tool testing
@@ -63,12 +63,13 @@ bash tests/test_mcp_manual.sh
 - Useful for debugging
 - Low-level integration testing
 
-## All 10 MCP Tools
+## All 11 MCP Tools
 
 | Tool | Description |
 |------|-------------|
 | `env_check` | Full environment diagnostics |
 | `env_check_component` | Check specific component |
+| `python_compat_check` | Check Python version compatibility with AI libraries |
 | `cuda_info` | Detailed CUDA toolkit info |
 | `cudnn_info` | Detailed cuDNN info |
 | `cuda_install` | CUDA installation guide |
@@ -104,9 +105,10 @@ pip install mcp
 TESTING ENV-DOCTOR MCP TOOLS
 ================================================================================
 
-[1/11] Listing available tools...
-✓ Found 10 tools:
+[1/12] Listing available tools...
+✓ Found 11 tools:
   - env_check: Run full GPU/CUDA environment diagnostics...
+  - python_compat_check: Check Python version compatibility with installed AI...
   - cuda_install: Get step-by-step CUDA Toolkit installation...
   ...
 

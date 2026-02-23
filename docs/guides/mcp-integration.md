@@ -49,7 +49,23 @@ After saving the configuration, restart Claude Desktop. The env-doctor tools wil
 
 ## Available Tools
 
-The MCP server exposes 10 diagnostic tools:
+The MCP server exposes 11 diagnostic tools:
+
+### `python_compat_check`
+
+Check Python version compatibility with installed AI libraries.
+
+**What it checks:**
+- Current Python version against each library's supported range
+- Libraries with version conflicts (PyTorch, TensorFlow, JAX, etc.)
+- Dependency cascades — where one library's Python ceiling forces limits on downstream packages (e.g. `torch` → `torchvision`, `torchaudio`, `triton`)
+
+**Returns:** Python version, list of conflicts with notes, cascade impacts, and recommendations.
+
+**Example prompt:**
+> "Is my Python version compatible with my installed AI libraries?"
+
+---
 
 ### `env_check`
 

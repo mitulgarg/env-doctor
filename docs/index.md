@@ -114,9 +114,7 @@ env-doctor model llama-3-8b
 ```
 
 
-## Quick Sneak Peek (There's WAY more to Env-Doctor)
-
-<!-- For future updates, Replace YOUR_RECORDING_ID with your Asciinema recording ID -->
+## CLI Demo — Environment Check
 
 <div style="max-width: 700px; margin: auto;">
 
@@ -124,9 +122,7 @@ env-doctor model llama-3-8b
 </div>
 
 
-## Model Checker Demo
-
-<!-- For future updates, Replace YOUR_MODEL_DEMO_ID with your Asciinema recording ID -->
+## CLI Demo — Model Checker
 
 <div style="max-width: 700px; margin: auto;">
 
@@ -134,6 +130,14 @@ env-doctor model llama-3-8b
 
 </div>
 
+
+## MCP Server Demo — Claude Code in Action
+
+Use env-doctor as an MCP server and let your AI assistant diagnose GPU environments, fetch safe install commands, and validate Dockerfiles — all without leaving the chat.
+
+<video src="https://github.com/user-attachments/assets/7e761c28-1f44-44a0-8dfd-cf06cb9939a2" autoplay loop muted playsinline style="width:100%;border-radius:8px;"></video>
+
+[:octicons-arrow-right-24: MCP Integration Guide](guides/mcp-integration.md)
 
 
 ## Star History

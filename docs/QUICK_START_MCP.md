@@ -24,16 +24,20 @@ python tests/test_mcp_interactive.py model_check '{"model_name":"llama-3-8b"}'
 # Full environment check
 python tests/test_mcp_interactive.py env_check
 
+# Check Python version compatibility with AI libraries
+python tests/test_mcp_interactive.py python_compat_check
+
 # Detailed CUDA info
 python tests/test_mcp_interactive.py cuda_info
 ```
 
-## All 10 Tools
+## All 11 Tools
 
 | Tool | Quick Test Command |
 |------|-------------------|
 | `env_check` | `python tests/test_mcp_interactive.py env_check` |
 | `env_check_component` | `python tests/test_mcp_interactive.py env_check_component '{"component":"nvidia_driver"}'` |
+| `python_compat_check` | `python tests/test_mcp_interactive.py python_compat_check` |
 | `cuda_info` | `python tests/test_mcp_interactive.py cuda_info` |
 | `cudnn_info` | `python tests/test_mcp_interactive.py cudnn_info` |
 | `cuda_install` | `python tests/test_mcp_interactive.py cuda_install` |
@@ -80,9 +84,10 @@ All tools return JSON with consistent structure:
 3. `install_command` - get library commands
 
 ### Debug Issues
-1. `cuda_info` - detailed CUDA analysis
-2. `cudnn_info` - detailed cuDNN analysis
-3. `env_check` - overall status
+1. `python_compat_check` - check Python version conflicts
+2. `cuda_info` - detailed CUDA analysis
+3. `cudnn_info` - detailed cuDNN analysis
+4. `env_check` - overall status
 
 ### Deploy Model
 1. `model_check` - will it fit?

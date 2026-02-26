@@ -371,6 +371,40 @@ def cudnn_info() -> Dict[str, Any]:
         }
 
 
+def wsl_info() -> Dict[str, Any]:
+    """
+    Get detailed WSL environment information.
+
+    Returns:
+        Dict with WSL environment analysis including:
+        - detected: Whether detection completed
+        - version: Environment type (native_linux, wsl1, wsl2)
+        - metadata: Kernel version, GPU forwarding checklist results
+        - issues: List of detected issues
+        - recommendations: List of recommendations
+    """
+    from env_doctor.detectors import wsl2
+    from env_doctor.core.registry import DetectorRegistry
+
+    try:
+        detector = DetectorRegistry.get("wsl2")
+
+        if not detector.can_run():
+            return {
+                "detected": False,
+                "status": "skipped",
+                "reason": "WSL detector not supported on this platform (only runs on Linux)",
+            }
+
+        result = detector.detect()
+        return result.to_dict()
+    except Exception as e:
+        return {
+            "detected": False,
+            "error": str(e),
+        }
+
+
 def cuda_install(version: Optional[str] = None) -> Dict[str, Any]:
     """
     Get step-by-step CUDA Toolkit installation instructions.

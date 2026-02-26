@@ -184,6 +184,19 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="wsl_info",
+            description=(
+                "Get detailed WSL (Windows Subsystem for Linux) environment information "
+                "including: environment type (Native Linux / WSL1 / WSL2), kernel version, "
+                "GPU forwarding status, and diagnostic checklist for WSL2 CUDA support."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        ),
+        Tool(
             name="cuda_install",
             description=(
                 "Get step-by-step CUDA Toolkit installation instructions tailored to the user's platform. "
@@ -246,6 +259,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
     elif name == "cudnn_info":
         result = tools.cudnn_info()
+
+    elif name == "wsl_info":
+        result = tools.wsl_info()
 
     elif name == "cuda_install":
         version = arguments.get("version")

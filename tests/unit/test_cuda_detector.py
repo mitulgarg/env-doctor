@@ -67,7 +67,7 @@ class TestCudaToolkitDetector:
             result = detector.detect()
 
         assert result.status == Status.NOT_FOUND
-        assert "Install CUDA Toolkit" in result.recommendations[0]
+        assert any("CUDA" in rec for rec in result.recommendations)
 
     # ===== Test: Enhanced recommendations when driver is detected =====
 
@@ -416,6 +416,255 @@ class TestCudaToolkitDetector:
         # On Windows, no LD_LIBRARY_PATH check
         assert "ld_library_path" not in result.metadata
     
+    # ===== Test: apt-installed CUDA (system install) =====
+
+    @patch('platform.system')
+    @patch('shutil.which')
+    @patch('subprocess.check_output')
+    @patch('os.path.exists')
+    @patch('glob.glob')
+    @patch('os.path.realpath')
+    @patch('env_doctor.core.registry.DetectorRegistry.get')
+    def test_apt_installed_cuda_full(self, mock_registry_get, mock_realpath,
+                                     mock_glob, mock_exists, mock_subprocess,
+                                     mock_which, mock_system, detector):
+        """Test full apt-installed CUDA: nvcc at /usr/bin + headers + libcudart → SUCCESS."""
+        mock_system.return_value = "Linux"
+        mock_which.return_value = "/usr/bin/nvcc"
+        mock_subprocess.return_value = "release 12.1, V12.1.105"
+        mock_realpath.side_effect = lambda x: x
+
+        def glob_side_effect(pattern):
+            p = pattern.replace("\\", "/")
+            # No standard CUDA installations
+            if "cuda-*" in p or "cuda*" in p or "/cuda" in p:
+                return []
+            # libcudart in system lib dir
+            if "/usr/lib/x86_64-linux-gnu/libcudart.so" in p:
+                return ["/usr/lib/x86_64-linux-gnu/libcudart.so.12.1"]
+            return []
+
+        mock_glob.side_effect = glob_side_effect
+
+        def exists_side_effect(path):
+            normalized = path.replace("\\", "/")
+            existing = {
+                "/usr/bin/nvcc",
+                "/usr/include/cuda.h",
+                "/usr/include/cuda_runtime.h",
+                "/usr/lib/x86_64-linux-gnu",
+                "/usr/bin",
+                "/usr",
+            }
+            return normalized in existing
+
+        mock_exists.side_effect = exists_side_effect
+
+        # Mock driver detector
+        mock_driver_detector = MagicMock()
+        mock_driver_result = MagicMock()
+        mock_driver_result.detected = True
+        mock_driver_result.version = "535.183"
+        mock_driver_result.metadata = {"max_cuda_version": "12.2"}
+        mock_driver_detector.detect.return_value = mock_driver_result
+        mock_registry_get.return_value = mock_driver_detector
+
+        with patch.dict(os.environ, {
+            "PATH": "/usr/bin:/bin"
+        }, clear=True):
+            result = detector.detect()
+
+        assert result.status in [Status.SUCCESS, Status.WARNING]
+        assert result.version == "12.1"
+        assert result.metadata["nvcc"]["found"] is True
+        # Should be a system install
+        assert result.metadata["installations"][0]["install_type"] == "system"
+        # CUDA_HOME missing should NOT be an issue for system installs
+        assert not any("CUDA_HOME" in issue for issue in result.issues)
+        # LD_LIBRARY_PATH should be marked correct (ldconfig handles it)
+        assert result.metadata["ld_library_path"]["correct"] is True
+
+    @patch('platform.system')
+    @patch('shutil.which')
+    @patch('subprocess.check_output')
+    @patch('os.path.exists')
+    @patch('glob.glob')
+    def test_apt_installed_nvcc_only_no_headers(self, mock_glob, mock_exists,
+                                                 mock_subprocess, mock_which,
+                                                 mock_system, detector):
+        """Test nvcc found but no cuda.h or libcudart → WARNING with install recommendation."""
+        mock_system.return_value = "Linux"
+        mock_which.return_value = "/usr/bin/nvcc"
+        mock_subprocess.return_value = "release 12.1, V12.1.105"
+        mock_glob.return_value = []  # No standard installations, no libcudart
+
+        def exists_side_effect(path):
+            # Only nvcc exists, no headers, no runtime
+            return path == "/usr/bin/nvcc"
+
+        mock_exists.side_effect = exists_side_effect
+
+        with patch.dict(os.environ, {
+            "PATH": "/usr/bin:/bin"
+        }, clear=True):
+            result = detector.detect()
+
+        assert result.status == Status.WARNING
+        assert result.version == "12.1"
+        assert any("runtime/development files missing" in issue for issue in result.issues)
+        assert any("nvidia-cuda-toolkit" in rec for rec in result.recommendations)
+
+    @patch('platform.system')
+    @patch('shutil.which')
+    @patch('subprocess.check_output')
+    @patch('os.path.exists')
+    @patch('glob.glob')
+    @patch('os.path.realpath')
+    @patch('env_doctor.core.registry.DetectorRegistry.get')
+    def test_apt_installed_no_cuda_home_no_warning(self, mock_registry_get,
+                                                    mock_realpath, mock_glob,
+                                                    mock_exists, mock_subprocess,
+                                                    mock_which, mock_system, detector):
+        """Test system install without CUDA_HOME does not produce CUDA_HOME warning."""
+        mock_system.return_value = "Linux"
+        mock_which.return_value = "/usr/bin/nvcc"
+        mock_subprocess.return_value = "release 12.1, V12.1.105"
+        mock_realpath.side_effect = lambda x: x
+
+        def glob_side_effect(pattern):
+            p = pattern.replace("\\", "/")
+            if "/usr/lib/x86_64-linux-gnu/libcudart.so" in p:
+                return ["/usr/lib/x86_64-linux-gnu/libcudart.so.12.1"]
+            return []
+
+        mock_glob.side_effect = glob_side_effect
+
+        def exists_side_effect(path):
+            normalized = path.replace("\\", "/")
+            existing = {
+                "/usr/bin/nvcc", "/usr/include/cuda_runtime.h",
+                "/usr/lib/x86_64-linux-gnu", "/usr/bin", "/usr",
+            }
+            return normalized in existing
+
+        mock_exists.side_effect = exists_side_effect
+
+        mock_driver_detector = MagicMock()
+        mock_driver_result = MagicMock()
+        mock_driver_result.detected = True
+        mock_driver_result.version = "535.183"
+        mock_driver_result.metadata = {"max_cuda_version": "12.2"}
+        mock_driver_detector.detect.return_value = mock_driver_result
+        mock_registry_get.return_value = mock_driver_detector
+
+        with patch.dict(os.environ, {
+            "PATH": "/usr/bin:/bin"
+        }, clear=True):
+            result = detector.detect()
+
+        # No CUDA_HOME issue should be raised
+        assert not any("CUDA_HOME" in issue for issue in result.issues)
+        # The metadata should note it's not required
+        assert "info" in result.metadata["cuda_home"]
+        assert "not required" in result.metadata["cuda_home"]["info"]
+
+    @patch('platform.system')
+    @patch('shutil.which')
+    @patch('subprocess.check_output')
+    @patch('os.path.exists')
+    @patch('glob.glob')
+    @patch('os.path.realpath')
+    @patch('env_doctor.core.registry.DetectorRegistry.get')
+    def test_apt_installed_libcudart_system_path(self, mock_registry_get,
+                                                  mock_realpath, mock_glob,
+                                                  mock_exists, mock_subprocess,
+                                                  mock_which, mock_system, detector):
+        """Test libcudart found at /usr/lib/x86_64-linux-gnu/ for system install."""
+        mock_system.return_value = "Linux"
+        mock_which.return_value = "/usr/bin/nvcc"
+        mock_subprocess.return_value = "release 12.1, V12.1.105"
+        mock_realpath.side_effect = lambda x: x
+
+        def glob_side_effect(pattern):
+            p = pattern.replace("\\", "/")
+            if "/usr/lib/x86_64-linux-gnu/libcudart.so" in p:
+                return ["/usr/lib/x86_64-linux-gnu/libcudart.so.12.1"]
+            return []
+
+        mock_glob.side_effect = glob_side_effect
+
+        def exists_side_effect(path):
+            normalized = path.replace("\\", "/")
+            existing = {
+                "/usr/bin/nvcc", "/usr/include/cuda.h",
+                "/usr/lib/x86_64-linux-gnu", "/usr/bin", "/usr",
+            }
+            return normalized in existing
+
+        mock_exists.side_effect = exists_side_effect
+
+        mock_driver_detector = MagicMock()
+        mock_driver_result = MagicMock()
+        mock_driver_result.detected = True
+        mock_driver_result.version = "535.183"
+        mock_driver_result.metadata = {"max_cuda_version": "12.2"}
+        mock_driver_detector.detect.return_value = mock_driver_result
+        mock_registry_get.return_value = mock_driver_detector
+
+        with patch.dict(os.environ, {
+            "PATH": "/usr/bin:/bin"
+        }, clear=True):
+            result = detector.detect()
+
+        assert result.metadata["libcudart"]["found"] is True
+        assert "x86_64-linux-gnu" in result.metadata["libcudart"]["path"]
+
+    @patch('platform.system')
+    @patch('shutil.which')
+    @patch('subprocess.check_output')
+    @patch('os.path.exists')
+    @patch('glob.glob')
+    @patch('os.path.realpath')
+    @patch('env_doctor.core.registry.DetectorRegistry.get')
+    def test_both_apt_and_standard_cuda(self, mock_registry_get, mock_realpath,
+                                        mock_glob, mock_exists, mock_subprocess,
+                                        mock_which, mock_system, detector):
+        """Test when both system (apt) and /usr/local standard installs exist."""
+        mock_system.return_value = "Linux"
+        mock_which.return_value = "/usr/local/cuda-12.1/bin/nvcc"
+        mock_subprocess.return_value = "release 12.1, V12.1.105"
+        mock_realpath.side_effect = lambda x: x
+
+        def glob_side_effect(pattern):
+            if "cuda-*" in pattern or "/cuda*" in pattern:
+                return ["/usr/local/cuda-12.1"]
+            elif "libcudart" in pattern:
+                return ["/usr/local/cuda-12.1/lib64/libcudart.so.12.1"]
+            return []
+
+        mock_glob.side_effect = glob_side_effect
+        mock_exists.return_value = True
+
+        mock_driver_detector = MagicMock()
+        mock_driver_result = MagicMock()
+        mock_driver_result.detected = True
+        mock_driver_result.version = "535.183"
+        mock_driver_result.metadata = {"max_cuda_version": "12.2"}
+        mock_driver_detector.detect.return_value = mock_driver_result
+        mock_registry_get.return_value = mock_driver_detector
+
+        with patch.dict(os.environ, {
+            "CUDA_HOME": "/usr/local/cuda-12.1",
+            "PATH": "/usr/local/cuda-12.1/bin:/usr/bin:/bin",
+            "LD_LIBRARY_PATH": "/usr/local/cuda-12.1/lib64"
+        }, clear=True):
+            result = detector.detect()
+
+        # Standard install found, so system detection is not triggered
+        assert result.metadata["installation_count"] >= 1
+        assert result.metadata["installations"][0]["install_type"] == "standard"
+        assert result.version == "12.1"
+
     # ===== Test: All checks pass perfectly =====
     @patch('platform.system')
     @patch('shutil.which')

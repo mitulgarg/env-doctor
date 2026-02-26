@@ -69,7 +69,34 @@ class CudaToolkitDetector(Detector):
         
         # 1. Find all CUDA installations
         installations = self._find_all_cuda_installations()
-        
+        is_system_install = False
+
+        # 2. If no standard installations found, try detecting system (apt) install
+        if not installations:
+            nvcc_info = self._check_nvcc()
+            if nvcc_info:
+                # nvcc found (e.g. /usr/bin/nvcc) — validate system CUDA install
+                system_install = self._detect_system_cuda_installation(
+                    nvcc_info["path"], nvcc_info["version"]
+                )
+                if system_install:
+                    installations.append(system_install)
+                    is_system_install = True
+                else:
+                    # nvcc present but headers/runtime missing
+                    result.status = Status.WARNING
+                    result.version = nvcc_info["version"]
+                    result.path = nvcc_info["path"]
+                    result.metadata["nvcc"] = nvcc_info
+                    result.add_issue(
+                        "CUDA compiler found but runtime/development files missing"
+                    )
+                    result.add_recommendation(
+                        "Install CUDA development files: "
+                        "sudo apt install nvidia-cuda-toolkit"
+                    )
+                    return result
+
         if not installations:
             result.status = Status.NOT_FOUND
 
@@ -119,11 +146,11 @@ class CudaToolkitDetector(Detector):
                 "Or use pip-installed libraries with bundled CUDA (inference only)"
             )
             return result
-        
+
         result.metadata["installations"] = installations
         result.metadata["installation_count"] = len(installations)
-        
-        # 2. Check nvcc (primary indicator)
+
+        # 3. Check nvcc (primary indicator)
         nvcc_info = self._check_nvcc()
         if nvcc_info:
             result.version = nvcc_info["version"]
@@ -133,37 +160,43 @@ class CudaToolkitDetector(Detector):
             result.add_issue("nvcc compiler not found in PATH")
             result.add_recommendation("Add CUDA bin directory to PATH")
             result.status = Status.WARNING
-        
-        # 3. Check CUDA_HOME
+
+        # 4. Check CUDA_HOME (relaxed for system installs)
         cuda_home_info = self._check_cuda_home(installations)
         result.metadata["cuda_home"] = cuda_home_info
-        
+
         if cuda_home_info["status"] == "missing":
-            result.add_issue("CUDA_HOME environment variable not set")
-            result.add_recommendation(
-                f"Set CUDA_HOME to: {installations[0]['path']}"
-            )
-            if result.status == Status.SUCCESS:
-                result.status = Status.WARNING
+            if is_system_install:
+                # apt-installed CUDA doesn't use CUDA_HOME; just note it
+                result.metadata["cuda_home"]["info"] = (
+                    "CUDA_HOME not required for system (apt) CUDA installation"
+                )
+            else:
+                result.add_issue("CUDA_HOME environment variable not set")
+                result.add_recommendation(
+                    f"Set CUDA_HOME to: {installations[0]['path']}"
+                )
+                if result.status == Status.SUCCESS:
+                    result.status = Status.WARNING
         elif cuda_home_info["status"] == "invalid":
             result.add_issue(f"CUDA_HOME points to non-existent path: {cuda_home_info['value']}")
             result.add_recommendation(
                 f"Update CUDA_HOME to: {installations[0]['path']}"
             )
             result.status = Status.WARNING
-        
-        # 4. Check libcudart
+
+        # 5. Check libcudart
         libcudart_info = self._check_libcudart(installations)
         result.metadata["libcudart"] = libcudart_info
-        
+
         if not libcudart_info["found"]:
             result.add_issue("libcudart runtime library not found")
             result.status = Status.WARNING
-        
-        # 5. Check PATH configuration
+
+        # 6. Check PATH configuration
         path_info = self._check_path_config(installations)
         result.metadata["path_config"] = path_info
-        
+
         if not path_info["correct"]:
             result.add_issue("CUDA bin directory not in PATH or incorrect")
             result.add_recommendation(
@@ -171,21 +204,28 @@ class CudaToolkitDetector(Detector):
             )
             if result.status == Status.SUCCESS:
                 result.status = Status.WARNING
-        
-        # 6. Check LD_LIBRARY_PATH (Linux only)
+
+        # 7. Check LD_LIBRARY_PATH (Linux only, relaxed for system installs)
         if platform.system() == "Linux":
-            ld_info = self._check_ld_library_path(installations)
-            result.metadata["ld_library_path"] = ld_info
-            
-            if not ld_info["correct"]:
-                result.add_issue("LD_LIBRARY_PATH not configured for CUDA")
-                result.add_recommendation(
-                    f"Add to LD_LIBRARY_PATH: {installations[0]['path']}/lib64"
-                )
-                if result.status == Status.SUCCESS:
-                    result.status = Status.WARNING
-        
-        # 7. Check for multiple installations (potential conflict)
+            if is_system_install:
+                # System libs are found via ldconfig, no LD_LIBRARY_PATH needed
+                result.metadata["ld_library_path"] = {
+                    "correct": True,
+                    "info": "System (apt) CUDA uses ldconfig; LD_LIBRARY_PATH not required"
+                }
+            else:
+                ld_info = self._check_ld_library_path(installations)
+                result.metadata["ld_library_path"] = ld_info
+
+                if not ld_info["correct"]:
+                    result.add_issue("LD_LIBRARY_PATH not configured for CUDA")
+                    result.add_recommendation(
+                        f"Add to LD_LIBRARY_PATH: {installations[0]['path']}/lib64"
+                    )
+                    if result.status == Status.SUCCESS:
+                        result.status = Status.WARNING
+
+        # 8. Check for multiple installations (potential conflict)
         if len(installations) > 1:
             result.metadata["multiple_installations"] = True
             result.add_issue(
@@ -197,18 +237,18 @@ class CudaToolkitDetector(Detector):
             )
             if result.status == Status.SUCCESS:
                 result.status = Status.WARNING
-        
-        # 8. Validate driver compatibility
+
+        # 9. Validate driver compatibility
         driver_compat = self._check_driver_compatibility(result.version)
         result.metadata["driver_compatibility"] = driver_compat
-        
+
         if not driver_compat["compatible"]:
             result.add_issue(driver_compat["message"])
             result.add_recommendation(
                 "Upgrade GPU driver or downgrade CUDA toolkit"
             )
             result.status = Status.ERROR
-        
+
         return result
     
     def _find_all_cuda_installations(self) -> List[Dict[str, str]]:
@@ -247,7 +287,8 @@ class CudaToolkitDetector(Detector):
             if version or self._validate_cuda_directory(path):
                 installations.append({
                     "path": path,
-                    "version": version or "Unknown"
+                    "version": version or "Unknown",
+                    "install_type": "standard",
                 })
         
         return installations
@@ -285,6 +326,59 @@ class CudaToolkitDetector(Detector):
         ]
         return any(os.path.exists(ind) for ind in indicators)
     
+    # System library directories where apt-installed CUDA places libcudart
+    SYSTEM_LIB_DIRS = [
+        "/usr/lib/x86_64-linux-gnu",   # Debian/Ubuntu amd64
+        "/usr/lib/aarch64-linux-gnu",   # ARM64
+        "/usr/lib",                     # Generic fallback
+    ]
+
+    def _detect_system_cuda_installation(self, nvcc_path: str, nvcc_version: str) -> Optional[Dict]:
+        """
+        Validate an apt/system-installed CUDA by checking for headers and runtime.
+
+        Args:
+            nvcc_path: Path to nvcc binary (e.g., /usr/bin/nvcc)
+            nvcc_version: Version string from nvcc --version (e.g., "12.1")
+
+        Returns:
+            Installation dict with install_type="system", or None if not a valid install
+        """
+        # Derive root: /usr/bin/nvcc -> /usr
+        try:
+            resolved = os.path.realpath(nvcc_path)
+            root = os.path.dirname(os.path.dirname(resolved))
+        except Exception:
+            return None
+
+        # Check for CUDA headers
+        has_headers = any(
+            os.path.exists(os.path.join(root, "include", header))
+            for header in ("cuda.h", "cuda_runtime.h")
+        )
+
+        # Check for libcudart in system library directories
+        has_runtime = False
+        runtime_path = None
+        for lib_dir in self.SYSTEM_LIB_DIRS:
+            matches = glob.glob(os.path.join(lib_dir, "libcudart.so*"))
+            if matches:
+                has_runtime = True
+                runtime_path = matches[0]
+                break
+
+        if not has_headers and not has_runtime:
+            return None
+
+        return {
+            "path": root,
+            "version": nvcc_version,
+            "install_type": "system",
+            "has_headers": has_headers,
+            "has_runtime": has_runtime,
+            "runtime_path": runtime_path,
+        }
+
     def _check_nvcc(self) -> Optional[Dict[str, str]]:
         """
         Check for nvcc compiler in PATH.
@@ -388,11 +482,15 @@ class CudaToolkitDetector(Detector):
                 os.path.join(installation["path"], "lib"),
                 os.path.join(installation["path"], "bin"),  # Windows
             ]
-            
+
+            # For system (apt) installs on Linux, also check multiarch lib dirs
+            if installation.get("install_type") == "system" and system == "Linux":
+                lib_dirs.extend(self.SYSTEM_LIB_DIRS)
+
             for lib_dir in lib_dirs:
                 if not os.path.exists(lib_dir):
                     continue
-                
+
                 for pattern in patterns:
                     matches = glob.glob(os.path.join(lib_dir, pattern))
                     if matches:
@@ -403,7 +501,7 @@ class CudaToolkitDetector(Detector):
                             "path": matches[0],
                             "version": version
                         }
-        
+
         return {"found": False}
     
     def _extract_libcudart_version(self, lib_path: str) -> Optional[str]:

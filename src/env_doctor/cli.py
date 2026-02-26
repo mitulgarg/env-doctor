@@ -1290,6 +1290,104 @@ def print_cudnn_detailed_info(cudnn_result):
     print("\n" + "="*60)
 
 
+def print_wsl_detailed_info(wsl_result):
+    """
+    Print detailed WSL environment information from detection.
+
+    Args:
+        wsl_result: DetectionResult from WSL2Detector
+    """
+    print("\n" + "="*60)
+    print("🐧  DETAILED WSL ANALYSIS")
+    print("="*60)
+
+    env = wsl_result.metadata.get("environment", "Unknown")
+    print(f"\n📌  Environment Type: {env}")
+
+    # Kernel version
+    kernel = wsl_result.metadata.get("kernel_version")
+    if kernel:
+        print(f"    Kernel Version: {kernel}")
+
+    # For WSL2, show GPU forwarding checklist
+    if wsl_result.version == "wsl2":
+        print("\n🔍  GPU Forwarding Checklist:")
+
+        has_internal = wsl_result.metadata.get("has_internal_driver", False)
+        has_libcuda = wsl_result.metadata.get("has_libcuda", False)
+        nvidia_smi = wsl_result.metadata.get("nvidia_smi_works", False)
+
+        # Internal driver should NOT be present
+        if not has_internal:
+            print("    ✅ No internal NVIDIA driver (correct)")
+        else:
+            print("    ❌ Internal NVIDIA driver found (breaks GPU forwarding)")
+
+        # libcuda.so should be present
+        cuda_lib = wsl_result.metadata.get("cuda_lib_path", "/usr/lib/wsl/lib/libcuda.so")
+        if has_libcuda:
+            print(f"    ✅ WSL2 CUDA library found ({cuda_lib})")
+        else:
+            print(f"    ❌ WSL2 CUDA library missing ({cuda_lib})")
+
+        # nvidia-smi should work
+        if nvidia_smi:
+            print("    ✅ nvidia-smi working")
+        else:
+            print("    ❌ nvidia-smi not working")
+
+        # Overall forwarding status
+        gpu_fwd = wsl_result.metadata.get("gpu_forwarding")
+        if gpu_fwd == "enabled":
+            print("\n✅  GPU Forwarding: Enabled")
+        else:
+            print("\n❌  GPU Forwarding: Not working")
+
+    elif wsl_result.version == "wsl1":
+        print("\n❌  WSL1 does not support CUDA/GPU computing")
+
+    elif wsl_result.version == "native_linux":
+        print("\n✅  Native Linux (WSL not applicable)")
+
+    # Issues & Recommendations
+    if wsl_result.issues:
+        print("\n⚠️   Issues Detected:")
+        for issue in wsl_result.issues:
+            print(f"    • {issue}")
+
+    if wsl_result.recommendations:
+        print("\n💡  Recommendations:")
+        for rec in wsl_result.recommendations:
+            print(f"    → {rec}")
+
+    print("\n" + "="*60)
+
+
+def wsl_info_command(output_json: bool = False):
+    """
+    Display comprehensive WSL environment information.
+
+    Args:
+        output_json: Output as JSON (machine-readable)
+    """
+    wsl_detector = DetectorRegistry.get("wsl2")
+    if not wsl_detector.can_run():
+        if output_json:
+            print(json.dumps({"error": "WSL detector not supported on this platform"}))
+        else:
+            print("❌  WSL detector not supported on this platform (only runs on Linux)")
+        sys.exit(1)
+        return
+
+    wsl_result = wsl_detector.detect()
+
+    if output_json:
+        print(json.dumps(wsl_result.to_dict(), indent=2))
+        sys.exit(0 if wsl_result.status in [Status.SUCCESS, Status.WARNING] else 1)
+    else:
+        print_wsl_detailed_info(wsl_result)
+
+
 def cudnn_info_command(output_json: bool = False):
     """
     Display comprehensive cuDNN library information.
@@ -1597,6 +1695,7 @@ Examples:
   env-doctor cuda-install       # Step-by-step CUDA installation guide
   env-doctor cuda-install 12.4  # Install specific CUDA version
   env-doctor cudnn-info         # Detailed cuDNN library analysis
+  env-doctor wsl                # Detailed WSL environment analysis
   env-doctor dockerfile         # Validate Dockerfile for GPU issues
   env-doctor docker-compose     # Validate docker-compose.yml for GPU issues
   env-doctor model llama-3-8b   # Check if model fits on your GPU
@@ -1655,6 +1754,17 @@ Examples:
         help="Detailed cuDNN library analysis"
     )
     cudnn_info_parser.add_argument(
+        '--json',
+        action='store_true',
+        help='Output as JSON (machine-readable)'
+    )
+
+    # WSL command
+    wsl_parser = subparsers.add_parser(
+        "wsl",
+        help="Detailed WSL environment analysis"
+    )
+    wsl_parser.add_argument(
         '--json',
         action='store_true',
         help='Output as JSON (machine-readable)'
@@ -1759,6 +1869,10 @@ Examples:
         cuda_install_command(getattr(args, 'version', None))
     elif args.command == "cudnn-info":
         cudnn_info_command(
+            output_json=getattr(args, 'json', False)
+        )
+    elif args.command == "wsl":
+        wsl_info_command(
             output_json=getattr(args, 'json', False)
         )
     elif args.command == "dockerfile":

@@ -135,6 +135,29 @@ def test_cudnn_info_json_output():
         assert "detected" in data
 
 
+def test_wsl_json_output():
+    """Test wsl command with --json flag."""
+    result = subprocess.run(
+        [sys.executable, "-m", "env_doctor.cli", "wsl", "--json"],
+        capture_output=True,
+        text=True
+    )
+
+    # Should produce valid JSON (or error JSON if platform not supported)
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        pytest.fail(f"Output is not valid JSON: {e}\nOutput: {result.stdout}")
+
+    # Either a DetectionResult or an error
+    if "error" in data:
+        assert isinstance(data["error"], str)
+    else:
+        assert "component" in data
+        assert "status" in data
+        assert "detected" in data
+
+
 def test_scan_json_output():
     """Test scan command with --json flag."""
     result = subprocess.run(

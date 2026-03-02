@@ -28,7 +28,13 @@ Key points:
 
 ## WSL2 Validation
 
-Run `env-doctor check` to validate your WSL2 GPU setup:
+Use the dedicated `wsl` command for a detailed GPU forwarding checklist:
+
+```bash
+env-doctor wsl
+```
+
+Or run the full environment check, which includes a WSL summary:
 
 ```bash
 env-doctor check
@@ -216,5 +222,6 @@ Shows detailed WSL2 detection metadata.
 
 ## See Also
 
+- [wsl Command](../commands/wsl.md) — Dedicated WSL environment analysis
 - [check Command](../commands/check.md)
 - [cuda-info Command](../commands/cuda-info.md)

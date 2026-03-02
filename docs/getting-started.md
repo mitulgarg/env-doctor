@@ -4,7 +4,7 @@ This guide will help you install Env-Doctor and run your first environment check
 
 ## Prerequisites
 
-- Python 3.7 or higher
+- Python 3.10 or higher
 - NVIDIA GPU (optional, but recommended)
 - NVIDIA driver installed (for GPU features)
 
@@ -101,6 +101,7 @@ env-doctor dockerfile path/to/Dockerfile
 | `env-doctor model <name>` | Check model VRAM requirements |
 | `env-doctor cuda-info` | Detailed CUDA toolkit analysis |
 | `env-doctor cudnn-info` | cuDNN library analysis |
+| `env-doctor wsl` | Detailed WSL environment analysis |
 | `env-doctor dockerfile` | Validate Dockerfile |
 | `env-doctor docker-compose` | Validate docker-compose.yml |
 | `env-doctor scan` | Scan for deprecated imports |

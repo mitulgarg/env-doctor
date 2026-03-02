@@ -28,7 +28,7 @@
   "keywords": "CUDA version mismatch, PyTorch CUDA error, GPU diagnostics, NVIDIA driver compatibility, torch not compiled with CUDA, cuDNN error, flash-attention build failed, docker GPU troubleshooting, WSL2 GPU, AI model VRAM calculator, LLM GPU requirements, GPU environment setup, CUDA debugging tool",
   "codeRepository": "https://github.com/mitulgarg/env-doctor",
   "programmingLanguage": "Python",
-  "softwareRequirements": "Python 3.7+",
+  "softwareRequirements": "Python 3.10+",
   "license": "https://opensource.org/licenses/MIT",
   "potentialAction": {
     "@type": "InstallAction",

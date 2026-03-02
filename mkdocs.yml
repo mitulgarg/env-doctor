@@ -176,6 +176,7 @@ nav:
     - model: commands/model.md
     - cuda-info: commands/cuda-info.md
     - cudnn-info: commands/cudnn-info.md
+    - wsl: commands/wsl.md
     - dockerfile: commands/dockerfile.md
     - docker-compose: commands/docker-compose.md
     - scan: commands/scan.md

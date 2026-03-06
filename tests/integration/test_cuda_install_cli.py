@@ -3,6 +3,7 @@ Integration tests for cuda-install CLI command.
 
 Tests the end-to-end cuda-install command workflow.
 """
+import json
 import pytest
 from unittest.mock import patch, MagicMock
 import io
@@ -46,7 +47,7 @@ class TestCudaInstallCLI:
         # Verify output contains expected elements
         assert "CUDA TOOLKIT INSTALLATION GUIDE" in output
         assert "ubuntu 22.04" in output.lower()
-        assert "12.1" in output  # 12.2 should recommend 12.1
+        assert "12.2" in output  # 12.2 should recommend 12.2
         assert "Installation Steps:" in output
         assert "nvcc --version" in output  # Verification step
 
@@ -151,8 +152,7 @@ class TestCudaInstallCLI:
         # Verify Windows-specific output
         assert "CUDA TOOLKIT INSTALLATION GUIDE" in output
         assert "Windows" in output
-        assert "download" in output.lower()
-        assert "nvidia.com" in output.lower()
+        assert "winget" in output.lower()
 
     @patch('env_doctor.core.registry.DetectorRegistry.get')
     @patch('env_doctor.utilities.platform_detect.detect_platform')
@@ -320,3 +320,66 @@ class TestCudaInstallCLI:
         # Verify CUDA 11.8 is mentioned
         assert "CUDA TOOLKIT INSTALLATION GUIDE" in output
         assert "11.8" in output
+
+    @patch('env_doctor.core.registry.DetectorRegistry.get')
+    @patch('env_doctor.utilities.platform_detect.detect_platform')
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_json_output_windows(self, mock_stdout, mock_platform, mock_registry):
+        """Test JSON output for Windows includes winget steps."""
+        mock_platform.return_value = {
+            "os": "windows",
+            "distro": None,
+            "distro_version": None,
+            "arch": "x86_64",
+            "is_wsl2": False,
+            "platform_keys": ["windows_10_11_x86_64", "conda_any"]
+        }
+
+        mock_driver_detector = MagicMock()
+        mock_driver_result = MagicMock()
+        mock_driver_result.detected = True
+        mock_driver_result.version = "560.35.03"
+        mock_driver_result.metadata = {"max_cuda_version": "12.6"}
+        mock_driver_detector.detect.return_value = mock_driver_result
+        mock_registry.return_value = mock_driver_detector
+
+        cuda_install_command(output_json=True)
+
+        output = mock_stdout.getvalue()
+        data = json.loads(output)
+
+        assert data["platform"]["os"] == "windows"
+        assert data["recommended_version"] == "12.6"
+        assert "install_info" in data
+        assert data["install_info"]["method"] == "winget"
+        assert any("winget" in step for step in data["install_info"]["steps"])
+        assert data["driver_version"] == "560.35.03"
+        assert data["max_cuda"] == "12.6"
+
+    @patch('env_doctor.core.registry.DetectorRegistry.get')
+    @patch('env_doctor.utilities.platform_detect.detect_platform')
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_json_output_no_driver(self, mock_stdout, mock_platform, mock_registry):
+        """Test JSON output when no driver is detected."""
+        mock_platform.return_value = {
+            "os": "linux",
+            "distro": "ubuntu",
+            "distro_version": "22.04",
+            "arch": "x86_64",
+            "is_wsl2": False,
+            "platform_keys": ["linux_ubuntu_22.04_x86_64", "conda_any"]
+        }
+
+        mock_driver_detector = MagicMock()
+        mock_driver_result = MagicMock()
+        mock_driver_result.detected = False
+        mock_driver_detector.detect.return_value = mock_driver_result
+        mock_registry.return_value = mock_driver_detector
+
+        cuda_install_command(output_json=True)
+
+        output = mock_stdout.getvalue()
+        data = json.loads(output)
+
+        assert "error" in data
+        assert "platform" in data

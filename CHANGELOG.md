@@ -5,6 +5,46 @@ All notable changes to env-doctor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2026-03-06
+
+### Added
+- **Expanded CUDA Toolkit Version Coverage**: Added 5 new CUDA versions (12.8, 12.5, 12.2, 12.0, 11.7) with full platform-specific installation instructions
+  - Total of 9 supported CUDA versions (up from 4)
+  - Platform-appropriate keyring versions and distro support
+  - Covers Ubuntu 18/20/22/24, Debian 11/12, RHEL 7/8/9, Fedora 39+, WSL2, Windows, and Conda
+
+- **Windows Installation: GUI -> winget Commands**
+  - Replaced multi-step GUI installer instructions with single `winget install Nvidia.CUDA --version X.Y` command
+  - Added fallback `download_page` field for winget unavailability
+  - Cleaner, more automated installation experience
+
+- **JSON Output for cuda-install Command**: New `--json` flag for the `cuda-install` command
+  - Structured JSON output matching MCP tool format
+  - Includes platform detection, recommended version, driver version, and install instructions
+  - Error paths also return JSON for consistent machine-readable output
+  - Useful for automation and CI/CD pipelines
+
+- **Version Recommendation Map Improvements**
+  - Each version now maps to itself for better accuracy
+  - In-between versions map to the nearest available version below driver max CUDA
+  - 11.0-11.6 now correctly map to 11.7 (previously 11.8)
+
+### Changed
+- Bumped version to 0.2.6
+
+### Fixed
+- **Cross-Platform Test Fixes**
+  - `test_scan_json_output`: Changed hardcoded `/tmp` to `tempfile.gettempdir()` for Windows compatibility
+  - `test_default_output_not_json`: Added UTF-8 encoding and `PYTHONUTF8=1` to handle emoji output on Windows
+
+### Tests
+- Added `test_cuda_install_json_output` - subprocess test for `cuda-install --json`
+- Added `test_json_output_windows` - verifies JSON with winget method
+- Added `test_json_output_no_driver` - verifies JSON error handling
+- Updated `test_windows_installation` - asserts winget command
+- Updated `test_auto_detect_ubuntu_with_driver` - 12.2 now recommends 12.2
+- Fixed 2 pre-existing platform-specific test failures
+
 ## [0.2.4] - 2026-02-20
 
 ### Added

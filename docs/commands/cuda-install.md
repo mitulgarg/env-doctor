@@ -28,10 +28,20 @@ This will:
 ### Install specific CUDA version
 
 ```bash
+env-doctor cuda-install 12.8
 env-doctor cuda-install 12.4
 env-doctor cuda-install 12.1
 env-doctor cuda-install 11.8
 ```
+
+### Get JSON output (for automation/CI)
+
+```bash
+env-doctor cuda-install --json
+env-doctor cuda-install 12.6 --json
+```
+
+Returns structured JSON with platform info, recommended version, and install steps for machine processing.
 
 ## Example Output
 
@@ -149,31 +159,32 @@ Driver: 560.35.03 (supports up to CUDA 12.6)
 Recommended CUDA Toolkit: 12.6
 
 ============================================================
-Windows 10/11 (x86_64) - GUI Installer
+Windows 10/11 (x86_64) - winget
 ============================================================
 
 Installation Steps:
 ------------------------------------------------------------
-    1. Download installer from: https://developer.nvidia.com/cuda-12-6-0-download-archive
-    2. Select: Windows > x86_64 > 10/11 > exe (network)
-    3. Run the downloaded installer as Administrator
-    4. Select 'Custom Install' and check 'CUDA Toolkit'
-    5. Follow the installation wizard
+    1. winget install Nvidia.CUDA --version 12.6
 
 Post-Installation Setup:
 ------------------------------------------------------------
     The installer automatically adds CUDA to PATH
-    Verify: Open a NEW command prompt and run 'nvcc --version'
+    Restart your terminal/IDE after installation
 
 Verify Installation:
 ------------------------------------------------------------
     nvcc --version
 
 Notes:
-    Restart your terminal/IDE after installation for PATH changes to take effect.
+    If winget is not available, download manually from the official page.
+
+Official Download Page:
+    https://developer.nvidia.com/cuda-12-6-0-download-archive
 
 ============================================================
 ```
+
+**New in 0.2.6**: Windows now uses `winget` (Windows Package Manager) for automated installation instead of manual GUI steps.
 
 ## Supported Platforms
 
@@ -191,18 +202,28 @@ Notes:
 
 | Platform | Installation Method |
 |----------|---------------------|
-| Windows 10/11 | GUI installer (exe) |
+| Windows 10/11 | winget (Windows Package Manager) |
 | macOS | Not supported (CUDA deprecated) |
 | Conda (any platform) | `conda install cuda-toolkit` |
 
+**New in 0.2.6**: Windows now uses `winget` for automated installation instead of manual GUI steps.
+
 ## CUDA Versions Supported
 
-The tool provides installation instructions for:
+The tool provides installation instructions for 9 CUDA versions:
 
+**CUDA 12.x (Latest)**
+- **CUDA 12.8** (Latest, requires driver >= 570.xx)
 - **CUDA 12.6** (Latest stable, requires driver >= 560.xx)
-- **CUDA 12.4** (TensorFlow 2.16+ compatible, requires driver >= 550.xx)
+- **CUDA 12.5** (requires driver >= 555.xx)
+- **CUDA 12.4** (TensorFlow 2.16+, requires driver >= 550.xx)
+- **CUDA 12.2** (requires driver >= 535.xx)
 - **CUDA 12.1** (PyTorch 2.x sweet spot, requires driver >= 530.xx)
-- **CUDA 11.8** (Legacy compatibility, requires driver >= 520.xx)
+- **CUDA 12.0** (First CUDA 12 release, requires driver >= 525.xx)
+
+**CUDA 11.x (Legacy)**
+- **CUDA 11.8** (Latest CUDA 11, requires driver >= 520.xx)
+- **CUDA 11.7** (requires driver >= 515.xx)
 
 ## Version Recommendation Logic
 
@@ -212,16 +233,19 @@ The tool automatically recommends the best CUDA version based on:
 2. **Forward compatibility** - Recommends latest stable CUDA your driver supports
 3. **Library compatibility** - Considers PyTorch/TensorFlow requirements
 
-**Example Mappings:**
+**Example Mappings (Updated in 0.2.6):**
 
 | Driver Version | Max CUDA | Recommended Toolkit |
 |----------------|----------|---------------------|
+| 570.xx+ | 12.8 | CUDA 12.8 |
 | 560.xx | 12.6 | CUDA 12.6 |
-| 555.xx | 12.5 | CUDA 12.4 |
+| 555.xx | 12.5 | CUDA 12.5 |
 | 550.xx | 12.4 | CUDA 12.4 |
-| 535.xx | 12.2 | CUDA 12.1 |
+| 535.xx | 12.2 | CUDA 12.2 |
 | 530.xx | 12.1 | CUDA 12.1 |
+| 525.xx | 12.0 | CUDA 12.0 |
 | 520.xx | 11.8 | CUDA 11.8 |
+| 515.xx | 11.7 | CUDA 11.7 |
 
 ## Common Use Cases
 
@@ -265,6 +289,39 @@ env-doctor cuda-install
 
 # 3. Follow WSL2 prerequisites carefully (don't install driver in WSL!)
 ```
+
+## JSON Output for Automation
+
+Get structured JSON output for integration with CI/CD pipelines:
+
+```bash
+env-doctor cuda-install --json
+```
+
+Response format:
+```json
+{
+  "platform": {
+    "os": "windows",
+    "distro": "windows",
+    "arch": "x86_64",
+    "is_wsl2": false
+  },
+  "recommended_version": "12.6",
+  "driver_version": "560.35.03",
+  "max_cuda": "12.6",
+  "install_info": {
+    "method": "winget",
+    "label": "Windows 10/11 (x86_64) - winget",
+    "steps": ["winget install Nvidia.CUDA --version 12.6"],
+    "post_install": ["The installer automatically adds CUDA to PATH"],
+    "verify": "nvcc --version",
+    "download_page": "https://developer.nvidia.com/cuda-12-6-0-download-archive"
+  }
+}
+```
+
+**New in 0.2.6**: `--json` flag allows machine-readable output for automation, testing, and CI/CD integration.
 
 ## Post-Installation
 

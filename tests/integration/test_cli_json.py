@@ -5,8 +5,10 @@ Tests verify that --json and --ci flags work correctly and produce
 valid, parseable JSON output with proper exit codes.
 """
 import json
+import os
 import subprocess
 import sys
+import tempfile
 import pytest
 
 
@@ -158,13 +160,41 @@ def test_wsl_json_output():
         assert "detected" in data
 
 
+def test_cuda_install_json_output():
+    """Test cuda-install command with --json flag."""
+    result = subprocess.run(
+        [sys.executable, "-m", "env_doctor.cli", "cuda-install", "--json"],
+        capture_output=True,
+        text=True
+    )
+
+    # Should produce valid JSON
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        pytest.fail(f"Output is not valid JSON: {e}\nOutput: {result.stdout}")
+
+    # Verify structure - should always have platform
+    assert "platform" in data
+    assert "os" in data["platform"]
+    assert "arch" in data["platform"]
+    assert "is_wsl2" in data["platform"]
+
+    # Either has install_info (success) or error
+    if "error" not in data:
+        assert "recommended_version" in data
+        assert "install_info" in data
+        assert "steps" in data["install_info"]
+        assert "verify" in data["install_info"]
+
+
 def test_scan_json_output():
     """Test scan command with --json flag."""
     result = subprocess.run(
         [sys.executable, "-m", "env_doctor.cli", "scan", "--json"],
         capture_output=True,
         text=True,
-        cwd="/tmp"  # Use temp dir to avoid scanning actual code
+        cwd=tempfile.gettempdir()  # Use temp dir to avoid scanning actual code
     )
 
     # Should produce valid JSON
@@ -232,10 +262,13 @@ def test_json_output_no_emoji():
 
 def test_default_output_not_json():
     """Test that default output (without --json) is NOT JSON."""
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
     result = subprocess.run(
         [sys.executable, "-m", "env_doctor.cli", "check"],
         capture_output=True,
-        text=True
+        encoding="utf-8",
+        env=env
     )
 
     # Default output should contain emojis (not JSON)

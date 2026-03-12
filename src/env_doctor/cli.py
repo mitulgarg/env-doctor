@@ -10,9 +10,9 @@ import argparse
 import platform
 import json
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from .core.registry import DetectorRegistry
-from .core.detector import Status
+from .core.detector import Status, DetectionResult
 from .db import get_max_cuda_for_driver, get_install_command, DB_DATA, get_recommended_cuda_toolkit, get_cuda_install_steps, CUDA_INSTALL_DATA
 
 # Legacy imports for functions not yet refactored
@@ -1757,6 +1757,314 @@ def list_models_command():
     print("=" * 60 + "\n")
 
 
+# ─── Export / Validate helpers ───────────────────────────────
+
+def _collect_env_spec() -> Dict[str, Any]:
+    """Run all detectors and build a portable environment spec."""
+    from . import __version__
+
+    # Platform info
+    plat = {
+        "os": platform.system().lower(),
+        "arch": platform.machine(),
+        "platform_version": platform.version(),
+    }
+    if platform.system() == "Linux":
+        try:
+            import distro  # type: ignore
+            plat["distro"] = f"{distro.id()}-{distro.version()}"
+        except Exception:
+            pass
+
+    # WSL
+    wsl2_detector = DetectorRegistry.get("wsl2")
+    wsl2_result = wsl2_detector.detect() if wsl2_detector.can_run() else None
+
+    # Driver
+    driver_detector = DetectorRegistry.get("nvidia_driver")
+    driver_result = driver_detector.detect()
+
+    # CUDA
+    cuda_detector = DetectorRegistry.get("cuda_toolkit")
+    cuda_result = cuda_detector.detect()
+
+    # cuDNN
+    cudnn_detector = DetectorRegistry.get("cudnn")
+    cudnn_result = cudnn_detector.detect() if cudnn_detector.can_run() else None
+
+    # Python libraries
+    libs = ["torch", "tensorflow", "jax"]
+    lib_specs: Dict[str, Any] = {}
+    for lib in libs:
+        lib_result = PythonLibraryDetector(lib).detect()
+        if lib_result.detected:
+            lib_specs[lib] = {
+                "version": lib_result.version,
+                "cuda_version": lib_result.metadata.get("cuda_version"),
+            }
+        else:
+            lib_specs[lib] = None
+
+    # Python compat
+    python_compat_detector = DetectorRegistry.get("python_compat")
+    python_compat_result = python_compat_detector.detect()
+
+    # GPUs
+    gpus = driver_result.metadata.get("gpus", []) if driver_result.detected else []
+
+    environment: Dict[str, Any] = {
+        "nvidia_driver": driver_result.version if driver_result.detected else None,
+        "max_cuda_version": driver_result.metadata.get("max_cuda_version") if driver_result.detected else None,
+        "cuda_toolkit": cuda_result.version if cuda_result.detected else None,
+        "cudnn": cudnn_result.version if (cudnn_result and cudnn_result.detected) else None,
+        "python": python_compat_result.metadata.get("python_full_version", platform.python_version()),
+        "libraries": lib_specs,
+        "gpus": [
+            {
+                "name": g.get("name"),
+                "vram_mb": g.get("total_vram_mb"),
+                "compute_capability": g.get("compute_capability"),
+            }
+            for g in gpus
+        ],
+    }
+
+    if wsl2_result and wsl2_result.detected:
+        environment["wsl"] = wsl2_result.metadata.get("environment")
+
+    return {
+        "env_doctor_version": __version__,
+        "spec_version": "1.0",
+        "exported_at": datetime.now().isoformat(),
+        "platform": plat,
+        "environment": environment,
+    }
+
+
+def _compare_versions(actual: Optional[str], expected: Optional[str], strict: bool) -> str:
+    """Compare two version strings.
+
+    Returns 'match', 'compatible', or 'mismatch'.
+    """
+    if expected is None:
+        return "match"  # nothing required
+    if actual is None:
+        return "mismatch"
+
+    if actual == expected:
+        return "match"
+
+    if strict:
+        return "mismatch"
+
+    # Relaxed: major.minor match is enough
+    try:
+        from packaging.version import Version
+        a, e = Version(actual), Version(expected)
+        if (a.major, a.minor) == (e.major, e.minor):
+            return "compatible"
+    except Exception:
+        # Fallback: compare major.minor as strings
+        a_parts = actual.split(".")[:2]
+        e_parts = expected.split(".")[:2]
+        if a_parts == e_parts:
+            return "compatible"
+
+    return "mismatch"
+
+
+def _validate_spec(spec: Dict[str, Any], strict: bool) -> Dict[str, Any]:
+    """Compare current environment against *spec* and return a diff report."""
+    current = _collect_env_spec()
+    env_cur = current["environment"]
+    env_exp = spec["environment"]
+
+    comparisons: List[Dict[str, Any]] = []
+
+    # Simple scalar components
+    scalar_keys = [
+        ("nvidia_driver", "NVIDIA Driver"),
+        ("cuda_toolkit", "CUDA Toolkit"),
+        ("cudnn", "cuDNN"),
+        ("python", "Python"),
+    ]
+    for key, label in scalar_keys:
+        expected = env_exp.get(key)
+        actual = env_cur.get(key)
+        result = _compare_versions(actual, expected, strict)
+        entry: Dict[str, Any] = {
+            "component": label,
+            "expected": expected,
+            "actual": actual,
+            "status": result,
+        }
+        comparisons.append(entry)
+
+    # max_cuda_version (informational, non-strict by default)
+    if env_exp.get("max_cuda_version"):
+        result = _compare_versions(
+            env_cur.get("max_cuda_version"),
+            env_exp.get("max_cuda_version"),
+            strict,
+        )
+        comparisons.append({
+            "component": "Max CUDA (driver)",
+            "expected": env_exp.get("max_cuda_version"),
+            "actual": env_cur.get("max_cuda_version"),
+            "status": result,
+        })
+
+    # Libraries
+    exp_libs = env_exp.get("libraries", {})
+    cur_libs = env_cur.get("libraries", {})
+    for lib_name in set(list(exp_libs.keys()) + list(cur_libs.keys())):
+        exp = exp_libs.get(lib_name)
+        cur = cur_libs.get(lib_name)
+        if exp is None:
+            # Not required by spec
+            continue
+        if cur is None:
+            comparisons.append({
+                "component": f"Library: {lib_name}",
+                "expected": exp.get("version") if isinstance(exp, dict) else None,
+                "actual": None,
+                "status": "missing",
+            })
+            continue
+        ver_result = _compare_versions(
+            cur.get("version") if isinstance(cur, dict) else None,
+            exp.get("version") if isinstance(exp, dict) else None,
+            strict,
+        )
+        comparisons.append({
+            "component": f"Library: {lib_name}",
+            "expected": exp.get("version") if isinstance(exp, dict) else None,
+            "actual": cur.get("version") if isinstance(cur, dict) else None,
+            "status": ver_result,
+        })
+        # Also compare library CUDA version
+        exp_cuda = exp.get("cuda_version") if isinstance(exp, dict) else None
+        cur_cuda = cur.get("cuda_version") if isinstance(cur, dict) else None
+        if exp_cuda:
+            cuda_result = _compare_versions(cur_cuda, exp_cuda, strict)
+            comparisons.append({
+                "component": f"Library: {lib_name} (CUDA)",
+                "expected": exp_cuda,
+                "actual": cur_cuda,
+                "status": cuda_result,
+            })
+
+    # GPUs (informational comparison)
+    exp_gpus = env_exp.get("gpus", [])
+    cur_gpus = env_cur.get("gpus", [])
+    if exp_gpus:
+        exp_names = [g.get("name") for g in exp_gpus]
+        cur_names = [g.get("name") for g in cur_gpus]
+        comparisons.append({
+            "component": "GPU(s)",
+            "expected": ", ".join(str(n) for n in exp_names),
+            "actual": ", ".join(str(n) for n in cur_names) if cur_names else None,
+            "status": "match" if exp_names == cur_names else "different",
+        })
+
+    # Overall
+    statuses = [c["status"] for c in comparisons]
+    if "mismatch" in statuses or "missing" in statuses:
+        overall = "fail"
+    elif "compatible" in statuses or "different" in statuses:
+        overall = "warning"
+    else:
+        overall = "pass"
+
+    return {
+        "status": overall,
+        "timestamp": datetime.now().isoformat(),
+        "spec_source": spec.get("exported_at", "unknown"),
+        "mode": "strict" if strict else "compatible",
+        "comparisons": comparisons,
+    }
+
+
+# ─── Export command ──────────────────────────────────────────
+
+def export_command(output_file: Optional[str] = None):
+    """Export current environment as a portable JSON spec."""
+    spec = _collect_env_spec()
+    spec_json = json.dumps(spec, indent=2)
+
+    if output_file:
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(spec_json + "\n")
+        print(f"Environment spec exported to {output_file}")
+    else:
+        print(spec_json)
+
+
+# ─── Validate command ───────────────────────────────────────
+
+def validate_command(spec_file: str, strict: bool = False, output_json: bool = False):
+    """Validate current environment against a spec file."""
+    try:
+        with open(spec_file, "r", encoding="utf-8") as f:
+            spec = json.load(f)
+    except FileNotFoundError:
+        print(f"Error: Spec file not found: {spec_file}", file=sys.stderr)
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON in spec file: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if "environment" not in spec:
+        print("Error: Invalid spec file — missing 'environment' key", file=sys.stderr)
+        sys.exit(1)
+
+    report = _validate_spec(spec, strict)
+
+    if output_json:
+        print(json.dumps(report, indent=2))
+    else:
+        # Human-readable output
+        mode_label = "strict" if strict else "compatible"
+        print(f"\n🩺  ENV-DOCTOR VALIDATION ({mode_label} mode)")
+        print("=" * 50)
+        print(f"📋  Spec from: {report['spec_source']}")
+        print()
+
+        status_icons = {
+            "match": "✅",
+            "compatible": "🟡",
+            "mismatch": "❌",
+            "missing": "❌",
+            "different": "🔶",
+        }
+
+        for comp in report["comparisons"]:
+            icon = status_icons.get(comp["status"], "❓")
+            expected = comp["expected"] or "N/A"
+            actual = comp["actual"] or "not found"
+            label = comp["component"]
+            status_text = comp["status"].upper()
+            print(f"  {icon}  {label:<25s}  expected: {expected:<12s}  actual: {actual:<12s}  [{status_text}]")
+
+        print()
+        overall = report["status"]
+        if overall == "pass":
+            print("✅  Result: All components match the spec.")
+        elif overall == "warning":
+            print("🟡  Result: Compatible but not identical — review differences above.")
+        else:
+            print("❌  Result: Mismatches detected — this environment differs from the spec.")
+        print()
+
+    # Exit code
+    if report["status"] == "pass":
+        sys.exit(0)
+    elif report["status"] == "warning":
+        sys.exit(0)
+    else:
+        sys.exit(1)
+
+
 # Update main() to add new command
 def main():
     """Main entry point with argument parsing."""
@@ -1787,6 +2095,8 @@ Examples:
   env-doctor install torch      # Get safe install command for PyTorch
   env-doctor scan               # Scan project for AI library imports
   env-doctor debug              # Show detailed detector information
+  env-doctor export             # Export environment as shareable JSON spec
+  env-doctor validate spec.json # Validate environment against a spec
         """
     )
     
@@ -1941,6 +2251,37 @@ Examples:
         help="List all available models"
     )
 
+    # Export command
+    export_p = subparsers.add_parser(
+        "export",
+        help="Export environment as a shareable JSON spec"
+    )
+    export_p.add_argument(
+        "-o", "--output",
+        default=None,
+        help="Output file path (default: print to stdout)"
+    )
+
+    # Validate command
+    validate_p = subparsers.add_parser(
+        "validate",
+        help="Validate current environment against a spec file"
+    )
+    validate_p.add_argument(
+        "spec_file",
+        help="Path to the environment spec JSON file"
+    )
+    validate_p.add_argument(
+        "--strict",
+        action="store_true",
+        help="Require exact version matches (default: compatible range)"
+    )
+    validate_p.add_argument(
+        '--json',
+        action='store_true',
+        help='Output as JSON (machine-readable)'
+    )
+
     args = parser.parse_args()
 
     # Route to appropriate command
@@ -1989,6 +2330,14 @@ Examples:
         )
     elif args.command == "debug":
         debug_command()
+    elif args.command == "export":
+        export_command(output_file=getattr(args, 'output', None))
+    elif args.command == "validate":
+        validate_command(
+            spec_file=args.spec_file,
+            strict=getattr(args, 'strict', False),
+            output_json=getattr(args, 'json', False),
+        )
     else:
         parser.print_help()
 

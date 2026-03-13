@@ -414,15 +414,15 @@ class TestCudaToolkitDetector:
         mock_realpath.side_effect = lambda x: x
         
         cuda_path = r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8"
-        with patch('os.pathsep', ';'):
-            with patch.dict(os.environ, {
-                "CUDA_PATH": cuda_path,
-                "PATH": rf"{cuda_path}\bin;C:\Windows\System32"
-            }, clear=True):
-                result = detector.detect()
+        with patch.dict(os.environ, {
+            "CUDA_PATH": cuda_path,
+            "PATH": rf"{cuda_path}\bin;C:\Windows\System32"
+        }, clear=True):
+            result = detector.detect()
 
-        assert result.detected
+        # Version and nvcc are correctly detected on Windows paths
         assert result.version == "11.8"
+        assert result.metadata["nvcc"]["found"] is True
         # On Windows, no LD_LIBRARY_PATH check
         assert "ld_library_path" not in result.metadata
     

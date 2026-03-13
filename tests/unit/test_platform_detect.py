@@ -127,7 +127,8 @@ VERSION_ID="39"
     def test_os_release_not_found(self):
         """Test when /etc/os-release doesn't exist."""
         with patch("builtins.open", side_effect=FileNotFoundError):
-            result = _detect_linux_distro()
+            with patch("subprocess.run", side_effect=FileNotFoundError):
+                result = _detect_linux_distro()
 
         assert result["id"] == "unknown"
         assert result["version"] == "unknown"
@@ -137,7 +138,8 @@ VERSION_ID="39"
         os_release = "CORRUPT DATA\nNO PROPER FORMAT"
 
         with patch("builtins.open", mock_open(read_data=os_release)):
-            result = _detect_linux_distro()
+            with patch("subprocess.run", side_effect=FileNotFoundError):
+                result = _detect_linux_distro()
 
         # Should handle gracefully - returns "unknown" default
         assert result["id"] == "unknown"

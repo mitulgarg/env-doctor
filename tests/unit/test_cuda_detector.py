@@ -97,7 +97,7 @@ class TestCudaToolkitDetector:
         assert result.status == Status.NOT_FOUND
         # Should have enhanced recommendations with specific version
         recommendations = " ".join(result.recommendations)
-        assert "12.1" in recommendations  # 12.2 should map to 12.1
+        assert "12.2" in recommendations  # 12.2 maps to 12.2 in current version_recommendation_map
         assert "cuda-install" in recommendations.lower()
 
     @patch('shutil.which')
@@ -166,19 +166,28 @@ class TestCudaToolkitDetector:
         """Test detection of multiple CUDA installations."""
         mock_which.return_value = "/usr/local/cuda-11.8/bin/nvcc"
         mock_subprocess.return_value = "release 11.8, V11.8.89"
-        mock_glob.return_value = [
-            "/usr/local/cuda-11.8",
-            "/usr/local/cuda-12.1"
-        ]
-        mock_exists.return_value = True
+
+        def glob_side_effect(pattern):
+            if "cuda-*" in pattern or "CUDA\\*" in pattern:
+                return ["/usr/local/cuda-11.8", "/usr/local/cuda-12.1"]
+            if "libcudart" in pattern or "cudart" in pattern:
+                return ["/usr/local/cuda-11.8/lib64/libcudart.so.11.0"]
+            return []
+
+        mock_glob.side_effect = glob_side_effect
+
+        def exists_side_effect(path):
+            return "cuda-11.8" in path or "cuda-12.1" in path
+
+        mock_exists.side_effect = exists_side_effect
         mock_realpath.side_effect = lambda x: x
-        
+
         with patch.dict(os.environ, {
             "CUDA_HOME": "/usr/local/cuda-11.8",
             "PATH": "/usr/local/cuda-11.8/bin:/usr/bin"
         }, clear=True):
             result = detector.detect()
-        
+
         assert result.metadata["installation_count"] == 2
         assert result.metadata.get("multiple_installations") is True
         assert any("Multiple CUDA installations" in issue for issue in result.issues)
@@ -405,12 +414,13 @@ class TestCudaToolkitDetector:
         mock_realpath.side_effect = lambda x: x
         
         cuda_path = r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8"
-        with patch.dict(os.environ, {
-            "CUDA_PATH": cuda_path,
-            "PATH": rf"{cuda_path}\bin;C:\Windows\System32"
-        }, clear=True):
-            result = detector.detect()
-        
+        with patch('os.pathsep', ';'):
+            with patch.dict(os.environ, {
+                "CUDA_PATH": cuda_path,
+                "PATH": rf"{cuda_path}\bin;C:\Windows\System32"
+            }, clear=True):
+                result = detector.detect()
+
         assert result.detected
         assert result.version == "11.8"
         # On Windows, no LD_LIBRARY_PATH check

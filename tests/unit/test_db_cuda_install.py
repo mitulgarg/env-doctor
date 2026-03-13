@@ -38,22 +38,21 @@ class TestGetRecommendedCudaToolkit:
         recommended = get_recommended_cuda_toolkit("11.8")
         assert recommended == "11.8"
 
-    def test_12_2_maps_to_12_1(self):
-        """Test CUDA 12.2 maps to 12.1 (forward compatibility)."""
+    def test_12_2_maps_to_12_2(self):
+        """Test CUDA 12.2 maps to 12.2 (direct match in version_recommendation_map)."""
         recommended = get_recommended_cuda_toolkit("12.2")
-        assert recommended == "12.1"
+        assert recommended == "12.2"
 
-    def test_12_5_maps_to_12_4(self):
-        """Test CUDA 12.5 maps to 12.4."""
+    def test_12_5_maps_to_12_5(self):
+        """Test CUDA 12.5 maps to 12.5 (direct match in version_recommendation_map)."""
         recommended = get_recommended_cuda_toolkit("12.5")
-        assert recommended == "12.4"
+        assert recommended == "12.5"
 
     def test_closest_lower_bound(self):
         """Test closest lower bound for unmapped versions."""
-        # If driver supports 12.3, should recommend 12.1 (highest available < 12.3)
+        # 12.3 has a direct entry in version_recommendation_map -> 12.2
         recommended = get_recommended_cuda_toolkit("12.3")
-        # Based on version_recommendation_map, 12.2 -> 12.1, so 12.3 should also map to 12.1
-        assert recommended == "12.1"
+        assert recommended == "12.2"
 
     def test_none_input(self):
         """Test handling of None input."""
@@ -85,8 +84,8 @@ class TestGetRecommendedCudaToolkit:
     def test_very_new_cuda(self):
         """Test future CUDA version."""
         recommended = get_recommended_cuda_toolkit("13.0")
-        # Should recommend latest available (12.6)
-        assert recommended == "12.6"
+        # Should recommend latest available (12.8)
+        assert recommended == "12.8"
 
 
 class TestGetCudaInstallSteps:
@@ -124,7 +123,7 @@ class TestGetCudaInstallSteps:
         steps = get_cuda_install_steps("12.4", platform_keys)
 
         assert steps is not None
-        assert steps["method"] in ["gui_installer", "exe_installer"]
+        assert steps["method"] in ["gui_installer", "exe_installer", "winget"]
         assert ("download_url" in steps or "download_page" in steps)
         if "download_url" in steps:
             assert "nvidia.com" in steps["download_url"]

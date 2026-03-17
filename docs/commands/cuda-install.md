@@ -34,11 +34,30 @@ env-doctor cuda-install 12.1
 env-doctor cuda-install 11.8
 ```
 
+### Execute the installation
+
+```bash
+# Preview what would run (no changes made)
+env-doctor cuda-install --dry-run
+
+# Interactive install (asks [y/N] before running)
+env-doctor cuda-install --run
+
+# Headless install — skip confirmation (for CI/scripts)
+env-doctor cuda-install --run --yes
+
+# Specific version, headless
+env-doctor cuda-install 12.6 --run --yes
+```
+
 ### Get JSON output (for automation/CI)
 
 ```bash
 env-doctor cuda-install --json
 env-doctor cuda-install 12.6 --json
+
+# JSON output from a real install run
+env-doctor cuda-install --run --yes --json
 ```
 
 Returns structured JSON with platform info, recommended version, and install steps for machine processing.
@@ -247,6 +266,75 @@ The tool automatically recommends the best CUDA version based on:
 | 520.xx | 11.8 | CUDA 11.8 |
 | 515.xx | 11.7 | CUDA 11.7 |
 
+## Executing the Installation
+
+### Interactive Mode
+
+```bash
+env-doctor cuda-install --run
+```
+
+Shows all commands, asks `[y/N]`, then executes sequentially with real-time output. Stops on first failure.
+
+### Headless / CI Mode
+
+```bash
+env-doctor cuda-install --run --yes
+```
+
+Skips confirmation. In `--yes` mode without root on Linux, requires passwordless sudo (`sudo -n true`); if that fails, aborts with a clear message rather than hanging.
+
+### Dry Run
+
+```bash
+env-doctor cuda-install --dry-run
+```
+
+Prints every command prefixed with `[DRY RUN]`, goes through the full flow (including verification), but makes no changes to the system. Always writes a log.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Installation succeeded and `nvcc --version` passed |
+| `1` | An installation step failed |
+| `2` | Steps ran but verification (`nvcc --version`) failed |
+
+### Install Log
+
+Every `--run` or `--dry-run` writes a full timestamped log to:
+
+- **Linux/macOS:** `~/.env-doctor/install.log`
+- **Windows:** `%USERPROFILE%\.env-doctor\install.log`
+
+The log is **overwritten each run** (not appended), so one log = one install attempt. The path is printed at the end of the run.
+
+### JSON Output from `--run`
+
+```bash
+env-doctor cuda-install --run --yes --json
+```
+
+Returns an `InstallResult` JSON object:
+
+```json
+{
+  "success": true,
+  "cuda_version": "12.6",
+  "platform_key": "linux_ubuntu_22.04_x86_64",
+  "steps_completed": [
+    {"command": "sudo apt-get update", "phase": "install", "success": true, "return_code": 0, "duration_seconds": 8.2}
+  ],
+  "steps_remaining": [],
+  "env_vars_set": {"PATH": "/usr/local/cuda-12.6/bin:...", "LD_LIBRARY_PATH": "..."},
+  "verification_passed": true,
+  "error_message": null,
+  "log_file": "/home/user/.env-doctor/install.log"
+}
+```
+
+---
+
 ## Common Use Cases
 
 ### Case 1: New Machine Setup
@@ -255,12 +343,13 @@ The tool automatically recommends the best CUDA version based on:
 # 1. Check current state
 env-doctor check
 
-# 2. Get installation instructions
-env-doctor cuda-install
+# 2. Preview what will be installed
+env-doctor cuda-install --dry-run
 
-# 3. Follow the steps shown
+# 3. Execute the installation
+env-doctor cuda-install --run
 
-# 4. Verify installation
+# 4. Verify
 env-doctor check
 ```
 
@@ -270,10 +359,10 @@ env-doctor check
 # 1. Check current versions
 env-doctor check
 
-# 2. Get instructions for specific version
-env-doctor cuda-install 12.4
+# 2. Install specific version directly
+env-doctor cuda-install 12.4 --run --yes
 
-# 3. Install and verify
+# 3. Verify
 env-doctor check
 ```
 
@@ -284,10 +373,23 @@ env-doctor check
 # 1. Check if driver is forwarded
 env-doctor check
 
-# 2. Get WSL2-specific instructions
-env-doctor cuda-install
+# 2. Preview WSL2-specific instructions
+env-doctor cuda-install --dry-run
 
 # 3. Follow WSL2 prerequisites carefully (don't install driver in WSL!)
+env-doctor cuda-install --run
+```
+
+### Case 4: CI/CD Pipeline
+
+```yaml
+# GitHub Actions
+- name: Install CUDA
+  run: env-doctor cuda-install --run --yes
+
+# Capture JSON result for downstream steps
+- name: Install CUDA (JSON)
+  run: env-doctor cuda-install --run --yes --json > cuda_result.json
 ```
 
 ## JSON Output for Automation

@@ -51,7 +51,7 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 | **One-Command Diagnosis** | Check compatibility: GPU Driver → CUDA Toolkit → cuDNN → PyTorch/TensorFlow/JAX |
 | **Compute Capability Check** | Detect GPU architecture mismatches — catches why `torch.cuda.is_available()` returns `False` on new GPUs (e.g. Blackwell) even when driver and CUDA are healthy |
 | **Python Version Compatibility** | Detect Python version conflicts with AI libraries and dependency cascade impacts |
-| **CUDA Installation Guide** | Get platform-specific, copy-paste CUDA installation commands for your system |
+| **CUDA Auto-Installer** | Execute CUDA Toolkit installation directly with `--run`; CI-friendly with `--yes`; preview with `--dry-run` |
 | **Safe Install Commands** | Get the exact `pip install` command that works with YOUR driver |
 | **Extension Library Support** | Install compilation packages (flash-attn, SageAttention, auto-gptq, apex, xformers) with CUDA version matching |
 | **AI Model Compatibility** | Check if LLMs, Diffusion, or Audio models fit on your GPU before downloading |
@@ -59,7 +59,7 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 | **Deep CUDA Analysis** | Find multiple installations, PATH issues, environment misconfigurations |
 | **Container Validation** | Catch GPU config errors in Dockerfiles before you build |
 | **MCP Server** | Expose diagnostics to AI assistants (Claude Desktop, Zed) via Model Context Protocol |
-| **CI/CD Ready** | JSON output and proper exit codes for automation |
+| **CI/CD Ready** | JSON output, proper exit codes, and CI-aware env-var persistence (GitHub Actions, GitLab CI, CircleCI, Azure Pipelines, Jenkins) |
 
 ## Installation
 
@@ -233,48 +233,40 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 ---------------------------------------------------
 ```
 
-### Get CUDA Installation Instructions
+### Install CUDA Toolkit
+
+Display instructions or execute the installation directly:
 
 ```bash
+# Show platform-specific steps (default)
 env-doctor cuda-install
+
+# Preview what would run — no changes made
+env-doctor cuda-install --dry-run
+
+# Execute interactively (asks [y/N] before running)
+env-doctor cuda-install --run
+
+# Execute headlessly — great for CI/scripts
+env-doctor cuda-install --run --yes
+
+# Install a specific version, headless
+env-doctor cuda-install 12.6 --run --yes
 ```
 
+**Example dry-run output (Windows):**
 ```
-============================================================
-CUDA TOOLKIT INSTALLATION GUIDE
-============================================================
+[DRY RUN] [1/1] winget install Nvidia.CUDA --version 12.2
 
-Detected Platform:
-    Linux (ubuntu 22.04, x86_64)
+[DRY RUN] [1/1] nvcc --version
 
-Driver: 535.146.02 (supports up to CUDA 12.2)
-Recommended CUDA Toolkit: 12.1
+CUDA 12.2 installation completed successfully.
+Verification: PASSED
 
-============================================================
-Ubuntu 22.04 (x86_64) - Network Install
-============================================================
-
-Installation Steps:
-------------------------------------------------------------
-    1. wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
-    2. sudo dpkg -i cuda-keyring_1.1-1_all.deb
-    3. sudo apt-get update
-    4. sudo apt-get -y install cuda-toolkit-12-1
-
-Post-Installation Setup:
-------------------------------------------------------------
-    export PATH=/usr/local/cuda-12.1/bin${PATH:+:${PATH}}
-    export LD_LIBRARY_PATH=/usr/local/cuda-12.1/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
-
-    TIP: Add the above exports to ~/.bashrc or ~/.zshrc
-
-Verify Installation:
-------------------------------------------------------------
-    nvcc --version
-
-Official Download Page:
-    https://developer.nvidia.com/cuda-12-1-0-download-archive
+Full log: C:\Users\you\.env-doctor\install.log
 ```
+
+Every run writes a timestamped log to `~/.env-doctor/install.log` for debugging.
 
 **Supported Platforms:**
 - Ubuntu 20.04, 22.04, 24.04
@@ -282,8 +274,16 @@ Official Download Page:
 - RHEL 8, 9 / Rocky Linux / AlmaLinux
 - Fedora 39+
 - WSL2 (Ubuntu)
-- Windows 10/11
+- Windows 10/11 (via `winget`)
 - Conda (all platforms)
+
+**Exit codes for CI pipelines:**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Installation succeeded and verified |
+| `1` | An installation step failed |
+| `2` | Installed but `nvcc --version` failed |
 
 ### Install Compilation Packages (Extension Libraries)
 

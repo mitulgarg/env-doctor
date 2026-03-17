@@ -4,7 +4,11 @@ Integration tests for container validation CLI commands.
 import pytest
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
+
+# Use UTF-8 encoding for all subprocess calls to handle emoji output on Windows
+SUBPROCESS_KWARGS = {"encoding": "utf-8", "errors": "replace"}
 
 
 # Get fixtures directory
@@ -20,7 +24,7 @@ class TestDockerfileCLI:
             [sys.executable, "-m", "env_doctor.cli", "dockerfile",
              str(FIXTURES_DIR / "Dockerfile.valid")],
             capture_output=True,
-            text=True
+            **SUBPROCESS_KWARGS
         )
 
         # Should exit with code 0 (success)
@@ -34,7 +38,7 @@ class TestDockerfileCLI:
             [sys.executable, "-m", "env_doctor.cli", "dockerfile",
              str(FIXTURES_DIR / "Dockerfile.invalid")],
             capture_output=True,
-            text=True
+            **SUBPROCESS_KWARGS
         )
 
         # Should exit with error code
@@ -49,8 +53,8 @@ class TestDockerfileCLI:
         result = subprocess.run(
             [sys.executable, "-m", "env_doctor.cli", "dockerfile"],
             capture_output=True,
-            text=True,
-            cwd="/tmp"  # Use a directory without Dockerfile
+            **SUBPROCESS_KWARGS,
+            cwd=tempfile.gettempdir()  # Use a directory without Dockerfile
         )
 
         # Should exit with error code
@@ -64,7 +68,7 @@ class TestDockerfileCLI:
             [sys.executable, "-m", "env_doctor.cli", "dockerfile",
              str(FIXTURES_DIR / "Dockerfile.invalid")],
             capture_output=True,
-            text=True
+            **SUBPROCESS_KWARGS
         )
 
         # Check for expected formatting elements
@@ -84,7 +88,7 @@ class TestDockerComposeCLI:
             [sys.executable, "-m", "env_doctor.cli", "docker-compose",
              str(FIXTURES_DIR / "docker-compose.valid.yml")],
             capture_output=True,
-            text=True
+            **SUBPROCESS_KWARGS
         )
 
         # Should exit with code 0 or have only warnings (no errors)
@@ -99,7 +103,7 @@ class TestDockerComposeCLI:
             [sys.executable, "-m", "env_doctor.cli", "docker-compose",
              str(FIXTURES_DIR / "docker-compose.invalid.yml")],
             capture_output=True,
-            text=True
+            **SUBPROCESS_KWARGS
         )
 
         # Should exit with error code
@@ -116,8 +120,8 @@ class TestDockerComposeCLI:
         result = subprocess.run(
             [sys.executable, "-m", "env_doctor.cli", "docker-compose"],
             capture_output=True,
-            text=True,
-            cwd="/tmp"  # Use a directory without docker-compose.yml
+            **SUBPROCESS_KWARGS,
+            cwd=tempfile.gettempdir()  # Use a directory without docker-compose.yml
         )
 
         # Should exit with error code
@@ -131,7 +135,7 @@ class TestDockerComposeCLI:
             [sys.executable, "-m", "env_doctor.cli", "docker-compose",
              str(FIXTURES_DIR / "docker-compose.invalid.yml")],
             capture_output=True,
-            text=True
+            **SUBPROCESS_KWARGS
         )
 
         # Check for expected formatting elements
@@ -151,7 +155,7 @@ class TestCLIHelp:
         result = subprocess.run(
             [sys.executable, "-m", "env_doctor.cli", "--help"],
             capture_output=True,
-            text=True
+            **SUBPROCESS_KWARGS
         )
 
         assert result.returncode == 0
@@ -163,7 +167,7 @@ class TestCLIHelp:
         result = subprocess.run(
             [sys.executable, "-m", "env_doctor.cli", "dockerfile", "--help"],
             capture_output=True,
-            text=True
+            **SUBPROCESS_KWARGS
         )
 
         assert result.returncode == 0
@@ -175,7 +179,7 @@ class TestCLIHelp:
         result = subprocess.run(
             [sys.executable, "-m", "env_doctor.cli", "docker-compose", "--help"],
             capture_output=True,
-            text=True
+            **SUBPROCESS_KWARGS
         )
 
         assert result.returncode == 0

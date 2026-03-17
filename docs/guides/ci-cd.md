@@ -164,6 +164,111 @@ else:
     print(f"Issues found: {data['summary']['issues_count']}")
 ```
 
+## Automated CUDA Installation
+
+The `--run --yes` flags let you execute CUDA Toolkit installation directly from CI pipelines:
+
+```yaml
+# GitHub Actions — install CUDA 12.6 headlessly
+- name: Install CUDA Toolkit
+  run: env-doctor cuda-install 12.6 --run --yes
+```
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Installation succeeded and `nvcc --version` passed |
+| `1` | An installation step failed |
+| `2` | Steps ran but verification failed |
+| `130` | Interrupted (Ctrl+C) |
+
+### CI-Aware Environment Persistence
+
+After installation, `env-doctor` automatically persists `PATH` and `LD_LIBRARY_PATH` using the right method for each CI system:
+
+| CI System | Persistence Method |
+|-----------|-------------------|
+| GitHub Actions | Write to `$GITHUB_ENV` / `$GITHUB_PATH` |
+| GitLab CI | Echo export commands (dotenv artifact) |
+| CircleCI | Append to `$BASH_ENV` |
+| Azure Pipelines | `##vso[task.setvariable]` syntax |
+| Jenkins | Echo export commands |
+| Generic CI (`CI=true`) | Echo export commands |
+| Local Linux | Append to `~/.bashrc` or `~/.zshrc` |
+| Local Windows | `setx` (PATH handled by winget) |
+
+### GitHub Actions Full Example
+
+```yaml
+name: Install CUDA and Validate
+on: [workflow_dispatch]
+
+jobs:
+  cuda-setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install env-doctor
+
+      - name: Install CUDA Toolkit
+        run: env-doctor cuda-install --run --yes
+
+      - name: Validate environment
+        run: env-doctor check --ci
+```
+
+### Preview Before Running (`--dry-run`)
+
+Use `--dry-run` to validate what would be executed without making any changes — useful for reviewing CI config:
+
+```bash
+env-doctor cuda-install --dry-run
+```
+
+Output:
+```
+[DRY RUN] [1/4] wget https://developer.download.nvidia.com/.../cuda-keyring_1.1-1_all.deb
+[DRY RUN] [2/4] sudo dpkg -i cuda-keyring_1.1-1_all.deb
+[DRY RUN] [3/4] sudo apt-get update
+[DRY RUN] [4/4] sudo apt-get -y install cuda-toolkit-12-6
+[DRY RUN] [1/1] nvcc --version
+
+CUDA 12.6 installation completed successfully.
+Verification: PASSED
+
+Full log: /home/user/.env-doctor/install.log
+```
+
+### JSON Output from `--run`
+
+Combine `--run --json` for machine-readable install results:
+
+```bash
+env-doctor cuda-install --run --yes --json
+```
+
+```json
+{
+  "success": true,
+  "cuda_version": "12.6",
+  "platform_key": "linux_ubuntu_22.04_x86_64",
+  "steps_completed": [
+    {"command": "sudo apt-get update", "phase": "install", "success": true, "return_code": 0, "duration_seconds": 8.2},
+    {"command": "sudo apt-get -y install cuda-toolkit-12-6", "phase": "install", "success": true, "return_code": 0, "duration_seconds": 142.1},
+    {"command": "nvcc --version", "phase": "verify", "success": true, "return_code": 0, "duration_seconds": 0.1}
+  ],
+  "steps_remaining": [],
+  "env_vars_set": {"PATH": "/usr/local/cuda-12.6/bin:...", "LD_LIBRARY_PATH": "/usr/local/cuda-12.6/lib64"},
+  "verification_passed": true,
+  "error_message": null,
+  "log_file": "/home/runner/.env-doctor/install.log"
+}
+```
+
 ## Conditional Installation
 
 Install GPU or CPU packages based on environment:

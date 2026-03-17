@@ -1078,15 +1078,20 @@ def cuda_info_command(output_json: bool = False):
         print_cuda_detailed_info(cuda_result)
 
 
-def cuda_install_command(cuda_version: str = None, output_json: bool = False):
+def cuda_install_command(cuda_version: str = None, output_json: bool = False,
+                         run: bool = False, dry_run: bool = False,
+                         yes: bool = False):
     """
-    Show step-by-step CUDA Toolkit installation instructions.
+    Show step-by-step CUDA Toolkit installation instructions, or execute them.
 
     If no version is specified, recommends one based on the GPU driver.
 
     Args:
         cuda_version: Optional specific CUDA version to install
         output_json: If True, output as JSON instead of human-readable text
+        run: If True, execute the installation steps
+        dry_run: If True, show what would run without executing
+        yes: If True, skip confirmation prompts
     """
     import json as json_mod
     from .utilities.platform_detect import detect_platform
@@ -1193,7 +1198,48 @@ def cuda_install_command(cuda_version: str = None, output_json: bool = False):
                     print(f"      - {info.get('label', key)}")
         return
 
-    # 4. Output results
+    # 4. If --run or --dry-run, execute via CudaInstaller
+    if run or dry_run:
+        from .installer import CudaInstaller
+        installer = CudaInstaller(
+            install_info=install_info,
+            cuda_version=recommended,
+            platform_info=plat,
+            dry_run=dry_run,
+            yes=yes,
+        )
+        install_result = installer.run()
+
+        if output_json:
+            print(json_mod.dumps(install_result.to_dict(), indent=2))
+        else:
+            if install_result.success:
+                print(f"\nCUDA {recommended} installation completed successfully.")
+                if install_result.verification_passed:
+                    print("Verification: PASSED")
+                else:
+                    print("Verification: SKIPPED")
+            elif install_result.error_message:
+                print(f"\n{install_result.error_message}")
+
+            if install_result.env_vars_set:
+                print(f"\nEnvironment variables configured ({installer.ci_env.name}):")
+                for name in install_result.env_vars_set:
+                    print(f"  {name}")
+
+            if install_result.log_file:
+                print(f"\nFull log: {install_result.log_file}")
+
+        if dry_run:
+            return
+        if install_result.success:
+            sys.exit(0)
+        elif install_result.verification_passed is False and install_result.steps_remaining == []:
+            sys.exit(2)  # Verify failed
+        else:
+            sys.exit(1)  # Install failed
+
+    # 5. Display-only output (default, no --run)
     if output_json:
         result = {
             "platform": {
@@ -2145,6 +2191,21 @@ Examples:
         action='store_true',
         help='Output as JSON (machine-readable)'
     )
+    cuda_install_parser.add_argument(
+        '--run',
+        action='store_true',
+        help='Execute the installation steps (default: display only)'
+    )
+    cuda_install_parser.add_argument(
+        '--yes', '-y',
+        action='store_true',
+        help='Skip confirmation prompts (for CI/headless use)'
+    )
+    cuda_install_parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='Show what would run without executing'
+    )
 
     # cuDNN Info command (NEW)
     cudnn_info_parser = subparsers.add_parser(
@@ -2171,7 +2232,8 @@ Examples:
     # Dockerfile validation command (NEW)
     dockerfile_p = subparsers.add_parser(
         "dockerfile",
-        help="Validate Dockerfile for GPU/CUDA configuration issues"
+        help="Validate Dockerfile for GPU/CUDA configuration issues",
+        description="Validate a Dockerfile for GPU/CUDA configuration issues"
     )
     dockerfile_p.add_argument(
         "path",
@@ -2183,7 +2245,8 @@ Examples:
     # Docker Compose validation command (NEW)
     compose_p = subparsers.add_parser(
         "docker-compose",
-        help="Validate docker-compose.yml for GPU configuration issues"
+        help="Validate docker-compose.yml for GPU configuration issues",
+        description="Validate a docker-compose.yml for GPU configuration issues"
     )
     compose_p.add_argument(
         "path",
@@ -2297,7 +2360,10 @@ Examples:
     elif args.command == "cuda-install":
         cuda_install_command(
             cuda_version=getattr(args, 'version', None),
-            output_json=getattr(args, 'json', False)
+            output_json=getattr(args, 'json', False),
+            run=getattr(args, 'run', False),
+            dry_run=getattr(args, 'dry_run', False),
+            yes=getattr(args, 'yes', False),
         )
     elif args.command == "cudnn-info":
         cudnn_info_command(

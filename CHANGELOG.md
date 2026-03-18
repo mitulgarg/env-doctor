@@ -5,6 +5,36 @@ All notable changes to env-doctor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8] - 2026-03-18
+
+### Added
+- **uv Support**: `uv tool install env-doctor` and `uvx env-doctor` now work as first-class install paths alongside `pip install env-doctor`
+  - Added `[dependency-groups]` with `dev = ["pytest"]` so contributors can run `uv sync --group dev` to get a full dev environment
+  - `uv.lock` committed for reproducible contributor environments
+  - Documented `uv tool install` and `uvx` in README and `docs/getting-started.md`
+
+### Fixed
+- **Wheel missing data files**: `data/*.json` (compatibility, model requirements, compute capability, etc.) were included in sdist via `MANIFEST.in` but not in wheels. Added `[tool.setuptools.package-data]` to fix this for all install methods.
+
+### Changed
+- Bumped version to 0.2.8
+
+## [0.2.7] - 2026-03-06
+
+### Added
+- **CUDA Auto-Installer `--run` flag**: Execute CUDA Toolkit installation directly instead of just printing instructions
+  - `--run` — runs steps interactively, prompting `[y/N]` before execution
+  - `--yes` — headless/non-interactive mode, auto-confirms all steps (CI-friendly)
+  - `--dry-run` — preview all commands without executing anything
+  - Timestamped log written to `~/.env-doctor/install.log` on every run
+  - Exit codes: `0` success, `1` step failed, `2` installed but verification failed
+
+### Fixed
+- CI env var isolation: `test_ci` no longer reads real GitHub Actions env vars, making it safe to run in any CI environment
+
+### Changed
+- Bumped version to 0.2.7
+
 ## [0.2.6] - 2026-03-06
 
 ### Added
@@ -181,6 +211,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic CUDA toolkit detection
 - Library installation commands
 
+[0.2.8]: https://github.com/mitulgarg/env-doctor/compare/v0.2.7...v0.2.8
+[0.2.7]: https://github.com/mitulgarg/env-doctor/compare/v0.2.6...v0.2.7
 [0.2.4]: https://github.com/mitulgarg/env-doctor/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/mitulgarg/env-doctor/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/mitulgarg/env-doctor/compare/v0.2.1...v0.2.2

@@ -14,6 +14,18 @@ This guide will help you install Env-Doctor and run your first environment check
 pip install env-doctor
 ```
 
+**Or with [uv](https://docs.astral.sh/uv/)** (a faster Python package manager):
+
+```bash
+# Install as an isolated tool (won't touch your project env)
+uv tool install env-doctor
+
+# Or run once without installing
+uvx env-doctor check
+```
+
+Both methods install the same package from PyPI.
+
 ## Your First Check
 
 Run the environment check to see your current GPU/CUDA status:

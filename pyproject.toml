@@ -47,3 +47,9 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"*" = ["data/*.json"]
+
+[dependency-groups]
+dev = ["pytest"]
+

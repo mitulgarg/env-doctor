@@ -67,6 +67,18 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 pip install env-doctor
 ```
 
+**Or with [uv](https://docs.astral.sh/uv/)** (a faster Python package manager):
+
+```bash
+# Install as an isolated tool (won't touch your project env)
+uv tool install env-doctor
+
+# Or run once without installing
+uvx env-doctor check
+```
+
+Both methods install the same package from PyPI — pick whichever you prefer.
+
 ## MCP Server (AI Assistant Integration)
 
 Env-Doctor includes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes diagnostic tools to AI assistants like Claude Code and Claude Desktop.

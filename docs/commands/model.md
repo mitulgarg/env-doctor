@@ -14,6 +14,8 @@ env-doctor model <model-name>
 |--------|-------------|
 | `--list` | List all available models in local database |
 | `--precision <type>` | Check specific precision (fp32, fp16, bf16, int8, int4, fp8) |
+| `--recommend` | Show cloud GPU instance recommendations (AWS, GCP, Azure) sorted by cost |
+| `--vram <MB>` | Direct VRAM requirement in MB (use with `--recommend`, without model name) |
 
 ## Example
 
@@ -219,6 +221,48 @@ env-doctor model llama-3-70b
 2. Use INT4 quantization with 2x RTX 3090
 3. Consider cloud GPU (A100 80GB)
 ```
+
+## Cloud GPU Recommendations
+
+When a model doesn't fit on your local GPU (or you're planning a cloud deployment), use `--recommend` to see cloud GPU instance suggestions:
+
+```bash
+env-doctor model llama-3-70b --recommend
+```
+
+**Output:**
+
+```
+☁️   Cloud GPU Recommendations
+============================================================
+
+  FP16 (~140.0 GB):
+    $27.20 /hr  azure  ND96asr_v4              8x A100 (40GB each)          180.0GB free
+    $29.39 /hr  gcp    a2-highgpu-8g            8x A100 (40GB each)          180.0GB free
+    $32.77 /hr  aws    p4d.24xlarge             8x A100 (40GB each)          180.0GB free
+
+  INT4 (~35.0 GB):
+    $3.67  /hr  gcp    a2-highgpu-1g            1x A100 (40GB)               5.0GB free
+    $3.67  /hr  azure  NC24ads_A100_v4          1x A100 (80GB)               45.0GB free
+
+  Sorted by cost (cheapest first). Prices are approximate on-demand rates.
+============================================================
+```
+
+Instances are shown per quantization level, sorted by cost (cheapest first), covering AWS, GCP, and Azure.
+
+### Direct VRAM Lookup
+
+If you know the VRAM requirement but aren't checking a specific model, use `--vram`:
+
+```bash
+env-doctor model --vram 80000 --recommend
+```
+
+This shows all cloud instances with at least 80GB of GPU VRAM, sorted by price.
+
+!!! note "Pricing"
+    All prices shown are approximate on-demand rates from public cloud provider pages and may not reflect current pricing, spot/preemptible discounts, or reserved instance rates.
 
 ## How VRAM Is Calculated
 

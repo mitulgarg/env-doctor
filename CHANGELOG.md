@@ -5,6 +5,14 @@ All notable changes to env-doctor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`--recommend` flag for `env-doctor model`**: Suggests cloud GPU instances (AWS, GCP, Azure) sorted by cost when a model doesn't fit locally
+- **`--vram` flag**: Direct VRAM-based cloud instance lookup without specifying a model name (`env-doctor model --vram 80000 --recommend`)
+- **`cloud_instances.json`**: Static data file covering 17 GPU instances across AWS, GCP, and Azure
+- **Cloud recommendations via MCP**: `model_check` tool accepts `recommend` boolean to include cloud instance suggestions in results
+
 ## [0.2.8] - 2026-03-18
 
 ### Added

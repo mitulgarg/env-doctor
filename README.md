@@ -383,6 +383,25 @@ env-doctor model llama-3-8b
 
 List all models: `env-doctor model --list`
 
+**Cloud GPU Recommendations:**
+
+```bash
+# Get cloud GPU recommendations for a model that doesn't fit
+env-doctor model llama-3-70b --recommend
+
+# Direct VRAM lookup (no model name needed)
+env-doctor model --vram 80000 --recommend
+```
+
+```
+☁️   Cloud GPU Recommendations
+
+  FP16 (~140.0 GB):
+    $27.20 /hr  azure  ND96asr_v4              8x A100 (40GB each)          180.0GB free
+    $29.39 /hr  gcp    a2-highgpu-8g            8x A100 (40GB each)          180.0GB free
+    ...
+```
+
 Automatic HuggingFace Support (New ✨)
 If a model isn't found locally, env-doctor automatically checks the HuggingFace Hub, fetches its parameter metadata, and caches it locally for future runs — no manual setup required.
 

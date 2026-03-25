@@ -71,6 +71,10 @@ async def list_tools() -> list[Tool]:
                         "description": "Optional specific precision to check",
                         "enum": ["fp32", "fp16", "bf16", "int8", "int4", "fp8"],
                     },
+                    "recommend": {
+                        "type": "boolean",
+                        "description": "Include cloud GPU instance recommendations (AWS, GCP, Azure) sorted by cost",
+                    },
                 },
                 "required": ["model_name"],
             },
@@ -234,7 +238,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     elif name == "model_check":
         model_name = arguments.get("model_name", "")
         precision = arguments.get("precision")
-        result = tools.model_check(model_name, precision)
+        recommend = arguments.get("recommend", False)
+        result = tools.model_check(model_name, precision, recommend)
 
     elif name == "model_list":
         result = tools.model_list()

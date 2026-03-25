@@ -18,7 +18,8 @@ class ModelChecker:
         self.vram_calc = VRAMCalculator()
 
     def check_compatibility(
-        self, model_name: str, precision: Optional[str] = None, _depth: int = 0
+        self, model_name: str, precision: Optional[str] = None, _depth: int = 0,
+        recommend: bool = False,
     ) -> Dict[str, Any]:
         """
         Check if model is compatible with available hardware.
@@ -81,7 +82,7 @@ class ModelChecker:
             normalized_name, model_info, vram_reqs, gpu_info, compatibility, _depth=_depth
         )
 
-        return {
+        result = {
             "success": True,
             "model_name": normalized_name,
             "model_info": model_info,
@@ -91,6 +92,13 @@ class ModelChecker:
             "recommendations": recommendations,
             "fetched_from_hf": fetched_from_hf,
         }
+
+        if recommend:
+            from env_doctor.utilities.cloud_recommender import CloudRecommender
+            recommender = CloudRecommender()
+            result["cloud_recommendations"] = recommender.recommend_for_model(vram_reqs)
+
+        return result
 
     def _get_gpu_info(self) -> Dict[str, Any]:
         """

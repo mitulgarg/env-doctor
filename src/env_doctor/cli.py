@@ -1641,16 +1641,17 @@ def _print_validation_result(result):
         print("\n⚠️   Validation passed with warnings. Review before deploying.")
     else:
         print("\n✅  All checks passed!")
-def model_command(model_name: str, precision: str = None):
+def model_command(model_name: str, precision: str = None, recommend: bool = False):
     """
     Check if a model can run on available hardware.
 
     Args:
         model_name: Name of the model to check
         precision: Optional specific precision to check
+        recommend: Whether to show cloud GPU recommendations
     """
     checker = ModelChecker()
-    result = checker.check_compatibility(model_name, precision)
+    result = checker.check_compatibility(model_name, precision, recommend=recommend)
 
     if not result["success"]:
         print(f"\n❌  {result['error']}")
@@ -1753,12 +1754,89 @@ def print_model_compatibility(result: dict):
             print(f"{i}. {rec}")
         print()
 
+    # Cloud Recommendations
+    cloud_recs = result.get("cloud_recommendations")
+    if cloud_recs:
+        print_cloud_recommendations(cloud_recs)
+
     # Reference
     if model_info.get("hf_id"):
         print("=" * 60)
         print("📚  Reference:")
         print(f"    https://huggingface.co/{model_info['hf_id']}")
         print("=" * 60)
+
+
+def print_cloud_recommendations(cloud_recs: dict):
+    """
+    Print cloud GPU recommendations table.
+
+    Args:
+        cloud_recs: Dict mapping precision to {vram_gb, instances}
+    """
+    print("=" * 60)
+    print("☁️   Cloud GPU Recommendations")
+    print("=" * 60)
+
+    precision_order = ["fp16", "bf16", "fp32", "int8", "int4", "fp8"]
+    for precision in precision_order:
+        if precision not in cloud_recs:
+            continue
+
+        info = cloud_recs[precision]
+        vram_gb = info["vram_gb"]
+        instances = info["instances"]
+
+        print(f"\n  {precision.upper()} (~{vram_gb} GB):")
+
+        if not instances:
+            print("    No matching instances found")
+            continue
+
+        for inst in instances:
+            print(
+                f"    ${inst['approx_cost_hr']:<7.2f}/hr  "
+                f"{inst['provider']:<5s}  "
+                f"{inst['name']:<22s}  "
+                f"{inst['gpu_summary']:<28s}  "
+                f"{inst['headroom_gb']}GB free"
+            )
+
+    print(f"\n  Sorted by cost (cheapest first). Prices are approximate on-demand rates.")
+    print("=" * 60 + "\n")
+
+
+def recommend_by_vram(vram_mb: int):
+    """
+    Show cloud GPU recommendations for a given VRAM requirement.
+
+    Args:
+        vram_mb: Required VRAM in megabytes
+    """
+    from env_doctor.utilities.cloud_recommender import CloudRecommender
+
+    recommender = CloudRecommender()
+    instances = recommender.recommend(vram_mb)
+    vram_gb = round(vram_mb / 1024, 1)
+
+    print(f"\n☁️   Cloud GPU Recommendations for {vram_gb} GB VRAM")
+    print("=" * 60)
+
+    if not instances:
+        print("\n  No matching instances found for this VRAM requirement.\n")
+        return
+
+    for inst in instances[:10]:
+        print(
+            f"  ${inst['approx_cost_hr']:<7.2f}/hr  "
+            f"{inst['provider']:<5s}  "
+            f"{inst['name']:<22s}  "
+            f"{inst['gpu_summary']:<28s}  "
+            f"{inst['headroom_gb']}GB free"
+        )
+
+    print(f"\n  Sorted by cost (cheapest first). Prices are approximate on-demand rates.")
+    print("=" * 60 + "\n")
 
 
 def list_models_command():
@@ -2313,6 +2391,17 @@ Examples:
         action="store_true",
         help="List all available models"
     )
+    model_p.add_argument(
+        "--recommend",
+        action="store_true",
+        help="Show cloud GPU instance recommendations (AWS, GCP, Azure)"
+    )
+    model_p.add_argument(
+        "--vram",
+        type=int,
+        metavar="MB",
+        help="Direct VRAM requirement in MB (use with --recommend, without model_name)"
+    )
 
     # Export command
     export_p = subparsers.add_parser(
@@ -2384,8 +2473,10 @@ Examples:
     elif args.command == "model":
         if args.list:
             list_models_command()
+        elif getattr(args, 'vram', None) and getattr(args, 'recommend', False):
+            recommend_by_vram(args.vram)
         elif args.model_name:
-            model_command(args.model_name, args.precision)
+            model_command(args.model_name, args.precision, recommend=getattr(args, 'recommend', False))
         else:
             model_p.print_help()
     elif args.command == "install":

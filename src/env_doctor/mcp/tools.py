@@ -108,13 +108,14 @@ def env_check_component(component: str) -> Dict[str, Any]:
         }
 
 
-def model_check(model_name: str, precision: Optional[str] = None) -> Dict[str, Any]:
+def model_check(model_name: str, precision: Optional[str] = None, recommend: bool = False) -> Dict[str, Any]:
     """
     Check if an AI model fits on available GPU hardware.
 
     Args:
         model_name: Name of the model (e.g., "llama-3-8b", "meta-llama/Llama-2-7b-hf")
         precision: Optional precision level (fp32, fp16, bf16, int8, int4, fp8)
+        recommend: Whether to include cloud GPU instance recommendations
 
     Returns:
         Dict with model compatibility analysis including:
@@ -124,6 +125,7 @@ def model_check(model_name: str, precision: Optional[str] = None) -> Dict[str, A
         - vram_requirements: VRAM needed for each precision
         - compatibility: Which precisions fit on GPU
         - recommendations: Actionable recommendations
+        - cloud_recommendations: Cloud GPU suggestions (if recommend=True)
     """
     # Import detectors to trigger registration (needed by ModelChecker)
     from env_doctor.detectors import nvidia_driver
@@ -131,7 +133,7 @@ def model_check(model_name: str, precision: Optional[str] = None) -> Dict[str, A
 
     try:
         checker = ModelChecker()
-        result = checker.check_compatibility(model_name, precision)
+        result = checker.check_compatibility(model_name, precision, recommend=recommend)
         return result
     except Exception as e:
         return {

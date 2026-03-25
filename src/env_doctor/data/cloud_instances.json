@@ -1,0 +1,127 @@
+{
+  "_metadata": {
+    "last_updated": "2026-03-25",
+    "note": "Approximate on-demand pricing from public cloud provider pages"
+  },
+  "instances": [
+    {
+      "provider": "aws",
+      "name": "g5.xlarge",
+      "gpus": [{ "model": "A10G", "count": 1, "vram_gb": 24 }],
+      "total_vram_gb": 24,
+      "approx_cost_hr": 1.006
+    },
+    {
+      "provider": "aws",
+      "name": "g5.12xlarge",
+      "gpus": [{ "model": "A10G", "count": 4, "vram_gb": 24 }],
+      "total_vram_gb": 96,
+      "approx_cost_hr": 5.672
+    },
+    {
+      "provider": "aws",
+      "name": "p3.2xlarge",
+      "gpus": [{ "model": "V100", "count": 1, "vram_gb": 16 }],
+      "total_vram_gb": 16,
+      "approx_cost_hr": 3.06
+    },
+    {
+      "provider": "aws",
+      "name": "p3.8xlarge",
+      "gpus": [{ "model": "V100", "count": 4, "vram_gb": 16 }],
+      "total_vram_gb": 64,
+      "approx_cost_hr": 12.24
+    },
+    {
+      "provider": "aws",
+      "name": "p3.16xlarge",
+      "gpus": [{ "model": "V100", "count": 8, "vram_gb": 16 }],
+      "total_vram_gb": 128,
+      "approx_cost_hr": 24.48
+    },
+    {
+      "provider": "aws",
+      "name": "p4d.24xlarge",
+      "gpus": [{ "model": "A100", "count": 8, "vram_gb": 40 }],
+      "total_vram_gb": 320,
+      "approx_cost_hr": 32.77
+    },
+    {
+      "provider": "aws",
+      "name": "p5.48xlarge",
+      "gpus": [{ "model": "H100", "count": 8, "vram_gb": 80 }],
+      "total_vram_gb": 640,
+      "approx_cost_hr": 98.32
+    },
+    {
+      "provider": "gcp",
+      "name": "g2-standard-4",
+      "gpus": [{ "model": "L4", "count": 1, "vram_gb": 24 }],
+      "total_vram_gb": 24,
+      "approx_cost_hr": 0.70
+    },
+    {
+      "provider": "gcp",
+      "name": "g2-standard-48",
+      "gpus": [{ "model": "L4", "count": 4, "vram_gb": 24 }],
+      "total_vram_gb": 96,
+      "approx_cost_hr": 5.44
+    },
+    {
+      "provider": "gcp",
+      "name": "a2-highgpu-1g",
+      "gpus": [{ "model": "A100", "count": 1, "vram_gb": 40 }],
+      "total_vram_gb": 40,
+      "approx_cost_hr": 3.67
+    },
+    {
+      "provider": "gcp",
+      "name": "a2-highgpu-8g",
+      "gpus": [{ "model": "A100", "count": 8, "vram_gb": 40 }],
+      "total_vram_gb": 320,
+      "approx_cost_hr": 29.39
+    },
+    {
+      "provider": "gcp",
+      "name": "a3-highgpu-8g",
+      "gpus": [{ "model": "H100", "count": 8, "vram_gb": 80 }],
+      "total_vram_gb": 640,
+      "approx_cost_hr": 101.22
+    },
+    {
+      "provider": "azure",
+      "name": "NC6s_v3",
+      "gpus": [{ "model": "V100", "count": 1, "vram_gb": 16 }],
+      "total_vram_gb": 16,
+      "approx_cost_hr": 3.06
+    },
+    {
+      "provider": "azure",
+      "name": "NC24s_v3",
+      "gpus": [{ "model": "V100", "count": 4, "vram_gb": 16 }],
+      "total_vram_gb": 64,
+      "approx_cost_hr": 12.24
+    },
+    {
+      "provider": "azure",
+      "name": "NC24ads_A100_v4",
+      "gpus": [{ "model": "A100", "count": 1, "vram_gb": 80 }],
+      "total_vram_gb": 80,
+      "approx_cost_hr": 3.67
+    },
+    {
+      "provider": "azure",
+      "name": "ND96asr_v4",
+      "gpus": [{ "model": "A100", "count": 8, "vram_gb": 40 }],
+      "total_vram_gb": 320,
+      "approx_cost_hr": 27.20
+    },
+    {
+      "provider": "azure",
+      "name": "ND96amsr_A100_v4",
+      "gpus": [{ "model": "A100", "count": 8, "vram_gb": 80 }],
+      "total_vram_gb": 640,
+      "approx_cost_hr": 32.77
+    }
+  ]
+}

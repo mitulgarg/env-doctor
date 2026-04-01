@@ -4,6 +4,16 @@ Env-Doctor supports JSON output and proper exit codes for seamless CI/CD integra
 
 ## Quick Start
 
+Generate a ready-to-use GitHub Actions workflow with one command:
+
+```bash
+env-doctor init --github-actions
+```
+
+This creates `.github/workflows/env-doctor.yml` in your project. Review the file, commit, and push — your CI will validate the ML environment on every push and PR.
+
+Or add manually:
+
 ```yaml
 # GitHub Actions
 - run: pip install env-doctor

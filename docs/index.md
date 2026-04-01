@@ -111,6 +111,9 @@ env-doctor install torch
 
 # Check if a model fits on your GPU
 env-doctor model llama-3-8b
+
+# Generate GitHub Actions workflow for CI validation
+env-doctor init --github-actions
 ```
 
 

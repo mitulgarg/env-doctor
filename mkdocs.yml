@@ -181,6 +181,7 @@ nav:
     - docker-compose: commands/docker-compose.md
     - scan: commands/scan.md
     - debug: commands/debug.md
+    - init: commands/init.md
   - Guides:
     - WSL2 GPU Support: guides/wsl2.md
     - MCP Integration: guides/mcp-integration.md

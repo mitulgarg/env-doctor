@@ -460,10 +460,21 @@ env-doctor dockerfile
 | `env-doctor cudnn-info` | cuDNN library analysis |
 | `env-doctor dockerfile` | Validate Dockerfile |
 | `env-doctor docker-compose` | Validate docker-compose.yml |
+| `env-doctor init --github-actions` | Generate GitHub Actions workflow |
 | `env-doctor scan` | Scan for deprecated imports |
 | `env-doctor debug` | Verbose detector output |
 
 ### CI/CD Integration
+
+Generate a GitHub Actions workflow with one command:
+
+```bash
+env-doctor init --github-actions
+```
+
+This creates `.github/workflows/env-doctor.yml` — review, commit, and push. Your CI will validate the ML environment on every push and PR.
+
+Or add manually:
 
 ```bash
 # JSON output for scripting

@@ -181,3 +181,11 @@ C:\Users\mitul\Desktop\projects\env-doctor\env.json
 env-doctor\env.json
 
 C:\Users\mitul\Desktop\projects\env-doctor\env.json
+claude_convos
+PR_SUMMARY.md
+
+# Dashboard frontend
+web/node_modules/
+web/dist/
+src/env_doctor/web/*
+!src/env_doctor/web/.gitkeep

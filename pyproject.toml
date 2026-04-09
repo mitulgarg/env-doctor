@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "env-doctor"
-version = "0.2.9"
+version = "0.3.0"
 description = "A CLI tool to verify and fix AI/ML environment compatibility (Driver <-> CUDA <-> Wheels) with platform-specific installation guides."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -31,6 +31,14 @@ dependencies = [
     "mcp>=1.0.0,<2.0.0",
 ]
 
+[project.optional-dependencies]
+dashboard = [
+    "fastapi>=0.100.0,<1.0.0",
+    "uvicorn[standard]>=0.20.0,<1.0.0",
+    "sqlalchemy>=2.0.0,<3.0.0",
+    "aiosqlite>=0.17.0,<1.0.0",
+]
+
 [project.scripts]
 env-doctor = "env_doctor.cli:main"
 doctor = "env_doctor.cli:main"
@@ -48,7 +56,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-"*" = ["data/*.json"]
+"*" = ["data/*.json", "web/**/*"]
 
 [dependency-groups]
 dev = ["pytest"]

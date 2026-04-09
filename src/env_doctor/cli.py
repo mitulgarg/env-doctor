@@ -384,7 +384,37 @@ def determine_exit_code(results: Dict[str, Any]) -> int:
         return 0
 
 
-def check_command(output_json: bool = False, ci: bool = False):
+def _build_check_output(results, driver_result, cuda_result, cudnn_result,
+                         lib_results, python_compat_result, compute_compat_info):
+    """Build the check output dict (shared by JSON output and --report-to)."""
+    from .identity import get_machine_info
+    return {
+        "machine": get_machine_info(),
+        "status": determine_overall_status(results),
+        "timestamp": datetime.now().isoformat(),
+        "summary": {
+            "driver": "found" if driver_result.detected else "not_found",
+            "cuda": "found" if cuda_result.detected else "not_found",
+            "cudnn": "found" if (cudnn_result and cudnn_result.detected) else "not_found",
+            "issues_count": count_issues(results)
+        },
+        "checks": {
+            "wsl2": results["wsl2"].to_dict() if results.get("wsl2") else None,
+            "driver": driver_result.to_dict(),
+            "cuda": cuda_result.to_dict(),
+            "cudnn": cudnn_result.to_dict() if cudnn_result else None,
+            "libraries": {
+                lib: result.to_dict()
+                for lib, result in lib_results.items()
+            },
+            "python_compat": python_compat_result.to_dict(),
+            "compute_compatibility": compute_compat_info,
+        }
+    }
+
+
+def check_command(output_json: bool = False, ci: bool = False,
+                  report_to: str = None, force_report: bool = False):
     """
     Main diagnostic command using detector architecture.
 
@@ -394,6 +424,8 @@ def check_command(output_json: bool = False, ci: bool = False):
     Args:
         output_json: Output as JSON (machine-readable)
         ci: CI-friendly mode (implies JSON + proper exit codes)
+        report_to: Dashboard URL to POST results to
+        force_report: Bypass change detection (always send)
     """
     # === Collect all detection results ===
     # STEP 1: Environment Detection
@@ -443,11 +475,11 @@ def check_command(output_json: bool = False, ci: bool = False):
     }
 
     # === Choose output format ===
-    # Compute capability check (for both JSON and human output)
+    # Compute capability check (for JSON, CI, and --report-to modes)
     compute_compat_info = None
+    need_structured = ci or output_json or report_to
     if torch_result and torch_result.detected and driver_result.detected:
-        # For JSON mode, we compute silently; for human mode, it prints inline
-        if ci or output_json:
+        if need_structured:
             from .detectors.compute_capability import (
                 get_sm_for_compute_capability,
                 get_arch_name,
@@ -479,30 +511,44 @@ def check_command(output_json: bool = False, ci: bool = False):
             else:
                 compute_compat_info["status"] = "unknown"
 
+    # Build the output dict (needed for JSON, CI, and --report-to)
+    if need_structured:
+        output = _build_check_output(
+            results, driver_result, cuda_result, cudnn_result,
+            lib_results, python_compat_result, compute_compat_info
+        )
+
+    # Smart reporting to dashboard
+    if report_to:
+        from .identity import should_report, mark_reported, _hash_report, _load_report_state
+        import requests as _requests
+
+        do_send = force_report or should_report(output)
+
+        if not do_send:
+            print("No changes detected, skipping report (use --force to override).", file=sys.stderr)
+        else:
+            # Determine if this is a heartbeat (hash unchanged, only sending because timeout expired)
+            is_heartbeat = False
+            if not force_report:
+                state = _load_report_state()
+                current_hash = _hash_report(output)
+                if current_hash == state.get("hash"):
+                    is_heartbeat = True
+                    output["heartbeat"] = True
+
+            try:
+                url = report_to.rstrip("/")
+                resp = _requests.post(f"{url}/api/report", json=output, timeout=10)
+                resp.raise_for_status()
+                mark_reported(output, url, is_heartbeat=is_heartbeat)
+                if not (ci or output_json):
+                    kind = "heartbeat" if is_heartbeat else "report"
+                    print(f"✅ Sent {kind} to {url} (HTTP {resp.status_code})", file=sys.stderr)
+            except Exception as e:
+                print(f"⚠️  Failed to report to dashboard: {e}", file=sys.stderr)
+
     if ci or output_json:
-        # JSON output
-        output = {
-            "status": determine_overall_status(results),
-            "timestamp": datetime.now().isoformat(),
-            "summary": {
-                "driver": "found" if driver_result.detected else "not_found",
-                "cuda": "found" if cuda_result.detected else "not_found",
-                "cudnn": "found" if (cudnn_result and cudnn_result.detected) else "not_found",
-                "issues_count": count_issues(results)
-            },
-            "checks": {
-                "wsl2": wsl2_result.to_dict() if wsl2_result else None,
-                "driver": driver_result.to_dict(),
-                "cuda": cuda_result.to_dict(),
-                "cudnn": cudnn_result.to_dict() if cudnn_result else None,
-                "libraries": {
-                    lib: result.to_dict()
-                    for lib, result in lib_results.items()
-                },
-                "python_compat": python_compat_result.to_dict(),
-                "compute_compatibility": compute_compat_info,
-            }
-        }
         print(json.dumps(output, indent=2))
         sys.exit(determine_exit_code(results))
     else:
@@ -2258,6 +2304,172 @@ def init_command(github_actions=False, force=False):
     print("  - Add 'env-doctor cuda-info --json' for detailed CUDA reports")
 
 
+def dashboard_command(host: str = "0.0.0.0", port: int = 8765):
+    """Start the web dashboard server."""
+    try:
+        import uvicorn
+    except ImportError:
+        print("Dashboard dependencies not installed.")
+        print("Install them with:  pip install env-doctor[dashboard]")
+        sys.exit(1)
+
+    from .server.app import app
+
+    print(f"Starting env-doctor dashboard at http://{host}:{port}")
+    print("Press Ctrl+C to stop.")
+    uvicorn.run(app, host=host, port=port, log_level="info")
+
+
+def _parse_interval(value: str) -> int:
+    """Parse interval string like '2m', '30s', '1h' to minutes for cron."""
+    value = value.strip().lower()
+    if value.endswith("m"):
+        return int(value[:-1])
+    elif value.endswith("h"):
+        return int(value[:-1]) * 60
+    elif value.endswith("s"):
+        return max(1, int(value[:-1]) // 60)
+    return int(value)
+
+
+def _parse_interval_seconds(value: str) -> int:
+    """Parse interval string to seconds."""
+    value = value.strip().lower()
+    if value.endswith("m"):
+        return int(value[:-1]) * 60
+    elif value.endswith("h"):
+        return int(value[:-1]) * 3600
+    elif value.endswith("s"):
+        return int(value[:-1])
+    return int(value) * 60
+
+
+_CRON_TAG = "# env-doctor-report"
+
+
+def report_install_command(url: str, interval: str = "2m", heartbeat: str = "30m"):
+    """Set up periodic reporting via cron."""
+    import shutil
+    import subprocess
+
+    # Validate dashboard is reachable
+    import requests as _requests
+    try:
+        resp = _requests.get(f"{url.rstrip('/')}/api/machines", timeout=5)
+        resp.raise_for_status()
+    except Exception as e:
+        print(f"⚠️  Cannot reach dashboard at {url}: {e}")
+        print("Proceeding with installation anyway (dashboard may start later).")
+
+    # Find env-doctor binary
+    env_doctor_bin = shutil.which("env-doctor")
+    if not env_doctor_bin:
+        env_doctor_bin = f"{sys.executable} -m env_doctor.cli"
+
+    interval_min = _parse_interval(interval)
+    cron_schedule = f"*/{interval_min} * * * *" if interval_min < 60 else f"0 */{interval_min // 60} * * *"
+    cron_cmd = f"{cron_schedule} {env_doctor_bin} check --report-to {url} {_CRON_TAG}"
+
+    # Remove old entry, add new one
+    try:
+        result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
+        existing = result.stdout if result.returncode == 0 else ""
+    except FileNotFoundError:
+        print("Error: crontab not found. Cron-based reporting requires crontab.")
+        sys.exit(1)
+
+    # Filter out old env-doctor entries
+    lines = [l for l in existing.splitlines() if _CRON_TAG not in l]
+    lines.append(cron_cmd)
+    new_crontab = "\n".join(lines) + "\n"
+
+    proc = subprocess.run(["crontab", "-"], input=new_crontab, capture_output=True, text=True)
+    if proc.returncode != 0:
+        print(f"Error installing cron job: {proc.stderr}")
+        sys.exit(1)
+
+    # Save config
+    from .identity import save_report_config
+    save_report_config(url=url, interval=interval, heartbeat=heartbeat)
+
+    # Run first report immediately (JSON mode so we don't clutter with human output)
+    print(f"✅ Reporting to {url} every {interval} (heartbeat: {heartbeat})")
+    print("Sending first report...")
+    try:
+        # Capture JSON output to suppress it, we only care about the side-effect
+        import io
+        old_stdout = sys.stdout
+        sys.stdout = io.StringIO()
+        try:
+            check_command(output_json=True, report_to=url, force_report=True)
+        except SystemExit:
+            pass  # check_command calls sys.exit() in JSON mode
+        finally:
+            sys.stdout = old_stdout
+        print("First report sent successfully.")
+    except Exception as e:
+        print(f"⚠️  First report failed: {e}", file=sys.stderr)
+
+
+def report_uninstall_command():
+    """Remove periodic reporting cron job."""
+    import subprocess
+
+    try:
+        result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
+        existing = result.stdout if result.returncode == 0 else ""
+    except FileNotFoundError:
+        print("Error: crontab not found.")
+        sys.exit(1)
+
+    lines = [l for l in existing.splitlines() if _CRON_TAG not in l]
+    new_crontab = "\n".join(lines) + "\n" if lines else ""
+
+    if new_crontab.strip():
+        subprocess.run(["crontab", "-"], input=new_crontab, capture_output=True, text=True)
+    else:
+        subprocess.run(["crontab", "-r"], capture_output=True, text=True)
+
+    from .identity import remove_report_config
+    remove_report_config()
+
+    print("Reporting stopped. Local state cleaned up.")
+
+
+def report_status_command():
+    """Show current reporting status."""
+    from .identity import load_report_config, _load_report_state
+    from datetime import datetime, timezone
+
+    config = load_report_config()
+    if not config:
+        print("No reporting configured. Run: env-doctor report install --url <URL>")
+        return
+
+    state = _load_report_state()
+    url = config.get("url", "unknown")
+    interval = config.get("interval", "?")
+    heartbeat = config.get("heartbeat", "?")
+
+    print(f"Reporting to {url} every {interval} (heartbeat: {heartbeat})")
+
+    last_reported = state.get("last_reported")
+    if last_reported:
+        try:
+            last_dt = datetime.fromisoformat(last_reported)
+            elapsed = datetime.now(timezone.utc) - last_dt
+            mins = int(elapsed.total_seconds() / 60)
+            print(f"Last report: {mins}m ago")
+        except (ValueError, TypeError):
+            print(f"Last report: {last_reported}")
+    else:
+        print("No reports sent yet.")
+
+    last_hash = state.get("hash")
+    if last_hash:
+        print(f"Last report hash: {last_hash}")
+
+
 # Update main() to add new command
 def main():
     """Main entry point with argument parsing."""
@@ -2290,6 +2502,8 @@ Examples:
   env-doctor debug              # Show detailed detector information
   env-doctor export             # Export environment as shareable JSON spec
   env-doctor validate spec.json # Validate environment against a spec
+  env-doctor dashboard          # Start web dashboard for fleet monitoring
+  env-doctor report install     # Set up periodic reporting to a dashboard
         """
     )
     
@@ -2309,6 +2523,16 @@ Examples:
         '--ci',
         action='store_true',
         help='CI-friendly mode (implies --json with proper exit codes)'
+    )
+    check_parser.add_argument(
+        '--report-to',
+        metavar='URL',
+        help='POST check results to a dashboard URL (e.g., http://localhost:8765)'
+    )
+    check_parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Force report even if no changes detected (use with --report-to)'
     )
 
     # CUDA Info command (NEW)
@@ -2519,13 +2743,66 @@ Examples:
         help='Overwrite existing files'
     )
 
+    # Dashboard command
+    dashboard_p = subparsers.add_parser(
+        "dashboard",
+        help="Start the web dashboard server"
+    )
+    dashboard_p.add_argument(
+        "--host", default="0.0.0.0",
+        help="Host to bind to (default: 0.0.0.0)"
+    )
+    dashboard_p.add_argument(
+        "--port", type=int, default=8765,
+        help="Port to listen on (default: 8765)"
+    )
+
+    # Report command (with sub-subcommands)
+    report_p = subparsers.add_parser(
+        "report",
+        help="Manage periodic reporting to a dashboard"
+    )
+    report_sub = report_p.add_subparsers(dest="report_action", help="Report actions")
+
+    # report install
+    report_install_p = report_sub.add_parser(
+        "install",
+        help="Set up periodic reporting via cron"
+    )
+    report_install_p.add_argument(
+        "--url", required=True,
+        help="Dashboard URL (e.g., http://dashboard:8765)"
+    )
+    report_install_p.add_argument(
+        "--interval", default="2m",
+        help="Reporting interval (default: 2m)"
+    )
+    report_install_p.add_argument(
+        "--heartbeat", default="30m",
+        help="Heartbeat interval (default: 30m)"
+    )
+
+    # report uninstall
+    report_sub.add_parser(
+        "uninstall",
+        help="Remove periodic reporting cron job"
+    )
+
+    # report status
+    report_sub.add_parser(
+        "status",
+        help="Show current reporting status"
+    )
+
     args = parser.parse_args()
 
     # Route to appropriate command
     if args.command == "check":
         check_command(
             output_json=getattr(args, 'json', False),
-            ci=getattr(args, 'ci', False)
+            ci=getattr(args, 'ci', False),
+            report_to=getattr(args, 'report_to', None),
+            force_report=getattr(args, 'force', False),
         )
     elif args.command == "cuda-info":
         cuda_info_command(
@@ -2585,6 +2862,25 @@ Examples:
             github_actions=getattr(args, 'github_actions', False),
             force=getattr(args, 'force', False),
         )
+    elif args.command == "dashboard":
+        dashboard_command(
+            host=getattr(args, 'host', '0.0.0.0'),
+            port=getattr(args, 'port', 8765),
+        )
+    elif args.command == "report":
+        action = getattr(args, 'report_action', None)
+        if action == "install":
+            report_install_command(
+                url=args.url,
+                interval=getattr(args, 'interval', '2m'),
+                heartbeat=getattr(args, 'heartbeat', '30m'),
+            )
+        elif action == "uninstall":
+            report_uninstall_command()
+        elif action == "status":
+            report_status_command()
+        else:
+            report_p.print_help()
     else:
         parser.print_help()
 

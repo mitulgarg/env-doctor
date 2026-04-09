@@ -5,12 +5,38 @@ All notable changes to env-doctor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-04-09
 
 ### Added
+- **Fleet Dashboard**: Web UI for monitoring multiple GPU machines at a glance (`env-doctor dashboard`)
+  - FastAPI backend with SQLite storage (`~/.env-doctor/dashboard.db`)
+  - React + TypeScript frontend bundled in the pip package — no Node.js required at install time
+  - Fleet overview table: hostname, status, GPU, driver, CUDA, PyTorch, last seen — sortable and filterable
+  - Machine detail page: full diagnostic breakdown per check, copy-to-clipboard fix commands, snapshot history timeline
+  - Auto-refresh every 30 seconds
+- **`--report-to` flag on `env-doctor check`**: POST results to a dashboard URL (`env-doctor check --report-to http://host:8765`)
+  - Smart change detection: skips sending if nothing changed (hash-based)
+  - Heartbeat: re-sends after 30 minutes of no change to confirm machine is still alive
+  - `--force` flag to bypass change detection and always send
+- **`env-doctor report` subcommand**: Manage periodic reporting via cron
+  - `report install --url URL [--interval 2m] [--heartbeat 30m]` — creates cron job, validates connectivity, sends first report
+  - `report uninstall` — removes cron entry and cleans up local state
+  - `report status` — shows URL, interval, and last report time
+- **Machine identity module** (`src/env_doctor/identity.py`): stable UUID per machine persisted in `~/.env-doctor/machine-id`, overridable via `ENV_DOCTOR_MACHINE_ID`
+- **`[dashboard]` optional extras**: `pip install env-doctor[dashboard]` installs fastapi, uvicorn, sqlalchemy, aiosqlite
+- **`machine` envelope in JSON output**: `env-doctor check --json` now includes `{machine_id, hostname, platform, python_version, reported_at}` at the top level
+
+## [0.2.9] - 2026-04-01
+
+### Added
+- **`env-doctor init --github-actions`**: Generates a ready-to-use GitHub Actions workflow file (`.github/workflows/env-doctor.yml`) for CI/CD GPU validation
+  - Single command setup: `env-doctor init --github-actions`
+  - `--force` flag to overwrite existing files
+  - New `docs/commands/init.md` command reference page
+  - CI/CD guide and README updated with `init` command usage
 - **`--recommend` flag for `env-doctor model`**: Suggests cloud GPU instances (AWS, GCP, Azure) sorted by cost when a model doesn't fit locally
 - **`--vram` flag**: Direct VRAM-based cloud instance lookup without specifying a model name (`env-doctor model --vram 80000 --recommend`)
-- **`cloud_instances.json`**: Static data file covering 17 GPU instances across AWS, GCP, and Azure
+- **`cloud_instances.json`**: Static data file covering 17 GPU instances across AWS, GCP, and Azure with pricing and VRAM specs
 - **Cloud recommendations via MCP**: `model_check` tool accepts `recommend` boolean to include cloud instance suggestions in results
 
 ## [0.2.8] - 2026-03-18
@@ -219,6 +245,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic CUDA toolkit detection
 - Library installation commands
 
+[0.3.0]: https://github.com/mitulgarg/env-doctor/compare/v0.2.9...v0.3.0
+[0.2.9]: https://github.com/mitulgarg/env-doctor/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/mitulgarg/env-doctor/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/mitulgarg/env-doctor/compare/v0.2.6...v0.2.7
 [0.2.4]: https://github.com/mitulgarg/env-doctor/compare/v0.2.3...v0.2.4

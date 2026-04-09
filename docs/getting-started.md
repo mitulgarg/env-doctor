@@ -10,21 +10,31 @@ This guide will help you install Env-Doctor and run your first environment check
 
 ## Installation
 
+### Core CLI
+
 ```bash
 pip install env-doctor
 ```
 
-**Or with [uv](https://docs.astral.sh/uv/)** (a faster Python package manager):
+**Or with [uv](https://docs.astral.sh/uv/):**
 
 ```bash
-# Install as an isolated tool (won't touch your project env)
-uv tool install env-doctor
-
-# Or run once without installing
-uvx env-doctor check
+uv tool install env-doctor   # isolated tool install
+uvx env-doctor check         # run once without installing
 ```
 
-Both methods install the same package from PyPI.
+### With Fleet Dashboard *(optional)*
+
+If you want to run the web dashboard to monitor multiple machines, install the `dashboard` extra:
+
+```bash
+pip install env-doctor[dashboard]
+```
+
+This adds FastAPI, uvicorn, SQLAlchemy, and aiosqlite. The core CLI commands are identical either way — the extra only enables `env-doctor dashboard` and `env-doctor report`.
+
+!!! note
+    The dashboard is an observability tool for teams with multiple GPU machines. If you're working on a single machine, the core install is all you need.
 
 ## Your First Check
 
@@ -118,9 +128,12 @@ env-doctor dockerfile path/to/Dockerfile
 | `env-doctor docker-compose` | Validate docker-compose.yml |
 | `env-doctor scan` | Scan for deprecated imports |
 | `env-doctor debug` | Verbose detector output |
+| `env-doctor dashboard` | Start fleet web UI *(requires `[dashboard]` extra)* |
+| `env-doctor report install` | Set up periodic reporting to a dashboard *(requires `[dashboard]` extra)* |
 
 ## Next Steps
 
 - [Command Reference](commands/check.md) - Detailed documentation for each command
 - [WSL2 Guide](guides/wsl2.md) - GPU setup for Windows Subsystem for Linux
 - [CI/CD Integration](guides/ci-cd.md) - Use Env-Doctor in your pipelines
+- [Fleet Monitoring](guides/fleet-monitoring.md) - Monitor multiple GPU machines from a web UI

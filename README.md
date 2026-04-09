@@ -60,24 +60,42 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 | **Container Validation** | Catch GPU config errors in Dockerfiles before you build |
 | **MCP Server** | Expose diagnostics to AI assistants (Claude Desktop, Zed) via Model Context Protocol |
 | **CI/CD Ready** | JSON output, proper exit codes, and CI-aware env-var persistence (GitHub Actions, GitLab CI, CircleCI, Azure Pipelines, Jenkins) |
+| **Fleet Dashboard** *(optional)* | Web UI for monitoring multiple GPU machines — aggregate status, drill-down diagnostics, history timeline. Install with `pip install env-doctor[dashboard]` |
 
 ## Installation
+
+### Core CLI
+
+The core CLI has no heavy dependencies — installs in seconds.
 
 ```bash
 pip install env-doctor
 ```
 
-**Or with [uv](https://docs.astral.sh/uv/)** (a faster Python package manager):
-
 ```bash
-# Install as an isolated tool (won't touch your project env)
+# Or with uv (faster, isolated)
 uv tool install env-doctor
-
-# Or run once without installing
 uvx env-doctor check
 ```
 
-Both methods install the same package from PyPI — pick whichever you prefer.
+### With Fleet Dashboard
+
+If you want to manage a distributed system of multiple GPU nodes, this dashboard can help you from a observability POV. It adds a web UI for monitoring multiple GPU machines and has no effect on the core CLI.  You will be able  to soon take action directly from the dashboard via distributed env-doctor cli instances on each VM!
+
+```bash
+pip install env-doctor[dashboard]
+```
+
+This adds: `fastapi`, `uvicorn`, `sqlalchemy`, `aiosqlite`
+
+| | `pip install env-doctor` | `pip install env-doctor[dashboard]` |
+|---|---|---|
+| `env-doctor check` | ✅ | ✅ |
+| All CLI commands | ✅ | ✅ |
+| MCP server | ✅ | ✅ |
+| `env-doctor check --report-to` | ✅ | ✅ |
+| `env-doctor report install/status` | ✅ | ✅ |
+| `env-doctor dashboard` (web UI) | ✗ | ✅ |
 
 ## MCP Server (AI Assistant Integration)
 
@@ -134,6 +152,115 @@ Ask your AI assistant:
 - "Show me detailed CUDA toolkit information"
 
 **Learn more:** [MCP Integration Guide](docs/guides/mcp-integration.md)
+
+---
+
+## Fleet Dashboard *(optional)*
+
+> The core CLI works standalone. The dashboard is an observability layer for teams running multiple GPU machines.
+
+`pip install env-doctor[dashboard]` unlocks a web UI that aggregates diagnostic results from every machine in your fleet into a single view — no SSH required.
+
+### How It Works
+
+There are two roles — the **dashboard host** (receives and displays reports) and the **GPU machines** (run checks and send results). They communicate over a simple REST API.
+
+```
+  Dashboard Host                                GPU Machine 1
+  ┌─────────────────────-┐                 ┌───────────────────────────────┐
+  │ env-doctor dashboard │ ◄──── POST ──── │ env-doctor check --report-to  │
+  │ (React UI + SQLite)  │    /api/report  │ (runs locally, POSTs result)  │
+  └─────────────────────-┘                 └───────────────────────────────┘
+         ▲                                     GPU Machine 2
+         │                               ┌───────────────────────────────┐
+         └──────────── POST ─────────────│ env-doctor check --report-to  │
+                       /api/report       └───────────────────────────────┘
+```
+
+**Step 1 — Start the dashboard** on any machine with a reachable IP (a cheap CPU instance is enough, no GPU needed):
+
+```bash
+pip install env-doctor[dashboard]
+env-doctor dashboard
+# → Serving at http://0.0.0.0:8765
+```
+
+**Step 2 — Report from each GPU machine** (only needs the core CLI, not the `[dashboard]` extra):
+
+```bash
+pip install env-doctor
+
+# One-time report
+env-doctor check --report-to http://<dashboard-host>:8765
+
+# Or: set up automatic reporting every 2 minutes
+env-doctor report install --url http://<dashboard-host>:8765 --interval 2m
+```
+
+`report install` creates a scheduled task on the GPU machine — a **cron job** on Linux/macOS or a **Windows Task Scheduler** entry on Windows. That task runs `env-doctor check --report-to <url>` on the configured interval.
+
+### Smart Change Detection
+
+The scheduled task fires every 2 minutes, but it does **not** POST every 2 minutes. Each run:
+
+1. Runs `env-doctor check` locally on the GPU machine
+2. Hashes the result (status, checks — excluding timestamps)
+3. Compares to the last sent hash stored in `~/.env-doctor/report-state.json`
+
+| Condition | Action |
+|-----------|--------|
+| Hash changed (driver updated, library installed, new issue) | POST full report immediately |
+| Hash unchanged, 30 min since last POST | POST lightweight heartbeat (confirms machine is alive) |
+| Hash unchanged, heartbeat not due | Skip — no network call, sub-second no-op |
+
+On a stable machine, this means **~1 POST every 30 minutes** instead of 720.
+
+### Reporting Commands (run on GPU machines)
+
+These commands run **on each GPU machine**, not on the dashboard host:
+
+| Command | Where | What it does |
+|---------|-------|-------------|
+| `env-doctor dashboard` | Dashboard host | Starts the web UI and API server |
+| `env-doctor check --report-to URL` | GPU machine | Runs check locally, POSTs result to dashboard |
+| `env-doctor report install --url URL` | GPU machine | Creates a cron job / scheduled task on this machine |
+| `env-doctor report status` | GPU machine | Reads this machine's local config and last report time |
+| `env-doctor report uninstall` | GPU machine | Removes the scheduled task from this machine |
+
+`report status` is purely local — it reads `~/.env-doctor/report-state.json` and prints when this machine last reported and whether the scheduler is active. No network call.
+
+### Setting Up on Cloud Instances
+
+```bash
+# AWS / GCP / Azure — on your dashboard VM
+pip install env-doctor[dashboard]
+env-doctor dashboard --host 0.0.0.0 --port 8765
+# Open port 8765 in your security group / firewall rules
+```
+
+```bash
+# On each GPU instance (same VPC) — one command
+pip install env-doctor && env-doctor report install --url http://<vm-private-ip>:8765
+```
+
+For machines behind NAT (different networks), use [Tailscale](https://tailscale.com) for zero-config networking:
+
+```bash
+# Install Tailscale on each machine, then use the Tailscale IP
+env-doctor report install --url http://100.x.x.x:8765
+```
+
+### What the Dashboard Shows
+
+The web UI at `http://<dashboard-host>:8765` displays:
+
+- **Fleet overview** — sortable table of all machines with hostname, status (pass/warning/fail), GPU, driver, CUDA, PyTorch, last seen
+- **Machine detail** — click any row for the full diagnostic breakdown, identical to what `env-doctor check` prints locally
+- **History timeline** — past snapshots per machine to track when issues appeared or were resolved
+
+All data stored in `~/.env-doctor/dashboard.db` (SQLite) on the dashboard host. No external database or cloud dependencies.
+
+**Learn more:** [Fleet Monitoring Guide](docs/guides/fleet-monitoring.md)
 
 ---
 
@@ -463,6 +590,8 @@ env-doctor dockerfile
 | `env-doctor init --github-actions` | Generate GitHub Actions workflow |
 | `env-doctor scan` | Scan for deprecated imports |
 | `env-doctor debug` | Verbose detector output |
+| `env-doctor dashboard` | Start fleet monitoring web UI *(requires `[dashboard]` extra)* |
+| `env-doctor report install` | Set up periodic reporting via cron (Linux) or Task Scheduler (Windows) |
 
 ### CI/CD Integration
 

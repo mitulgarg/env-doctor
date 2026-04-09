@@ -182,8 +182,10 @@ nav:
     - scan: commands/scan.md
     - debug: commands/debug.md
     - init: commands/init.md
+    - dashboard & report: commands/dashboard.md
   - Guides:
     - WSL2 GPU Support: guides/wsl2.md
+    - Fleet Monitoring: guides/fleet-monitoring.md
     - MCP Integration: guides/mcp-integration.md
     - MCP Testing: guides/MCP_TESTING.md
     - CI/CD Integration: guides/ci-cd.md

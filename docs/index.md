@@ -85,6 +85,7 @@ Env-Doctor also checks GPU architecture compatibility, Python version conflicts,
 | **cuDNN Detection** | Finds cuDNN libraries, validates symlinks, checks version compatibility |
 | **MCP Server** | Expose all diagnostics to AI assistants (Claude Code, Claude Desktop, Zed) via Model Context Protocol stdio — no browser needed |
 | **Migration Helper** | Scans code for deprecated imports (LangChain, Pydantic) and suggests fixes |
+| **Fleet Dashboard** *(optional)* | Web UI for monitoring multiple GPU machines — aggregate status, drill-down diagnostics, history timeline. `pip install env-doctor[dashboard]` |
 
 
 
@@ -182,6 +183,14 @@ Use env-doctor as an MCP server and let your AI assistant diagnose GPU environme
     Check if AI models fit on your GPU before downloading
 
     [:octicons-arrow-right-24: Model Checker](commands/model.md)
+
+-   :material-monitor-dashboard:{ .lg .middle } **Fleet Dashboard**
+
+    ---
+
+    Monitor multiple GPU machines from a single web UI *(optional extra)*
+
+    [:octicons-arrow-right-24: Fleet Monitoring Guide](guides/fleet-monitoring.md)
 
 </div>
 

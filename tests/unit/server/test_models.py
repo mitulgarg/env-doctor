@@ -3,6 +3,10 @@ import json
 
 import pytest
 
+# Skip all tests if dashboard dependencies aren't installed
+pytest.importorskip("fastapi")
+pytest.importorskip("sqlalchemy")
+
 from env_doctor.server.routes import ReportPayload, MachineInfo, _extract_fields
 
 

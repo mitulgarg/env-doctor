@@ -1,6 +1,7 @@
 # Fleet Monitoring
 
-> **Requires:** `pip install env-doctor[dashboard]`
+> **Dashboard host:** `pip install env-doctor[dashboard]`
+> **GPU machines:** `pip install env-doctor` (core CLI is enough)
 
 The fleet dashboard is an optional observability layer on top of the core CLI. If you're working on a single machine, you don't need it — `env-doctor check` already gives you everything locally.
 
@@ -10,17 +11,23 @@ If you're managing multiple GPU machines (a training cluster, cloud instances, o
 
 ## How It Works
 
+There are two roles: the **dashboard host** and the **GPU machines**. They communicate over a simple REST API.
+
 ```
-  GPU machine 1          ┐
-  GPU machine 2          ├──  env-doctor check --report-to URL  ──→  dashboard
-  GPU machine N          ┘                                            (web UI + SQLite)
+  Dashboard Host                              GPU Machines
+  ┌──────────────────────────┐
+  │  env-doctor dashboard    │◄─── POST /api/report ───  GPU machine 1  (env-doctor check --report-to)
+  │  (web UI + SQLite)       │◄─── POST /api/report ───  GPU machine 2  (env-doctor check --report-to)
+  │  pip install             │◄─── POST /api/report ───  GPU machine N  (env-doctor check --report-to)
+  │    env-doctor[dashboard] │
+  └──────────────────────────┘                            pip install env-doctor (core only)
 ```
 
-1. A dashboard server runs on one machine with a reachable IP
-2. Each GPU machine reports its diagnostic output to the dashboard
-3. The dashboard stores reports and serves a web UI
+1. The **dashboard host** runs `env-doctor dashboard` — this starts a web server that receives reports and serves the UI. It needs `pip install env-doctor[dashboard]` for the FastAPI/SQLite dependencies. No GPU needed — a cheap CPU instance is enough.
+2. Each **GPU machine** runs `env-doctor check --report-to <url>` — this runs the diagnostic check locally, then POSTs the JSON result to the dashboard's `/api/report` endpoint. GPU machines only need `pip install env-doctor` (the core CLI).
+3. The dashboard stores every report in SQLite and displays them in the web UI.
 
-The core CLI is unchanged — `env-doctor check` still works standalone. `--report-to` is a side-effect that sends a copy of the result to the dashboard.
+The core CLI is unchanged — `env-doctor check` still works standalone. `--report-to` adds a side-effect that sends a copy of the result to the dashboard.
 
 ---
 
@@ -52,7 +59,9 @@ pip install env-doctor
 env-doctor report install --url http://<dashboard-host>:8765 --interval 2m
 ```
 
-That's it. Machines appear in the dashboard immediately after their first report.
+`report install` creates a scheduled task **on the GPU machine** — a cron job on Linux/macOS or a Windows Task Scheduler entry on Windows. That task runs `env-doctor check --report-to <url>` on the configured interval.
+
+Machines appear in the dashboard immediately after their first report.
 
 ---
 
@@ -212,47 +221,70 @@ The detail page shows exactly what `env-doctor check` would print on that machin
 - All issues and recommendations — with **click-to-copy fix commands**
 - Snapshot history timeline
 
-### Smart Reporting
+### Smart Reporting (Change Detection)
 
-The `--report-to` flag only sends a new report when something changes:
+The scheduled task fires every 2 minutes, but it does **not** POST every 2 minutes. Each run:
 
-- Driver updated → sends immediately
-- New library installed → sends immediately
-- Nothing changed → sends a heartbeat every 30 minutes to confirm the machine is alive
-- `--force` → always sends regardless
+1. Runs `env-doctor check` locally on the GPU machine
+2. Hashes the result (status + checks, excluding timestamps)
+3. Compares to the last sent hash stored in `~/.env-doctor/report-state.json`
 
-This keeps network traffic minimal when many machines check in frequently.
+| Condition | Action |
+|-----------|--------|
+| Hash changed (driver updated, library installed, new issue) | POST full report immediately |
+| Hash unchanged, 30 min since last POST | POST lightweight heartbeat (confirms machine is alive) |
+| Hash unchanged, heartbeat not due | Skip — no network call, sub-second no-op |
+| `--force` flag used | Always POST regardless |
+
+On a stable machine with `--interval 2m`, this means **~1 POST every 30 minutes** instead of 720 per day. Only actual state changes trigger immediate reports.
 
 ---
 
 ## Managing Reporting
 
+All `report` commands run **on the GPU machine**, not on the dashboard host. They manage the scheduled task and read local state — no network calls.
+
 ```bash
-# Check status on a machine
+# Check reporting status on this machine
 env-doctor report status
 # → Reporting to http://10.0.1.50:8765 every 2m (heartbeat: 30m)
+# → Scheduler: cron (active)           # or: Windows Task Scheduler (active)
 # → Last report: 3m ago
+# → Last report hash: a1b2c3d4
 
-# Stop reporting
+# Stop reporting and remove the scheduled task
 env-doctor report uninstall
 # → Reporting stopped. Local state cleaned up.
 
-# Override machine identity (useful for shared filesystems)
+# Override machine identity (useful for shared filesystems / NFS home dirs)
 export ENV_DOCTOR_MACHINE_ID=gpu-node-01
 env-doctor check --report-to http://10.0.1.50:8765
 ```
+
+### Platform Support
+
+| Platform | Scheduler used by `report install` |
+|----------|------------------------------------|
+| Linux | cron (`crontab`) |
+| macOS | cron (`crontab`) |
+| Windows | Task Scheduler (`schtasks`) |
 
 ---
 
 ## Data Storage
 
-All data is stored locally on the dashboard host:
+**On the dashboard host:**
 
 | File | Purpose |
 |------|---------|
 | `~/.env-doctor/dashboard.db` | SQLite database (machines + snapshots) |
-| `~/.env-doctor/machine-id` | Per-machine stable UUID |
-| `~/.env-doctor/report-state.json` | Last report hash and heartbeat timestamp |
-| `~/.env-doctor/report-config.json` | Dashboard URL and interval config |
+
+**On each GPU machine:**
+
+| File | Purpose |
+|------|---------|
+| `~/.env-doctor/machine-id` | Stable UUID identifying this machine |
+| `~/.env-doctor/report-state.json` | Last report hash and heartbeat timestamp (for change detection) |
+| `~/.env-doctor/report-config.json` | Dashboard URL and interval config (set by `report install`) |
 
 No external database, no cloud dependencies.

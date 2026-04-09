@@ -34,11 +34,11 @@ The dashboard stores all machine data in `~/.env-doctor/dashboard.db` (SQLite). 
 
 ## `env-doctor report`
 
-Manage periodic reporting from a GPU machine to a running dashboard instance.
+Manage periodic reporting from a GPU machine to a running dashboard instance. All `report` commands run **on the GPU machine**, not on the dashboard host.
 
 ### `report install`
 
-Set up a cron job to send diagnostic reports automatically.
+Set up a scheduled task to send diagnostic reports automatically. Uses **cron** on Linux/macOS and **Windows Task Scheduler** on Windows.
 
 ```bash
 env-doctor report install --url URL [--interval INTERVAL] [--heartbeat HEARTBEAT]
@@ -47,27 +47,29 @@ env-doctor report install --url URL [--interval INTERVAL] [--heartbeat HEARTBEAT
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--url` | *(required)* | Dashboard URL (e.g., `http://10.0.1.50:8765`) |
-| `--interval` | `2m` | How often to run the check and report |
+| `--interval` | `2m` | How often to run the check (cron interval or Task Scheduler interval) |
 | `--heartbeat` | `30m` | Re-send even if nothing changed, to confirm machine is alive |
 
 **What it does:**
 
 1. Validates the dashboard is reachable
-2. Creates a cron job tagged `# env-doctor-report`
+2. Creates a scheduled task:
+      - **Linux/macOS:** cron job tagged `# env-doctor-report`
+      - **Windows:** Task Scheduler entry named `env-doctor-report`
 3. Saves config to `~/.env-doctor/report-config.json`
 4. Sends the first report immediately
 
 ```bash
 env-doctor report install --url http://10.0.1.50:8765 --interval 2m
-# ✅ Reporting to http://10.0.1.50:8765 every 2m (heartbeat: 30m)
+# ✅ Reporting to http://10.0.1.50:8765 every 2m (heartbeat: 30m) via cron
 # Sending first report...
 ```
 
-**Smart change detection** — the cron job only sends a full report when something actually changes (new driver, new library, new issue). If nothing changes, it sends a lightweight heartbeat at the configured interval to confirm the machine is still alive. This avoids flooding the dashboard when many machines check in frequently.
+**Smart change detection** — the scheduled task fires every 2 minutes, but does **not** POST every 2 minutes. Each run hashes the check result and compares it to the last sent hash in `~/.env-doctor/report-state.json`. If nothing changed and the heartbeat timer hasn't expired, it skips entirely (no network call). Only actual state changes (new driver, new library, new issue) trigger an immediate report. On a stable machine, this means ~1 POST every 30 minutes instead of 720 per day.
 
 ### `report uninstall`
 
-Remove the cron job and clean up local state.
+Remove the scheduled task (cron job or Task Scheduler entry) and clean up local state.
 
 ```bash
 env-doctor report uninstall
@@ -76,11 +78,12 @@ env-doctor report uninstall
 
 ### `report status`
 
-Show the current reporting configuration and last report time.
+Show the current reporting configuration, scheduler status, and last report time. This is purely local — reads `~/.env-doctor/` files on this machine, no network call.
 
 ```bash
 env-doctor report status
 # Reporting to http://10.0.1.50:8765 every 2m (heartbeat: 30m)
+# Scheduler: cron (active)
 # Last report: 3m ago
 # Last report hash: a1b2c3d4
 ```

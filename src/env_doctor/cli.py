@@ -2345,15 +2345,124 @@ def _parse_interval_seconds(value: str) -> int:
 
 
 _CRON_TAG = "# env-doctor-report"
+_TASK_NAME = "env-doctor-report"
 
+
+def _find_env_doctor_bin() -> str:
+    """Return the path to the env-doctor binary, falling back to module invocation."""
+    import shutil
+    bin_path = shutil.which("env-doctor")
+    if bin_path:
+        return bin_path
+    return f'"{sys.executable}" -m env_doctor.cli'
+
+
+# ---------------------------------------------------------------------------
+# Linux/macOS: cron
+# ---------------------------------------------------------------------------
+
+def _cron_install(env_doctor_bin: str, url: str, interval_min: int) -> None:
+    import subprocess
+    cron_schedule = f"*/{interval_min} * * * *" if interval_min < 60 else f"0 */{interval_min // 60} * * *"
+    cron_cmd = f"{cron_schedule} {env_doctor_bin} check --report-to {url} {_CRON_TAG}"
+
+    try:
+        result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
+        existing = result.stdout if result.returncode == 0 else ""
+    except FileNotFoundError:
+        print("Error: crontab not found. Install cron (e.g. apt install cron) or use systemd.")
+        sys.exit(1)
+
+    lines = [l for l in existing.splitlines() if _CRON_TAG not in l]
+    lines.append(cron_cmd)
+    proc = subprocess.run(["crontab", "-"], input="\n".join(lines) + "\n",
+                          capture_output=True, text=True)
+    if proc.returncode != 0:
+        print(f"Error installing cron job: {proc.stderr}")
+        sys.exit(1)
+
+
+def _cron_uninstall() -> None:
+    import subprocess
+    try:
+        result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
+        existing = result.stdout if result.returncode == 0 else ""
+    except FileNotFoundError:
+        return  # nothing to do
+
+    lines = [l for l in existing.splitlines() if _CRON_TAG not in l]
+    if lines:
+        subprocess.run(["crontab", "-"], input="\n".join(lines) + "\n",
+                       capture_output=True, text=True)
+    else:
+        subprocess.run(["crontab", "-r"], capture_output=True, text=True)
+
+
+def _cron_is_installed() -> bool:
+    import subprocess
+    try:
+        result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
+        return _CRON_TAG in result.stdout
+    except FileNotFoundError:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Windows: Task Scheduler (schtasks)
+# ---------------------------------------------------------------------------
+
+def _schtasks_install(env_doctor_bin: str, url: str, interval_min: int) -> None:
+    import subprocess
+    # Delete existing task silently (ignore errors if not present)
+    subprocess.run(
+        ["schtasks", "/delete", "/tn", _TASK_NAME, "/f"],
+        capture_output=True,
+    )
+    cmd = f'{env_doctor_bin} check --report-to {url}'
+    result = subprocess.run(
+        [
+            "schtasks", "/create",
+            "/tn", _TASK_NAME,
+            "/tr", cmd,
+            "/sc", "MINUTE",
+            "/mo", str(interval_min),
+            "/rl", "HIGHEST",  # run with highest available privileges
+            "/f",              # force overwrite if exists
+        ],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print(f"Error creating scheduled task: {result.stderr or result.stdout}")
+        print("Try running this command in an elevated (Administrator) terminal.")
+        sys.exit(1)
+
+
+def _schtasks_uninstall() -> None:
+    import subprocess
+    subprocess.run(
+        ["schtasks", "/delete", "/tn", _TASK_NAME, "/f"],
+        capture_output=True,
+    )
+
+
+def _schtasks_is_installed() -> bool:
+    import subprocess
+    result = subprocess.run(
+        ["schtasks", "/query", "/tn", _TASK_NAME],
+        capture_output=True,
+    )
+    return result.returncode == 0
+
+
+# ---------------------------------------------------------------------------
+# Public commands
+# ---------------------------------------------------------------------------
 
 def report_install_command(url: str, interval: str = "2m", heartbeat: str = "30m"):
-    """Set up periodic reporting via cron."""
-    import shutil
-    import subprocess
+    """Set up periodic reporting via cron (Linux/macOS) or Task Scheduler (Windows)."""
+    import requests as _requests
 
     # Validate dashboard is reachable
-    import requests as _requests
     try:
         resp = _requests.get(f"{url.rstrip('/')}/api/machines", timeout=5)
         resp.raise_for_status()
@@ -2361,49 +2470,30 @@ def report_install_command(url: str, interval: str = "2m", heartbeat: str = "30m
         print(f"⚠️  Cannot reach dashboard at {url}: {e}")
         print("Proceeding with installation anyway (dashboard may start later).")
 
-    # Find env-doctor binary
-    env_doctor_bin = shutil.which("env-doctor")
-    if not env_doctor_bin:
-        env_doctor_bin = f"{sys.executable} -m env_doctor.cli"
-
+    env_doctor_bin = _find_env_doctor_bin()
     interval_min = _parse_interval(interval)
-    cron_schedule = f"*/{interval_min} * * * *" if interval_min < 60 else f"0 */{interval_min // 60} * * *"
-    cron_cmd = f"{cron_schedule} {env_doctor_bin} check --report-to {url} {_CRON_TAG}"
 
-    # Remove old entry, add new one
-    try:
-        result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
-        existing = result.stdout if result.returncode == 0 else ""
-    except FileNotFoundError:
-        print("Error: crontab not found. Cron-based reporting requires crontab.")
-        sys.exit(1)
-
-    # Filter out old env-doctor entries
-    lines = [l for l in existing.splitlines() if _CRON_TAG not in l]
-    lines.append(cron_cmd)
-    new_crontab = "\n".join(lines) + "\n"
-
-    proc = subprocess.run(["crontab", "-"], input=new_crontab, capture_output=True, text=True)
-    if proc.returncode != 0:
-        print(f"Error installing cron job: {proc.stderr}")
-        sys.exit(1)
+    if sys.platform == "win32":
+        _schtasks_install(env_doctor_bin, url, interval_min)
+        scheduler = "Windows Task Scheduler"
+    else:
+        _cron_install(env_doctor_bin, url, interval_min)
+        scheduler = "cron"
 
     # Save config
     from .identity import save_report_config
     save_report_config(url=url, interval=interval, heartbeat=heartbeat)
 
-    # Run first report immediately (JSON mode so we don't clutter with human output)
-    print(f"✅ Reporting to {url} every {interval} (heartbeat: {heartbeat})")
+    print(f"✅ Reporting to {url} every {interval} (heartbeat: {heartbeat}) via {scheduler}")
     print("Sending first report...")
     try:
-        # Capture JSON output to suppress it, we only care about the side-effect
         import io
         old_stdout = sys.stdout
         sys.stdout = io.StringIO()
         try:
             check_command(output_json=True, report_to=url, force_report=True)
         except SystemExit:
-            pass  # check_command calls sys.exit() in JSON mode
+            pass
         finally:
             sys.stdout = old_stdout
         print("First report sent successfully.")
@@ -2412,23 +2502,11 @@ def report_install_command(url: str, interval: str = "2m", heartbeat: str = "30m
 
 
 def report_uninstall_command():
-    """Remove periodic reporting cron job."""
-    import subprocess
-
-    try:
-        result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
-        existing = result.stdout if result.returncode == 0 else ""
-    except FileNotFoundError:
-        print("Error: crontab not found.")
-        sys.exit(1)
-
-    lines = [l for l in existing.splitlines() if _CRON_TAG not in l]
-    new_crontab = "\n".join(lines) + "\n" if lines else ""
-
-    if new_crontab.strip():
-        subprocess.run(["crontab", "-"], input=new_crontab, capture_output=True, text=True)
+    """Remove periodic reporting (cron on Linux/macOS, Task Scheduler on Windows)."""
+    if sys.platform == "win32":
+        _schtasks_uninstall()
     else:
-        subprocess.run(["crontab", "-r"], capture_output=True, text=True)
+        _cron_uninstall()
 
     from .identity import remove_report_config
     remove_report_config()
@@ -2452,6 +2530,14 @@ def report_status_command():
     heartbeat = config.get("heartbeat", "?")
 
     print(f"Reporting to {url} every {interval} (heartbeat: {heartbeat})")
+
+    # Show whether the scheduler task is actually active
+    if sys.platform == "win32":
+        active = _schtasks_is_installed()
+        print(f"Scheduler: Windows Task Scheduler ({'active' if active else 'NOT FOUND — re-run report install'})")
+    else:
+        active = _cron_is_installed()
+        print(f"Scheduler: cron ({'active' if active else 'NOT FOUND — re-run report install'})")
 
     last_reported = state.get("last_reported")
     if last_reported:

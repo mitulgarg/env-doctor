@@ -2308,15 +2308,28 @@ def dashboard_command(host: str = "0.0.0.0", port: int = 8765):
     """Start the web dashboard server."""
     try:
         import uvicorn
+        from .server.app import app
     except ImportError:
         print("Dashboard dependencies not installed.")
-        print("Install them with:  pip install env-doctor[dashboard]")
+        print('Run:  pip install "env-doctor[dashboard]"')
         sys.exit(1)
 
-    from .server.app import app
-
-    print(f"Starting env-doctor dashboard at http://{host}:{port}")
-    print("Press Ctrl+C to stop.")
+    print(flush=True)
+    if host == "0.0.0.0":
+        print(f"  Dashboard (local):   http://localhost:{port}", flush=True)
+        try:
+            import socket
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            network_ip = s.getsockname()[0]
+            s.close()
+            print(f"  Dashboard (network): http://{network_ip}:{port}", flush=True)
+        except Exception:
+            pass
+    else:
+        print(f"  Dashboard: http://{host}:{port}", flush=True)
+    print(f"  Press Ctrl+C to stop.", flush=True)
+    print(flush=True)
     uvicorn.run(app, host=host, port=port, log_level="info")
 
 

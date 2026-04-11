@@ -60,7 +60,7 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 | **Container Validation** | Catch GPU config errors in Dockerfiles before you build |
 | **MCP Server** | Expose diagnostics to AI assistants (Claude Desktop, Zed) via Model Context Protocol |
 | **CI/CD Ready** | JSON output, proper exit codes, and CI-aware env-var persistence (GitHub Actions, GitLab CI, CircleCI, Azure Pipelines, Jenkins) |
-| **Fleet Dashboard** *(optional)* | Web UI for monitoring multiple GPU machines — aggregate status, drill-down diagnostics, history timeline. Install with `pip install env-doctor[dashboard]` |
+| **Fleet Dashboard** *(optional)* | Web UI for monitoring multiple GPU machines — aggregate status, drill-down diagnostics, history timeline. Install with `pip install "env-doctor[dashboard]"` |
 
 ## Installation
 
@@ -83,12 +83,12 @@ uvx env-doctor check
 If you want to manage a distributed system of multiple GPU nodes, this dashboard can help you from a observability POV. It adds a web UI for monitoring multiple GPU machines and has no effect on the core CLI.  You will be able  to soon take action directly from the dashboard via distributed env-doctor cli instances on each VM!
 
 ```bash
-pip install env-doctor[dashboard]
+pip install "env-doctor[dashboard]"
 ```
 
 This adds: `fastapi`, `uvicorn`, `sqlalchemy`, `aiosqlite`
 
-| | `pip install env-doctor` | `pip install env-doctor[dashboard]` |
+| | `pip install env-doctor` | `pip install "env-doctor[dashboard]"` |
 |---|---|---|
 | `env-doctor check` | ✅ | ✅ |
 | All CLI commands | ✅ | ✅ |
@@ -96,6 +96,7 @@ This adds: `fastapi`, `uvicorn`, `sqlalchemy`, `aiosqlite`
 | `env-doctor check --report-to` | ✅ | ✅ |
 | `env-doctor report install/status` | ✅ | ✅ |
 | `env-doctor dashboard` (web UI) | ✗ | ✅ |
+
 
 ## MCP Server (AI Assistant Integration)
 
@@ -159,7 +160,7 @@ Ask your AI assistant:
 
 > The core CLI works standalone. The dashboard is an observability layer for teams running multiple GPU machines.
 
-`pip install env-doctor[dashboard]` unlocks a web UI that aggregates diagnostic results from every machine in your fleet into a single view — no SSH required.
+`pip install "env-doctor[dashboard]"` unlocks a web UI that aggregates diagnostic results from every machine in your fleet into a single view — no SSH required.
 
 ### How It Works
 
@@ -180,9 +181,9 @@ There are two roles — the **dashboard host** (receives and displays reports) a
 **Step 1 — Start the dashboard** on any machine with a reachable IP (a cheap CPU instance is enough, no GPU needed):
 
 ```bash
-pip install env-doctor[dashboard]
+pip install "env-doctor[dashboard]"
 env-doctor dashboard
-# → Serving at http://0.0.0.0:8765
+# → Serving at http://localhost:8765
 ```
 
 **Step 2 — Report from each GPU machine** (only needs the core CLI, not the `[dashboard]` extra):
@@ -233,7 +234,7 @@ These commands run **on each GPU machine**, not on the dashboard host:
 
 ```bash
 # AWS / GCP / Azure — on your dashboard VM
-pip install env-doctor[dashboard]
+pip install "env-doctor[dashboard]"
 env-doctor dashboard --host 0.0.0.0 --port 8765
 # Open port 8765 in your security group / firewall rules
 ```
@@ -631,6 +632,14 @@ env-doctor check --ci
 - [Architecture](docs/architecture.md)
 
 **Video Tutorial:** [Watch Demo on YouTube](https://youtu.be/mGAwxGuLpxk?si=Buf9yzNTSJmoirMU)
+
+## Platform Support
+
+Env-Doctor is built for **Linux** and **Windows** — the platforms where NVIDIA GPUs and CUDA are available. All GPU diagnostics (driver, CUDA, cuDNN, library compatibility) target these platforms.
+
+**macOS** is supported for non-GPU features: Fleet Dashboard hosting, model memory checks (`env-doctor model`), Python compatibility, project import scanning, and the MCP server. This makes a Mac a great centralised dashboard host while your Linux/Windows VMs handle the GPU workloads.
+
+> macOS uses zsh, which treats `[]` as a glob pattern. Quote extras when installing: `pip install "env-doctor[dashboard]"`
 
 ## Contributing
 

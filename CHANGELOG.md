@@ -5,6 +5,52 @@ All notable changes to env-doctor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-04-15
+
+### Added
+- **Topology View**: Force-directed node graph (Obsidian-style) showing the dashboard hub and all GPU machines
+  - GPU-card-shaped canvas nodes sized by tier (budget/mid/high/datacenter) with heatsink fins and status glow
+  - env-doctor stethoscope logo on the hub node (black circle, blue glow border)
+  - Click hub for info modal explaining the pull-based architecture
+  - Click any GPU node to zoom in with left (hardware) and right (diagnostics) detail panels
+  - Draggable hub — other nodes follow via spring forces
+  - Draggable machine nodes with force-directed layout (repulsion + spring attraction)
+  - Camera system with lerp-based smooth zoom/pan
+
+- **Remote Remediation Loop**: Queue `env-doctor` CLI commands from the dashboard, executed on GPU machines
+  - `POST /api/machines/{id}/commands` — queue a command (only `env-doctor`/`doctor` prefixed commands accepted)
+  - `POST /api/machines/{id}/commands/{cmd_id}/result` — machine posts execution output
+  - `GET /api/machines/{id}/commands` — list recent commands with status and output
+  - Pull-based execution: commands returned in `POST /api/report` response as `pending_commands[]`
+  - CLI executes pending commands, posts results back, then re-runs check to verify fix
+  - Terminal output: command execution now prints output, exit code, and status to stderr
+  - Automatic re-check after remediation to verify fixes
+  - `Command` ORM model with `pending|running|done|failed` lifecycle
+
+- **Fleet Overview Redesign**: Full rewrite with operations focus
+  - Canvas-drawn pie chart showing fleet health (pass/warning/fail)
+  - SVG health gauge (270° arc) per machine, scored by issue count
+  - `CommandBlock` component: "Run on Machine" button → queue → poll → show terminal output
+  - Expandable table rows with per-machine diagnostics and recommended actions
+  - Filter by status (issues only, warning, failed, healthy)
+  - Smart command recommendations: `env-doctor install <lib> --execute` for broken libraries, `env-doctor check --json` for re-diagnosis
+
+- **`--execute` flag on `env-doctor install`**: Runs the generated pip install command directly via subprocess
+- **Consistent dark theme** across all pages (topology, fleet, machine detail)
+- **Sidebar**: env-doctor logo, topology + fleet nav, status dots, GitHub Issues feedback link
+
+### Fixed
+- **Library status logic**: Missing libraries (`not_found`) no longer inflate issue count or trigger warnings when at least one library is installed. Only broken libraries (`error`/`warning`) affect overall status.
+- **`install_command` fallback**: Libraries without a CUDA-specific mapping in `compatibility.json` (e.g. jax) now fall back to `pip install <lib>` instead of crashing on `"Unknown"`
+- **`_run_install_command` no longer calls `sys.exit()`**: Previously killed the process mid-loop before pending command results could be posted back
+- **Windows encoding**: Remote command execution uses `encoding="utf-8", errors="replace"` instead of system default `cp1252`
+- **Heartbeat always checks for pending commands**: Even when no diagnostic changes are detected, the CLI now sends a heartbeat to pick up queued commands (no more `--force` required)
+- **Crash resilience**: If a remote command fails mid-execution, the result (with error output) is still posted back to the server instead of leaving the command stuck as "running"
+
+### Changed
+- Bumped version to 0.3.1
+- README updated with topology view, remote remediation section (ASCII flow diagram), and pull-based architecture explanation
+
 ## [0.3.0] - 2026-04-09
 
 ### Added
@@ -245,6 +291,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic CUDA toolkit detection
 - Library installation commands
 
+[0.3.1]: https://github.com/mitulgarg/env-doctor/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/mitulgarg/env-doctor/compare/v0.2.9...v0.3.0
 [0.2.9]: https://github.com/mitulgarg/env-doctor/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/mitulgarg/env-doctor/compare/v0.2.7...v0.2.8

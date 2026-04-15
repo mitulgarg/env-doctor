@@ -19,20 +19,21 @@ export default function CopyCommand({ command }: { command: string }) {
         display: "flex",
         alignItems: "center",
         gap: 8,
-        background: "#212529",
-        color: "#adb5bd",
+        background: "#161b22",
+        color: "#e6edf3",
         padding: "6px 12px",
         borderRadius: 6,
         fontFamily: "monospace",
         fontSize: 13,
         cursor: "pointer",
         marginBottom: 4,
+        border: "1px solid rgba(255,255,255,0.08)",
       }}
       onClick={handleCopy}
       title="Click to copy"
     >
       <code style={{ flex: 1 }}>{command}</code>
-      <span style={{ fontSize: 11, color: copied ? "#51cf66" : "#868e96" }}>
+      <span style={{ fontSize: 11, color: copied ? "#51cf66" : "rgba(255,255,255,0.4)" }}>
         {copied ? "Copied!" : "Copy"}
       </span>
     </div>

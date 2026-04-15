@@ -297,11 +297,19 @@ def determine_overall_status(results: Dict[str, Any]) -> str:
             continue
 
         if isinstance(result, dict):
-            # Handle libraries dict
-            for lib_result in result.values():
+            # Handle libraries dict — NOT_FOUND is only a warning if no
+            # libraries are installed at all.  If at least one is present,
+            # missing ones are simply optional and should not affect status.
+            lib_results = list(result.values())
+            any_installed = any(
+                r.status not in [Status.NOT_FOUND] for r in lib_results
+            )
+            for lib_result in lib_results:
                 if lib_result.status == Status.ERROR:
                     has_errors = True
-                elif lib_result.status in [Status.WARNING, Status.NOT_FOUND]:
+                elif lib_result.status == Status.WARNING:
+                    has_warnings = True
+                elif lib_result.status == Status.NOT_FOUND and not any_installed:
                     has_warnings = True
         else:
             # Handle single result
@@ -335,8 +343,15 @@ def count_issues(results: Dict[str, Any]) -> int:
             continue
 
         if isinstance(result, dict):
-            # Handle libraries dict
-            for lib_result in result.values():
+            # Handle libraries dict — skip NOT_FOUND issues when at least
+            # one library is installed (they're optional, not problems)
+            lib_results = list(result.values())
+            any_installed = any(
+                r.status not in [Status.NOT_FOUND] for r in lib_results
+            )
+            for lib_result in lib_results:
+                if lib_result.status == Status.NOT_FOUND and any_installed:
+                    continue
                 count += len(lib_result.issues)
         else:
             # Handle single result
@@ -523,11 +538,14 @@ def check_command(output_json: bool = False, ci: bool = False,
         from .identity import should_report, mark_reported, _hash_report, _load_report_state
         import requests as _requests
 
-        do_send = force_report or should_report(output)
+        has_changes = should_report(output)
+        do_send = force_report or has_changes
 
         if not do_send:
-            print("No changes detected, skipping report (use --force to override).", file=sys.stderr)
-        else:
+            # Always send at least a heartbeat so we can pick up pending commands
+            print("No changes detected, checking for pending commands.", file=sys.stderr)
+            do_send = True
+        if do_send:
             # Determine if this is a heartbeat (hash unchanged, only sending because timeout expired)
             is_heartbeat = False
             if not force_report:
@@ -545,6 +563,59 @@ def check_command(output_json: bool = False, ci: bool = False,
                 if not (ci or output_json):
                     kind = "heartbeat" if is_heartbeat else "report"
                     print(f"✅ Sent {kind} to {url} (HTTP {resp.status_code})", file=sys.stderr)
+
+                # Execute any pending remediation commands queued by the dashboard
+                resp_data = resp.json()
+                pending_cmds = resp_data.get("pending_commands", [])
+                if pending_cmds:
+                    print(f"📋 Dashboard queued {len(pending_cmds)} command(s) to run:", file=sys.stderr)
+                for cmd_info in pending_cmds:
+                    cmd_id = cmd_info["id"]
+                    cmd_str = cmd_info["command"]
+                    print(f"\n   ▶ Running: {cmd_str}", file=sys.stderr)
+                    print(f"   {'─' * 50}", file=sys.stderr)
+                    import subprocess as _sp
+                    combined_output = ""
+                    exit_code = 1
+                    try:
+                        proc = _sp.run(
+                            cmd_str.split(),
+                            capture_output=True,
+                            timeout=300,
+                            encoding="utf-8",
+                            errors="replace",
+                        )
+                        combined_output = (proc.stdout or "") + (proc.stderr or "")
+                        exit_code = proc.returncode
+                    except _sp.TimeoutExpired:
+                        combined_output = "Command timed out after 300s"
+                        exit_code = 124
+                    except Exception as run_err:
+                        combined_output = f"Failed to execute: {run_err}"
+                        exit_code = 1
+                    # Show output in terminal so the operator can see what happened
+                    if combined_output.strip():
+                        for line in combined_output.strip().splitlines():
+                            print(f"   {line}", file=sys.stderr)
+                        print(f"   {'─' * 50}", file=sys.stderr)
+                    if exit_code == 0:
+                        print(f"   ✅ Done (exit code 0)", file=sys.stderr)
+                    else:
+                        print(f"   ❌ Failed (exit code {exit_code})", file=sys.stderr)
+                    try:
+                        _requests.post(
+                            f"{url}/api/machines/{output['machine']['machine_id']}/commands/{cmd_id}/result",
+                            json={"output": combined_output, "exit_code": exit_code},
+                            timeout=10,
+                        )
+                    except Exception as post_err:
+                        print(f"   ⚠️  Could not post command result: {post_err}", file=sys.stderr)
+
+                # Re-run check to verify fixes
+                if pending_cmds:
+                    print("🔄 Re-checking environment after remediation...", file=sys.stderr)
+                    check_command(output_json=False, ci=False, report_to=report_to, force_report=True)
+
             except Exception as e:
                 print(f"⚠️  Failed to report to dashboard: {e}", file=sys.stderr)
 
@@ -701,13 +772,15 @@ def python_compat_command(output_json: bool = False):
         print("\n" + "=" * 60)
 
 
-def install_command(package_name):
+def install_command(package_name, execute: bool = False):
     """
     Provide installation prescription for a package.
 
     Uses NvidiaDriverDetector to determine compatible CUDA version.
     For compilation packages (flash-attn, auto-gptq, apex, xformers),
     provides special two-option guidance.
+
+    If execute=True, runs the generated pip install command directly.
     """
     # Check if this is a compilation package that requires nvcc/PyTorch CUDA matching
     for canonical_name, aliases in COMPILATION_PACKAGES.items():
@@ -720,20 +793,49 @@ def install_command(package_name):
     # Use detector instead of direct function call
     driver_detector = DetectorRegistry.get("nvidia_driver")
     driver_result = driver_detector.detect()
-    
+
     if not driver_result.detected:
         print("⚠️  No NVIDIA Driver found. Assuming CPU-only.")
-        print(f"   pip install {package_name}")
+        cmd = f"pip install {package_name}"
+        print(f"   {cmd}")
+        if execute:
+            _run_install_command(cmd)
         return
 
     max_cuda = driver_result.metadata.get("max_cuda_version", "Unknown")
     print(f"Detected Driver: {driver_result.version} (Supports up to CUDA {max_cuda})")
-    
+
     command = get_install_command(package_name, max_cuda)
-    print("\n⬇️   Run this command:")
+    if not command or command == "Unknown":
+        # Fallback: plain pip install when no CUDA-specific mapping exists
+        command = f"pip install {package_name}"
+        print(f"\n⚠️  No CUDA-specific install mapping found for {package_name}.")
+        print(f"    Falling back to: {command}")
+    else:
+        print("\n⬇️   Run this command:")
     print("---------------------------------------------------")
     print(command)
     print("---------------------------------------------------")
+
+    if execute:
+        _run_install_command(command)
+
+
+def _run_install_command(command: str):
+    """Execute a pip install command and stream its output."""
+    if not command or command == "Unknown":
+        print("❌  No known install command for this library/CUDA combination.")
+        return
+    import subprocess as _sp
+    print(f"\n▶  Executing: {command}")
+    print("---------------------------------------------------")
+    result = _sp.run(command.split(), text=True)
+    print("---------------------------------------------------")
+    if result.returncode == 0:
+        print("✅  Installation complete.")
+    else:
+        print(f"❌  Command failed (exit code {result.returncode}).")
+    # Do NOT sys.exit() here — caller may have more work to do (e.g. remote command loop)
 
 
 def compilation_package_install_prescription(canonical_name, package_input):
@@ -2745,6 +2847,11 @@ Examples:
         "library",
         help="Library name (e.g., torch, tensorflow, jax)"
     )
+    install_p.add_argument(
+        "--execute",
+        action="store_true",
+        help="Actually run the generated pip install command (not just print it)",
+    )
 
     # Scan command
     scan_parser = subparsers.add_parser(
@@ -2941,7 +3048,7 @@ Examples:
         else:
             model_p.print_help()
     elif args.command == "install":
-        install_command(args.library)
+        install_command(args.library, execute=getattr(args, "execute", False))
     elif args.command == "scan":
         scan_command(
             output_json=getattr(args, 'json', False)

@@ -16,6 +16,12 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+const card: React.CSSProperties = {
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 8,
+};
+
 export default function MachineDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [machine, setMachine] = useState<MachineDetail | null>(null);
@@ -30,48 +36,52 @@ export default function MachineDetailPage() {
 
   if (error) {
     return (
-      <div style={{ padding: 40, textAlign: "center" }}>
-        <p style={{ color: "#c92a2a" }}>Error: {error}</p>
-        <Link to="/">Back to Fleet Overview</Link>
+      <div style={{ flex: 1, overflow: "auto", padding: 24, textAlign: "center" }}>
+        <p style={{ color: "#f85149" }}>Error: {error}</p>
+        <Link to="/fleet" style={{ color: "#58a6ff" }}>Back to Fleet</Link>
       </div>
     );
   }
 
   if (!machine) {
-    return <div style={{ padding: 40, textAlign: "center", color: "#868e96" }}>Loading...</div>;
+    return <div style={{ flex: 1, overflow: "auto", padding: 24, textAlign: "center", color: "rgba(255,255,255,0.3)" }}>Loading…</div>;
   }
 
   const report = machine.latest_report;
   const checks = report?.checks;
 
+  const thS: React.CSSProperties = {
+    textAlign: "left",
+    padding: "8px 12px",
+    fontSize: 12,
+    fontWeight: 600,
+    color: "rgba(255,255,255,0.35)",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+  };
+  const tdS: React.CSSProperties = {
+    padding: "8px 12px",
+    fontSize: 13,
+    color: "#e6edf3",
+    borderBottom: "1px solid rgba(255,255,255,0.05)",
+  };
+
   return (
-    <div>
+    <div style={{ flex: 1, overflow: "auto", padding: 24 }}>
       {/* Breadcrumb */}
       <div style={{ marginBottom: 16, fontSize: 13 }}>
-        <Link to="/" style={{ color: "#228be6" }}>Fleet Overview</Link>
-        <span style={{ margin: "0 8px", color: "#adb5bd" }}>/</span>
-        <span>{machine.hostname}</span>
+        <Link to="/fleet" style={{ color: "#58a6ff", textDecoration: "none" }}>Fleet</Link>
+        <span style={{ margin: "0 8px", color: "rgba(255,255,255,0.2)" }}>/</span>
+        <span style={{ color: "rgba(255,255,255,0.6)" }}>{machine.hostname}</span>
       </div>
 
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          background: "#fff",
-          padding: 20,
-          borderRadius: 8,
-          border: "1px solid #dee2e6",
-          marginBottom: 20,
-        }}
-      >
+      <div style={{ ...card, padding: 20, marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <h2 style={{ margin: "0 0 4px 0", fontSize: 22 }}>{machine.hostname}</h2>
-          <div style={{ fontSize: 13, color: "#868e96" }}>
+          <h2 style={{ margin: "0 0 4px", fontSize: 22, color: "#e6edf3" }}>{machine.hostname}</h2>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)" }}>
             {machine.platform} | Python {machine.python_version} | ID: {machine.id}
           </div>
-          <div style={{ fontSize: 12, color: "#adb5bd", marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 4 }}>
             Last seen: {timeAgo(machine.last_seen)}
           </div>
         </div>
@@ -88,19 +98,9 @@ export default function MachineDetailPage() {
             { label: "PyTorch", value: machine.torch_version },
             { label: "Issues", value: String(report.summary.issues_count) },
           ].map((item) => (
-            <div
-              key={item.label}
-              style={{
-                flex: 1,
-                background: "#fff",
-                border: "1px solid #dee2e6",
-                borderRadius: 8,
-                padding: 12,
-                textAlign: "center",
-              }}
-            >
-              <div style={{ fontSize: 11, color: "#868e96", textTransform: "uppercase" }}>{item.label}</div>
-              <div style={{ fontSize: 14, fontWeight: 600, marginTop: 4 }}>{item.value ?? "-"}</div>
+            <div key={item.label} style={{ ...card, flex: 1, padding: 12, textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", textTransform: "uppercase" }}>{item.label}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginTop: 4, color: "#e6edf3" }}>{item.value ?? "—"}</div>
             </div>
           ))}
         </div>
@@ -109,33 +109,24 @@ export default function MachineDetailPage() {
       {/* Diagnostic Cards */}
       {checks && (
         <div>
-          <h3 style={{ fontSize: 16, marginBottom: 12 }}>Diagnostics</h3>
+          <h3 style={{ fontSize: 16, marginBottom: 12, color: "rgba(255,255,255,0.6)" }}>Diagnostics</h3>
           <DiagnosticCard title="GPU / Driver" result={checks.driver} />
           <DiagnosticCard title="CUDA Toolkit" result={checks.cuda} />
           <DiagnosticCard title="cuDNN" result={checks.cudnn} />
           <DiagnosticCard title="WSL2" result={checks.wsl2} />
           <DiagnosticCard title="Python Compatibility" result={checks.python_compat} />
-
-          {checks.libraries &&
-            Object.entries(checks.libraries).map(([lib, result]) => (
-              <DiagnosticCard key={lib} title={`Library: ${lib}`} result={result} />
-            ))}
-
+          {checks.libraries && Object.entries(checks.libraries).map(([lib, result]) => (
+            <DiagnosticCard key={lib} title={`Library: ${lib}`} result={result} />
+          ))}
           {checks.compute_compatibility && (
-            <div
-              style={{
-                border: "1px solid #dee2e6",
-                borderRadius: 8,
-                padding: 16,
-                marginBottom: 12,
-                background: "#fff",
-              }}
-            >
-              <h3 style={{ margin: "0 0 8px 0", fontSize: 15 }}>Compute Compatibility</h3>
-              <div style={{ fontSize: 13 }}>
-                <div>GPU: <strong>{checks.compute_compatibility.gpu_name}</strong></div>
-                <div>SM: {checks.compute_compatibility.sm ?? "-"} ({checks.compute_compatibility.arch_name ?? "-"})</div>
-                <div>Status: <StatusBadge status={checks.compute_compatibility.status === "compatible" ? "pass" : "fail"} /></div>
+            <div style={{ ...card, padding: 16, marginBottom: 12 }}>
+              <h3 style={{ margin: "0 0 8px", fontSize: 15, color: "#e6edf3" }}>Compute Compatibility</h3>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>
+                <div>GPU: <strong style={{ color: "#e6edf3" }}>{checks.compute_compatibility.gpu_name}</strong></div>
+                <div>SM: {checks.compute_compatibility.sm ?? "—"} ({checks.compute_compatibility.arch_name ?? "—"})</div>
+                <div style={{ marginTop: 4 }}>
+                  Status: <StatusBadge status={checks.compute_compatibility.status === "compatible" ? "pass" : "fail"} />
+                </div>
               </div>
             </div>
           )}
@@ -145,52 +136,30 @@ export default function MachineDetailPage() {
       {/* History */}
       {history.length > 0 && (
         <div style={{ marginTop: 24 }}>
-          <h3 style={{ fontSize: 16, marginBottom: 12 }}>Report History</h3>
-          <table style={{ width: "100%", borderCollapse: "collapse", background: "#fff", borderRadius: 8 }}>
-            <thead>
-              <tr>
-                {["Time", "Status", "GPU", "Driver", "CUDA", "Heartbeat"].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      textAlign: "left",
-                      padding: "8px 12px",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "#868e96",
-                      borderBottom: "2px solid #dee2e6",
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {history.map((snap) => (
-                <tr key={snap.id}>
-                  <td style={{ padding: "8px 12px", fontSize: 13, borderBottom: "1px solid #f1f3f5" }}>
-                    {new Date(snap.timestamp).toLocaleString()}
-                  </td>
-                  <td style={{ padding: "8px 12px", borderBottom: "1px solid #f1f3f5" }}>
-                    <StatusBadge status={snap.status} />
-                  </td>
-                  <td style={{ padding: "8px 12px", fontSize: 13, borderBottom: "1px solid #f1f3f5" }}>
-                    {snap.gpu_name ?? "-"}
-                  </td>
-                  <td style={{ padding: "8px 12px", fontSize: 13, borderBottom: "1px solid #f1f3f5" }}>
-                    {snap.driver_version ?? "-"}
-                  </td>
-                  <td style={{ padding: "8px 12px", fontSize: 13, borderBottom: "1px solid #f1f3f5" }}>
-                    {snap.cuda_version ?? "-"}
-                  </td>
-                  <td style={{ padding: "8px 12px", fontSize: 13, borderBottom: "1px solid #f1f3f5" }}>
-                    {snap.is_heartbeat ? "Yes" : "No"}
-                  </td>
+          <h3 style={{ fontSize: 16, marginBottom: 12, color: "rgba(255,255,255,0.6)" }}>Report History</h3>
+          <div style={{ ...card, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  {["Time", "Status", "GPU", "Driver", "CUDA", "Heartbeat"].map((h) => (
+                    <th key={h} style={thS}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {history.map((snap) => (
+                  <tr key={snap.id}>
+                    <td style={tdS}>{new Date(snap.timestamp).toLocaleString()}</td>
+                    <td style={tdS}><StatusBadge status={snap.status} /></td>
+                    <td style={tdS}>{snap.gpu_name ?? "—"}</td>
+                    <td style={tdS}>{snap.driver_version ?? "—"}</td>
+                    <td style={tdS}>{snap.cuda_version ?? "—"}</td>
+                    <td style={tdS}>{snap.is_heartbeat ? "Yes" : "No"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

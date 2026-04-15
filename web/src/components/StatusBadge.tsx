@@ -1,12 +1,12 @@
 const colors: Record<string, { bg: string; fg: string }> = {
-  pass: { bg: "#d3f9d8", fg: "#2b8a3e" },
-  warning: { bg: "#fff3bf", fg: "#e67700" },
-  fail: { bg: "#ffe3e3", fg: "#c92a2a" },
+  pass: { bg: "#238636", fg: "#fff" },
+  warning: { bg: "#d29922", fg: "#fff" },
+  fail: { bg: "#da3633", fg: "#fff" },
 };
 
 export default function StatusBadge({ status }: { status: string | null }) {
   const s = status?.toLowerCase() ?? "unknown";
-  const c = colors[s] ?? { bg: "#e9ecef", fg: "#495057" };
+  const c = colors[s] ?? { bg: "rgba(255,255,255,0.12)", fg: "rgba(255,255,255,0.7)" };
   return (
     <span
       style={{

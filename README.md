@@ -255,11 +255,59 @@ env-doctor report install --url http://100.x.x.x:8765
 
 The web UI at `http://<dashboard-host>:8765` displays:
 
-- **Fleet overview** — sortable table of all machines with hostname, status (pass/warning/fail), GPU, driver, CUDA, PyTorch, last seen
-- **Machine detail** — click any row for the full diagnostic breakdown, identical to what `env-doctor check` prints locally
+- **Topology view** — force-directed graph showing the dashboard hub and all GPU machines as nodes, colour-coded by health status, with click-to-zoom detail panels
+- **Fleet overview** — aggregate health pie chart, issues table with expandable per-machine diagnostics, health gauge, and remote command execution
+- **Machine detail** — full diagnostic breakdown identical to what `env-doctor check` prints locally
 - **History timeline** — past snapshots per machine to track when issues appeared or were resolved
 
 All data stored in `~/.env-doctor/dashboard.db` (SQLite) on the dashboard host. No external database or cloud dependencies.
+
+### Remote Remediation
+
+The dashboard can queue `env-doctor` CLI commands to run on remote machines — no SSH required.
+
+```
+  Dashboard                           GPU Machine
+  ┌────────────┐                     ┌──────────────────┐
+  │ Operator    │                     │ Scheduled check  │
+  │ clicks      │                     │ (cron / Task     │
+  │ "▶ Run" on  │                     │  Scheduler)      │
+  │ Fleet page  │                     │                  │
+  └──────┬──────┘                     └────────┬─────────┘
+         │                                     │
+         ▼                                     ▼
+  Queue command                        env-doctor check
+  in database                          --report-to <url>
+  (status: pending)                            │
+         │                                     ▼
+         │                            Server returns pending
+         │                            commands in response
+         │                                     │
+         │                                     ▼
+         │                            CLI executes commands,
+         │                            posts results back
+         │                                     │
+         │                                     ▼
+         │                            CLI re-runs check to
+         └─────────────────────────── verify the fix
+```
+
+**How it works:** GPU machines check in periodically via `env-doctor check --report-to`. On each check-in, the server returns any pending commands in the HTTP response. The CLI executes them, posts the output back, and re-runs diagnostics to verify the fix. This pull-based model means:
+
+- No inbound ports needed on GPU machines (works behind NATs, firewalls, VPNs)
+- No SSH credentials stored on the dashboard
+- Only `env-doctor` commands are accepted (security scoped)
+- Commands typically execute within one check-in interval (default: 5 minutes)
+
+Set up scheduled check-ins on each GPU machine:
+
+```bash
+# Linux / macOS — creates a cron job
+env-doctor report install --url http://<dashboard-host>:8765 --interval 5m
+
+# Windows — creates a Task Scheduler entry
+env-doctor report install --url http://<dashboard-host>:8765 --interval 5m
+```
 
 **Learn more:** [Fleet Monitoring Guide](docs/guides/fleet-monitoring.md)
 

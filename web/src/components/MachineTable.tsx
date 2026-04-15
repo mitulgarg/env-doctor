@@ -21,18 +21,19 @@ const thStyle: React.CSSProperties = {
   padding: "10px 12px",
   fontSize: 12,
   fontWeight: 600,
-  color: "#868e96",
+  color: "rgba(255,255,255,0.4)",
   textTransform: "uppercase",
   letterSpacing: 0.5,
   cursor: "pointer",
   userSelect: "none",
-  borderBottom: "2px solid #dee2e6",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
 };
 
 const tdStyle: React.CSSProperties = {
   padding: "10px 12px",
   fontSize: 13,
-  borderBottom: "1px solid #f1f3f5",
+  borderBottom: "1px solid rgba(255,255,255,0.06)",
+  color: "#e6edf3",
 };
 
 interface Props {
@@ -46,10 +47,7 @@ export default function MachineTable({ machines }: Props) {
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc(!sortAsc);
-    else {
-      setSortKey(key);
-      setSortAsc(false);
-    }
+    else { setSortKey(key); setSortAsc(false); }
   };
 
   const sorted = [...machines].sort((a, b) => {
@@ -70,12 +68,12 @@ export default function MachineTable({ machines }: Props) {
   ];
 
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse", background: "#fff", borderRadius: 8 }}>
+    <table style={{ width: "100%", borderCollapse: "collapse", background: "rgba(255,255,255,0.03)", borderRadius: 8 }}>
       <thead>
         <tr>
           {cols.map((c) => (
             <th key={c.key} style={thStyle} onClick={() => handleSort(c.key)}>
-              {c.label} {sortKey === c.key ? (sortAsc ? "\u25B2" : "\u25BC") : ""}
+              {c.label} {sortKey === c.key ? (sortAsc ? "▲" : "▼") : ""}
             </th>
           ))}
         </tr>
@@ -86,21 +84,21 @@ export default function MachineTable({ machines }: Props) {
             key={m.id}
             onClick={() => navigate(`/machines/${m.id}`)}
             style={{ cursor: "pointer" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#f8f9fa")}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "")}
           >
             <td style={tdStyle}><strong>{m.hostname}</strong></td>
             <td style={tdStyle}><StatusBadge status={m.latest_status} /></td>
-            <td style={tdStyle}>{m.gpu_name ?? "-"}</td>
-            <td style={tdStyle}>{m.driver_version ?? "-"}</td>
-            <td style={tdStyle}>{m.cuda_version ?? "-"}</td>
-            <td style={tdStyle}>{m.torch_version ?? "-"}</td>
+            <td style={tdStyle}>{m.gpu_name ?? "—"}</td>
+            <td style={tdStyle}>{m.driver_version ?? "—"}</td>
+            <td style={tdStyle}>{m.cuda_version ?? "—"}</td>
+            <td style={tdStyle}>{m.torch_version ?? "—"}</td>
             <td style={tdStyle}>{timeAgo(m.last_seen)}</td>
           </tr>
         ))}
         {sorted.length === 0 && (
           <tr>
-            <td colSpan={cols.length} style={{ ...tdStyle, textAlign: "center", color: "#868e96", padding: 40 }}>
+            <td colSpan={cols.length} style={{ ...tdStyle, textAlign: "center", color: "rgba(255,255,255,0.3)", padding: 40 }}>
               No machines reporting yet. Run: <code>env-doctor check --report-to http://this-server:8765</code>
             </td>
           </tr>

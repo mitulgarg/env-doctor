@@ -1,26 +1,84 @@
 import { useEffect, useState } from "react";
-import { getMachines } from "../api";
-import type { MachineListItem } from "../types";
-import MachineTable from "../components/MachineTable";
+import { getMachines, getMachine } from "../api";
+import type { MachineDetail, MachineListItem } from "../types";
 import StatusBadge from "../components/StatusBadge";
+import PieChart from "../components/PieChart";
+import HealthGauge from "../components/HealthGauge";
+import CommandBlock from "../components/CommandBlock";
+import DiagnosticCard from "../components/DiagnosticCard";
 
-const REFRESH_INTERVAL = 30_000; // 30s
+const REFRESH_MS = 30_000;
 
-const filterBtnStyle = (active: boolean): React.CSSProperties => ({
-  padding: "6px 14px",
-  border: "1px solid " + (active ? "#228be6" : "#dee2e6"),
-  borderRadius: 6,
-  background: active ? "#e7f5ff" : "#fff",
-  color: active ? "#1971c2" : "#495057",
-  cursor: "pointer",
+/* ─── Issue → env-doctor command mapping ─── */
+function recommendCommands(_machineId: string, detail: MachineDetail): { label: string; command: string }[] {
+  const report = detail.latest_report;
+  if (!report) return [];
+  const cmds: { label: string; command: string }[] = [];
+  const checks = report.checks;
+
+  const libs = checks.libraries ?? {};
+  for (const [lib, result] of Object.entries(libs)) {
+    if (result.status === "error" || result.status === "warning") {
+      cmds.push({
+        label: `Fix ${lib}`,
+        command: `env-doctor install ${lib} --execute`,
+      });
+    } else if (result.status === "not_found") {
+      cmds.push({
+        label: `Install ${lib}`,
+        command: `env-doctor install ${lib} --execute`,
+      });
+    }
+  }
+
+  if (checks.driver?.status === "error" || checks.driver?.status === "not_found") {
+    cmds.push({ label: "Get driver info", command: "env-doctor cuda-info" });
+  }
+
+  if (checks.cuda?.status === "not_found" || checks.cuda?.status === "error") {
+    cmds.push({ label: "CUDA toolkit info", command: "env-doctor cuda-info" });
+  }
+
+  // Always offer a re-check
+  cmds.push({ label: "Re-run diagnostics", command: `env-doctor check --json` });
+
+  return cmds;
+}
+
+function timeAgo(iso: string | null): string {
+  if (!iso) return "never";
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+const thS: React.CSSProperties = {
+  padding: "10px 14px",
+  textAlign: "left",
+  fontSize: 11,
+  fontWeight: 600,
+  color: "rgba(255,255,255,0.35)",
+  textTransform: "uppercase",
+  letterSpacing: 0.8,
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
+};
+const tdS: React.CSSProperties = {
+  padding: "12px 14px",
   fontSize: 13,
-  fontWeight: active ? 600 : 400,
-});
+  color: "#e6edf3",
+  borderBottom: "1px solid rgba(255,255,255,0.05)",
+};
 
 export default function FleetOverview() {
   const [machines, setMachines] = useState<MachineListItem[]>([]);
   const [filter, setFilter] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [detailCache, setDetailCache] = useState<Map<string, MachineDetail>>(new Map());
 
   const load = () => {
     getMachines(filter ?? undefined)
@@ -31,59 +89,265 @@ export default function FleetOverview() {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, REFRESH_INTERVAL);
+    const id = setInterval(load, REFRESH_MS);
     return () => clearInterval(id);
   }, [filter]);
 
-  const counts = {
-    all: machines.length,
-    pass: machines.filter((m) => m.latest_status === "pass").length,
-    warning: machines.filter((m) => m.latest_status === "warning").length,
-    fail: machines.filter((m) => m.latest_status === "fail").length,
+  const handleRowClick = async (id: string) => {
+    if (expandedId === id) { setExpandedId(null); return; }
+    setExpandedId(id);
+    if (!detailCache.has(id)) {
+      try {
+        const detail = await getMachine(id);
+        setDetailCache(prev => new Map(prev).set(id, detail));
+      } catch {
+        // ignore
+      }
+    }
   };
 
+  const allMachines = machines;
+  const counts = {
+    pass: allMachines.filter(m => m.latest_status === "pass").length,
+    warning: allMachines.filter(m => m.latest_status === "warning").length,
+    fail: allMachines.filter(m => m.latest_status === "fail").length,
+  };
+
+  // Issues-focused: show all that aren't passing (unless a filter is active)
+  const issuesMachines = filter
+    ? machines
+    : machines.filter(m => m.latest_status !== "pass");
+
+  const filterBtnStyle = (active: boolean, color?: string): React.CSSProperties => ({
+    padding: "5px 14px",
+    border: `1px solid ${active ? (color ?? "#58a6ff") : "rgba(255,255,255,0.12)"}`,
+    borderRadius: 20,
+    background: active ? `${color ?? "#58a6ff"}22` : "transparent",
+    color: active ? (color ?? "#58a6ff") : "rgba(255,255,255,0.5)",
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: active ? 600 : 400,
+  });
+
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <h2 style={{ margin: 0, fontSize: 20 }}>Fleet Overview</h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          {([null, "pass", "warning", "fail"] as const).map((f) => {
-            const label = f ?? "all";
-            const count = f ? counts[f] : counts.all;
-            return (
-              <button key={label} style={filterBtnStyle(filter === f)} onClick={() => setFilter(f)}>
-                {label.charAt(0).toUpperCase() + label.slice(1)} ({count})
-              </button>
-            );
-          })}
+    <div style={{ flex: 1, overflow: "auto", padding: 28 }}>
+
+      {/* Header */}
+      <h2 style={{ margin: "0 0 24px", fontSize: 20, fontWeight: 700, color: "#e6edf3" }}>
+        Fleet Health
+      </h2>
+
+      {/* Top section: pie chart + counts */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 32,
+        background: "rgba(255,255,255,0.03)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 12,
+        padding: "20px 28px",
+        marginBottom: 28,
+      }}>
+        <PieChart pass={counts.pass} warning={counts.warning} fail={counts.fail} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {[
+            { label: "Healthy", count: counts.pass, color: "#238636" },
+            { label: "Warning", count: counts.warning, color: "#d29922" },
+            { label: "Failed", count: counts.fail, color: "#da3633" },
+          ].map(item => (
+            <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 10, height: 10, borderRadius: 2, background: item.color, boxShadow: `0 0 6px ${item.color}` }} />
+              <span style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", minWidth: 60 }}>{item.label}</span>
+              <span style={{ fontSize: 20, fontWeight: 700, color: "#e6edf3" }}>{item.count}</span>
+            </div>
+          ))}
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 4 }}>
+            {allMachines.length} total · refreshes every 30s
+          </div>
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-        {(["pass", "warning", "fail"] as const).map((s) => (
-          <div
-            key={s}
-            style={{
-              flex: 1,
-              padding: 16,
-              borderRadius: 8,
-              background: "#fff",
-              border: "1px solid #dee2e6",
-              textAlign: "center",
-            }}
-          >
-            <StatusBadge status={s} />
-            <div style={{ fontSize: 28, fontWeight: 700, marginTop: 8 }}>{counts[s]}</div>
-            <div style={{ fontSize: 12, color: "#868e96" }}>machines</div>
-          </div>
-        ))}
+      {/* Filters */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginRight: 4 }}>Filter:</span>
+        <button style={filterBtnStyle(filter === null)} onClick={() => setFilter(null)}>
+          Issues only
+        </button>
+        <button style={filterBtnStyle(filter === "warning", "#d29922")} onClick={() => setFilter(filter === "warning" ? null : "warning")}>
+          Warning
+        </button>
+        <button style={filterBtnStyle(filter === "fail", "#da3633")} onClick={() => setFilter(filter === "fail" ? null : "fail")}>
+          Failed
+        </button>
+        <button style={filterBtnStyle(filter === "pass", "#238636")} onClick={() => setFilter(filter === "pass" ? null : "pass")}>
+          Healthy
+        </button>
+      </div>
+
+      {/* Issues section title */}
+      <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: 12 }}>
+        {filter ? `Showing: ${filter}` : "Critical Issues"}
       </div>
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: 40, color: "#868e96" }}>Loading...</div>
+        <div style={{ textAlign: "center", padding: 40, color: "rgba(255,255,255,0.3)" }}>Loading…</div>
+      ) : issuesMachines.length === 0 ? (
+        <div style={{
+          textAlign: "center",
+          padding: 48,
+          border: "1px solid rgba(255,255,255,0.06)",
+          borderRadius: 12,
+          background: "rgba(35,134,54,0.05)",
+        }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>✓</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "#238636" }}>All systems healthy</div>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", marginTop: 8 }}>
+            No machines are reporting issues right now.
+          </div>
+        </div>
       ) : (
-        <MachineTable machines={filter ? machines : machines} />
+        <div style={{
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 10,
+          overflow: "hidden",
+        }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                {["Machine", "GPU", "Status", "Issues", "Last Seen"].map(h => (
+                  <th key={h} style={thS}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {issuesMachines.map(m => {
+                const isExpanded = expandedId === m.id;
+                const detail = detailCache.get(m.id);
+                const issueCount = detail?.latest_report?.summary?.issues_count ?? "—";
+                const score = detail ? Math.max(0, 100 - (detail.latest_report?.summary?.issues_count ?? 0) * 15) : 0;
+                const recs = detail ? recommendCommands(m.id, detail) : [];
+
+                return (
+                  <>
+                    <tr
+                      key={m.id}
+                      onClick={() => handleRowClick(m.id)}
+                      style={{ cursor: "pointer", background: isExpanded ? "rgba(255,255,255,0.04)" : undefined }}
+                      onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+                      onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.background = ""; }}
+                    >
+                      <td style={tdS}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{
+                            fontSize: 11,
+                            color: isExpanded ? "#58a6ff" : "rgba(255,255,255,0.3)",
+                            transition: "transform .15s",
+                            display: "inline-block",
+                            transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                          }}>▶</span>
+                          <strong>{m.hostname}</strong>
+                        </div>
+                      </td>
+                      <td style={{ ...tdS, color: "rgba(255,255,255,0.7)" }}>{m.gpu_name ?? "—"}</td>
+                      <td style={tdS}><StatusBadge status={m.latest_status} /></td>
+                      <td style={{ ...tdS, fontWeight: 600, color: m.latest_status === "fail" ? "#da3633" : "#d29922" }}>
+                        {issueCount}
+                      </td>
+                      <td style={{ ...tdS, color: "rgba(255,255,255,0.4)", fontSize: 12 }}>{timeAgo(m.last_seen)}</td>
+                    </tr>
+
+                    {isExpanded && (
+                      <tr key={`${m.id}-expand`}>
+                        <td colSpan={5} style={{ padding: 0, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                          <div style={{
+                            background: "rgba(13,17,23,0.8)",
+                            borderTop: "1px solid rgba(255,255,255,0.06)",
+                            padding: 24,
+                          }}>
+                            {!detail ? (
+                              <div style={{ color: "rgba(255,255,255,0.3)", textAlign: "center", padding: 20 }}>
+                                Loading machine details…
+                              </div>
+                            ) : (
+                              <>
+                                {/* Gauge + Commands row */}
+                                <div style={{ display: "flex", gap: 24, marginBottom: 24, alignItems: "flex-start" }}>
+                                  {/* Left: Gauge */}
+                                  <div style={{
+                                    background: "rgba(255,255,255,0.03)",
+                                    border: "1px solid rgba(255,255,255,0.07)",
+                                    borderRadius: 10,
+                                    padding: "20px 28px",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    gap: 12,
+                                    flexShrink: 0,
+                                  }}>
+                                    <HealthGauge score={score} />
+                                    <div style={{ textAlign: "center" }}>
+                                      <div style={{ fontSize: 14, fontWeight: 700, color: "#e6edf3" }}>{m.hostname}</div>
+                                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>
+                                        {m.gpu_name ?? "No GPU"} · {m.cuda_version ? `CUDA ${m.cuda_version}` : "No CUDA"}
+                                      </div>
+                                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>
+                                        Driver {m.driver_version ?? "—"}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Right: Recommended actions */}
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: 12 }}>
+                                      Recommended Actions
+                                    </div>
+                                    {recs.length === 0 ? (
+                                      <div style={{ fontSize: 13, color: "rgba(255,255,255,0.3)" }}>
+                                        No actionable commands available.
+                                      </div>
+                                    ) : (
+                                      recs.map((rec, i) => (
+                                        <CommandBlock
+                                          key={i}
+                                          machineId={m.id}
+                                          command={rec.command}
+                                          label={rec.label}
+                                        />
+                                      ))
+                                    )}
+                                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 8 }}>
+                                      Commands run on the machine on next check-in via <code>env-doctor check --report-to</code>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Diagnostics */}
+                                {detail.latest_report?.checks && (
+                                  <div>
+                                    <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: 12 }}>
+                                      Diagnostics
+                                    </div>
+                                    <DiagnosticCard title="GPU / Driver" result={detail.latest_report.checks.driver} />
+                                    <DiagnosticCard title="CUDA Toolkit" result={detail.latest_report.checks.cuda} />
+                                    <DiagnosticCard title="cuDNN" result={detail.latest_report.checks.cudnn} />
+                                    <DiagnosticCard title="Python Compat" result={detail.latest_report.checks.python_compat} />
+                                    {Object.entries(detail.latest_report.checks.libraries ?? {}).map(([lib, res]) => (
+                                      <DiagnosticCard key={lib} title={`Library: ${lib}`} result={res} />
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

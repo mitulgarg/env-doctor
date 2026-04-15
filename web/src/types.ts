@@ -65,6 +65,17 @@ export interface ComputeCompat {
   status: string;
 }
 
+export interface CommandRecord {
+  id: number;
+  machine_id: string;
+  command: string;
+  status: string; // pending | running | done | failed
+  output: string | null;
+  exit_code: number | null;
+  created_at: string | null;
+  executed_at: string | null;
+}
+
 export interface SnapshotSummary {
   id: number;
   machine_id: string;

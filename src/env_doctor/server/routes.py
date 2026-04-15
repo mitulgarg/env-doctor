@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .database import get_session
-from .models import Machine, Snapshot
+from .models import Command, Machine, Snapshot
 
 router = APIRouter()
 
@@ -119,9 +119,26 @@ async def receive_report(
     await session.flush()
 
     machine.latest_snapshot_id = snapshot.id
+    await session.flush()
+
+    # Pick up any pending commands for this machine and mark as running
+    cmd_query = (
+        select(Command)
+        .where(Command.machine_id == machine_id, Command.status == "pending")
+        .order_by(Command.created_at)
+    )
+    cmd_result = await session.execute(cmd_query)
+    pending_cmds = cmd_result.scalars().all()
+    for cmd in pending_cmds:
+        cmd.status = "running"
+
     await session.commit()
 
-    return {"ok": True, "snapshot_id": snapshot.id}
+    return {
+        "ok": True,
+        "snapshot_id": snapshot.id,
+        "pending_commands": [c.to_dict() for c in pending_cmds],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -215,3 +232,80 @@ async def get_machine_history(
     snapshots = result.scalars().all()
 
     return [s.to_dict(include_report_json=False) for s in snapshots]
+
+
+# ---------------------------------------------------------------------------
+# Command queue endpoints
+# ---------------------------------------------------------------------------
+
+class QueueCommandRequest(BaseModel):
+    command: str
+
+
+class CommandResultRequest(BaseModel):
+    output: str
+    exit_code: int
+
+
+@router.post("/machines/{machine_id}/commands")
+async def queue_command(
+    machine_id: str,
+    body: QueueCommandRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Queue a remediation command to be executed on the next machine check-in."""
+    machine = await session.get(Machine, machine_id)
+    if not machine:
+        raise HTTPException(status_code=404, detail="Machine not found")
+
+    # Only allow env-doctor commands for safety
+    allowed_prefixes = ("env-doctor ", "doctor ")
+    if not any(body.command.strip().startswith(p) for p in allowed_prefixes):
+        raise HTTPException(status_code=400, detail="Only env-doctor commands may be queued")
+
+    cmd = Command(machine_id=machine_id, command=body.command.strip(), status="pending")
+    session.add(cmd)
+    await session.commit()
+    await session.refresh(cmd)
+    return cmd.to_dict()
+
+
+@router.post("/machines/{machine_id}/commands/{cmd_id}/result")
+async def post_command_result(
+    machine_id: str,
+    cmd_id: int,
+    body: CommandResultRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Receive execution result from a machine after running a queued command."""
+    cmd = await session.get(Command, cmd_id)
+    if not cmd or cmd.machine_id != machine_id:
+        raise HTTPException(status_code=404, detail="Command not found")
+
+    cmd.output = body.output
+    cmd.exit_code = body.exit_code
+    cmd.status = "done" if body.exit_code == 0 else "failed"
+    cmd.executed_at = datetime.now(timezone.utc)
+    await session.commit()
+    return cmd.to_dict()
+
+
+@router.get("/machines/{machine_id}/commands")
+async def list_commands(
+    machine_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    session: AsyncSession = Depends(get_session),
+):
+    """List recent commands for a machine (for dashboard polling)."""
+    machine = await session.get(Machine, machine_id)
+    if not machine:
+        raise HTTPException(status_code=404, detail="Machine not found")
+
+    query = (
+        select(Command)
+        .where(Command.machine_id == machine_id)
+        .order_by(Command.created_at.desc())
+        .limit(limit)
+    )
+    result = await session.execute(query)
+    return [c.to_dict() for c in result.scalars().all()]

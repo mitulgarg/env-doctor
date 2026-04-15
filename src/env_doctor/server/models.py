@@ -7,6 +7,34 @@ from sqlalchemy.orm import relationship
 from .database import Base
 
 
+class Command(Base):
+    """A remediation command queued by the dashboard for execution on a machine."""
+    __tablename__ = "commands"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    machine_id = Column(String(36), ForeignKey("machines.id"), nullable=False)
+    command = Column(String(512), nullable=False)
+    status = Column(String(32), default="pending")  # pending | running | done | failed
+    output = Column(Text, nullable=True)
+    exit_code = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    executed_at = Column(DateTime, nullable=True)
+
+    machine = relationship("Machine", backref="commands")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "machine_id": self.machine_id,
+            "command": self.command,
+            "status": self.status,
+            "output": self.output,
+            "exit_code": self.exit_code,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "executed_at": self.executed_at.isoformat() if self.executed_at else None,
+        }
+
+
 class Machine(Base):
     __tablename__ = "machines"
 

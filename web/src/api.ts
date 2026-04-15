@@ -1,4 +1,4 @@
-import type { MachineListItem, MachineDetail, SnapshotSummary } from "./types";
+import type { CommandRecord, MachineListItem, MachineDetail, SnapshotSummary } from "./types";
 
 const BASE = "/api";
 
@@ -22,4 +22,19 @@ export function getMachineHistory(
   limit = 50
 ): Promise<SnapshotSummary[]> {
   return fetchJson(`${BASE}/machines/${id}/history?limit=${limit}`);
+}
+
+export function queueCommand(machineId: string, command: string): Promise<CommandRecord> {
+  return fetch(`${BASE}/machines/${machineId}/commands`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ command }),
+  }).then(res => {
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  });
+}
+
+export function getCommands(machineId: string): Promise<CommandRecord[]> {
+  return fetchJson(`${BASE}/machines/${machineId}/commands`);
 }

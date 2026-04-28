@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/mitulgarg-env-doctor-badge.png)](https://mseep.ai/app/mitulgarg-env-doctor)
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/mitulgarg/env-doctor/main/docs/assets/logo.svg" alt="Env-Doctor Logo" width="80" height="80">
 </p>

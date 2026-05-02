@@ -5,6 +5,16 @@ All notable changes to env-doctor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-05-02
+
+### Fixed
+- **Exit code semantics for `check --json`**: `NOT_FOUND` library status no longer triggers exit code 1. Previously, having torch/tensorflow/jax uninstalled caused `env-doctor check --json` to exit 1 (warning), making remote remediation commands show as "failed" on the dashboard even when the check ran successfully. New exit codes: `0` = pass (no issues or only missing libraries), `1` = warnings (installed components with version conflicts), `2` = errors (broken components).
+
+### Changed
+- **Dashboard auto-refresh after remote command**: After a queued command completes on a machine, the Machine Detail page now automatically re-fetches and re-renders the diagnostics panel (1.5 s after the command finishes) — no manual page refresh needed.
+
+---
+
 ## [0.3.1] - 2026-04-15
 
 ### Added

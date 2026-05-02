@@ -3,6 +3,7 @@ Modernized CLI using the detector architecture.
 
 This version demonstrates how to migrate from procedural checks
 to the new detector-based system.
+
 """
 import sys
 import os
@@ -382,13 +383,13 @@ def determine_exit_code(results: Dict[str, Any]) -> int:
             for lib_result in result.values():
                 if lib_result.status == Status.ERROR:
                     has_errors = True
-                elif lib_result.status in [Status.WARNING, Status.NOT_FOUND]:
+                elif lib_result.status == Status.WARNING:
                     has_warnings = True
         else:
             # Handle single result
             if result.status == Status.ERROR:
                 has_errors = True
-            elif result.status in [Status.WARNING, Status.NOT_FOUND]:
+            elif result.status == Status.WARNING:
                 has_warnings = True
 
     if has_errors:
@@ -429,7 +430,8 @@ def _build_check_output(results, driver_result, cuda_result, cudnn_result,
 
 
 def check_command(output_json: bool = False, ci: bool = False,
-                  report_to: str = None, force_report: bool = False):
+                  report_to: str = None, force_report: bool = False,
+                  token: str = None):
     """
     Main diagnostic command using detector architecture.
 
@@ -441,6 +443,7 @@ def check_command(output_json: bool = False, ci: bool = False,
         ci: CI-friendly mode (implies JSON + proper exit codes)
         report_to: Dashboard URL to POST results to
         force_report: Bypass change detection (always send)
+        token: Bearer token for the dashboard API (overrides env var/config)
     """
     # === Collect all detection results ===
     # STEP 1: Environment Detection
@@ -557,7 +560,24 @@ def check_command(output_json: bool = False, ci: bool = False,
 
             try:
                 url = report_to.rstrip("/")
-                resp = _requests.post(f"{url}/api/report", json=output, timeout=10)
+                from .identity import get_report_token
+                resolved_token = get_report_token(token)
+                _headers = (
+                    {"Authorization": f"Bearer {resolved_token}"}
+                    if resolved_token else {}
+                )
+                resp = _requests.post(
+                    f"{url}/api/report", json=output,
+                    headers=_headers, timeout=10,
+                )
+                if resp.status_code == 401:
+                    print(
+                        "❌ Dashboard rejected the report (HTTP 401). "
+                        "Set --token, ENV_DOCTOR_API_TOKEN, or run "
+                        "`env-doctor report install --token <token>`.",
+                        file=sys.stderr,
+                    )
+                    return
                 resp.raise_for_status()
                 mark_reported(output, url, is_heartbeat=is_heartbeat)
                 if not (ci or output_json):
@@ -606,6 +626,7 @@ def check_command(output_json: bool = False, ci: bool = False,
                         _requests.post(
                             f"{url}/api/machines/{output['machine']['machine_id']}/commands/{cmd_id}/result",
                             json={"output": combined_output, "exit_code": exit_code},
+                            headers=_headers,
                             timeout=10,
                         )
                     except Exception as post_err:
@@ -614,7 +635,8 @@ def check_command(output_json: bool = False, ci: bool = False,
                 # Re-run check to verify fixes
                 if pending_cmds:
                     print("🔄 Re-checking environment after remediation...", file=sys.stderr)
-                    check_command(output_json=False, ci=False, report_to=report_to, force_report=True)
+                    check_command(output_json=False, ci=False, report_to=report_to,
+                                  force_report=True, token=token)
 
             except Exception as e:
                 print(f"⚠️  Failed to report to dashboard: {e}", file=sys.stderr)
@@ -2411,10 +2433,15 @@ def dashboard_command(host: str = "0.0.0.0", port: int = 8765):
     try:
         import uvicorn
         from .server.app import app
+        from .server.auth import load_or_create_token, token_file_path
     except ImportError:
         print("Dashboard dependencies not installed.")
         print('Run:  pip install "env-doctor[dashboard]"')
         sys.exit(1)
+
+    # Resolve (or generate) the API token before uvicorn binds. The function
+    # prints the token to stderr when it is freshly generated.
+    token = load_or_create_token()
 
     print(flush=True)
     if host == "0.0.0.0":
@@ -2430,6 +2457,8 @@ def dashboard_command(host: str = "0.0.0.0", port: int = 8765):
             pass
     else:
         print(f"  Dashboard: http://{host}:{port}", flush=True)
+    if token is not None:
+        print(f"  API token: read from {token_file_path()}", flush=True)
     print(f"  Press Ctrl+C to stop.", flush=True)
     print(flush=True)
     uvicorn.run(app, host=host, port=port, log_level="info")
@@ -2573,14 +2602,28 @@ def _schtasks_is_installed() -> bool:
 # Public commands
 # ---------------------------------------------------------------------------
 
-def report_install_command(url: str, interval: str = "2m", heartbeat: str = "30m"):
-    """Set up periodic reporting via cron (Linux/macOS) or Task Scheduler (Windows)."""
+def report_install_command(url: str, interval: str = "2m", heartbeat: str = "30m",
+                           token: str = None):
+    """Set up periodic reporting via cron (Linux/macOS) or Task Scheduler (Windows).
+
+    The token (when provided) is persisted in ``~/.env-doctor/report-config.json``
+    rather than embedded in the cron/schtasks command line, so it does not leak
+    into ``crontab -l`` or Task Scheduler XML.
+    """
     import requests as _requests
 
-    # Validate dashboard is reachable
+    # Validate dashboard is reachable (using the token if we have one)
+    probe_headers = {"Authorization": f"Bearer {token}"} if token else {}
     try:
-        resp = _requests.get(f"{url.rstrip('/')}/api/machines", timeout=5)
-        resp.raise_for_status()
+        resp = _requests.get(
+            f"{url.rstrip('/')}/api/machines",
+            headers=probe_headers, timeout=5,
+        )
+        if resp.status_code == 401:
+            print(f"⚠️  Dashboard at {url} requires a valid API token (HTTP 401).")
+            print("    Re-run with --token <token> from the dashboard host.")
+        else:
+            resp.raise_for_status()
     except Exception as e:
         print(f"⚠️  Cannot reach dashboard at {url}: {e}")
         print("Proceeding with installation anyway (dashboard may start later).")
@@ -2595,9 +2638,9 @@ def report_install_command(url: str, interval: str = "2m", heartbeat: str = "30m
         _cron_install(env_doctor_bin, url, interval_min)
         scheduler = "cron"
 
-    # Save config
+    # Save config (including token, when given)
     from .identity import save_report_config
-    save_report_config(url=url, interval=interval, heartbeat=heartbeat)
+    save_report_config(url=url, interval=interval, heartbeat=heartbeat, token=token)
 
     print(f"✅ Reporting to {url} every {interval} (heartbeat: {heartbeat}) via {scheduler}")
     print("Sending first report...")
@@ -2606,7 +2649,7 @@ def report_install_command(url: str, interval: str = "2m", heartbeat: str = "30m
         old_stdout = sys.stdout
         sys.stdout = io.StringIO()
         try:
-            check_command(output_json=True, report_to=url, force_report=True)
+            check_command(output_json=True, report_to=url, force_report=True, token=token)
         except SystemExit:
             pass
         finally:
@@ -2734,6 +2777,11 @@ Examples:
         '--force',
         action='store_true',
         help='Force report even if no changes detected (use with --report-to)'
+    )
+    check_parser.add_argument(
+        '--token',
+        metavar='TOKEN',
+        help='API token for the dashboard (overrides ENV_DOCTOR_API_TOKEN and saved config)'
     )
 
     # CUDA Info command (NEW)
@@ -2987,6 +3035,10 @@ Examples:
         "--heartbeat", default="30m",
         help="Heartbeat interval (default: 30m)"
     )
+    report_install_p.add_argument(
+        "--token", metavar="TOKEN",
+        help="API token for the dashboard (saved to ~/.env-doctor/report-config.json)"
+    )
 
     # report uninstall
     report_sub.add_parser(
@@ -3009,6 +3061,7 @@ Examples:
             ci=getattr(args, 'ci', False),
             report_to=getattr(args, 'report_to', None),
             force_report=getattr(args, 'force', False),
+            token=getattr(args, 'token', None),
         )
     elif args.command == "cuda-info":
         cuda_info_command(
@@ -3080,6 +3133,7 @@ Examples:
                 url=args.url,
                 interval=getattr(args, 'interval', '2m'),
                 heartbeat=getattr(args, 'heartbeat', '30m'),
+                token=getattr(args, 'token', None),
             )
         elif action == "uninstall":
             report_uninstall_command()

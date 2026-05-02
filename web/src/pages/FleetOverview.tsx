@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { getMachines, getMachine } from "../api";
 import type { MachineDetail, MachineListItem } from "../types";
 import StatusBadge from "../components/StatusBadge";
@@ -76,12 +77,17 @@ const tdS: React.CSSProperties = {
 export default function FleetOverview() {
   const [machines, setMachines] = useState<MachineListItem[]>([]);
   const [filter, setFilter] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [gpuFilter, setGpuFilter] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [detailCache, setDetailCache] = useState<Map<string, MachineDetail>>(new Map());
 
   const load = () => {
-    getMachines(filter ?? undefined)
+    // We only push status to the server; search/gpu/stale filters are client-side
+    // so the user can flip filters without re-fetching.
+    const serverStatus = filter && filter !== "stale" ? filter : undefined;
+    getMachines(serverStatus)
       .then(setMachines)
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -111,12 +117,28 @@ export default function FleetOverview() {
     pass: allMachines.filter(m => m.latest_status === "pass").length,
     warning: allMachines.filter(m => m.latest_status === "warning").length,
     fail: allMachines.filter(m => m.latest_status === "fail").length,
+    stale: allMachines.filter(m => m.stale).length,
   };
 
-  // Issues-focused: show all that aren't passing (unless a filter is active)
-  const issuesMachines = filter
-    ? machines
-    : machines.filter(m => m.latest_status !== "pass");
+  const gpuOptions = Array.from(
+    new Set(allMachines.map(m => m.gpu_name).filter((v): v is string => !!v))
+  ).sort();
+
+  const matchesSearch = (m: MachineListItem) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return m.hostname.toLowerCase().includes(q);
+  };
+  const matchesGpu = (m: MachineListItem) => !gpuFilter || m.gpu_name === gpuFilter;
+
+  // Issues-focused: show all that aren't passing or are stale (unless a filter is active)
+  const baseMachines = filter === "stale"
+    ? machines.filter(m => m.stale)
+    : filter
+      ? machines
+      : machines.filter(m => m.latest_status !== "pass" || m.stale);
+
+  const issuesMachines = baseMachines.filter(m => matchesSearch(m) && matchesGpu(m));
 
   const filterBtnStyle = (active: boolean, color?: string): React.CSSProperties => ({
     padding: "5px 14px",
@@ -154,6 +176,7 @@ export default function FleetOverview() {
             { label: "Healthy", count: counts.pass, color: "#238636" },
             { label: "Warning", count: counts.warning, color: "#d29922" },
             { label: "Failed", count: counts.fail, color: "#da3633" },
+            { label: "Stale", count: counts.stale, color: "#8b95a3" },
           ].map(item => (
             <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ width: 10, height: 10, borderRadius: 2, background: item.color, boxShadow: `0 0 6px ${item.color}` }} />
@@ -167,8 +190,62 @@ export default function FleetOverview() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+      {/* Search + GPU filter */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search hostname…"
+          style={{
+            flex: 1,
+            maxWidth: 360,
+            padding: "8px 12px",
+            background: "#0d1117",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 8,
+            color: "#e6edf3",
+            fontSize: 13,
+          }}
+        />
+        <select
+          value={gpuFilter}
+          onChange={e => setGpuFilter(e.target.value)}
+          style={{
+            padding: "8px 12px",
+            background: "#0d1117",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 8,
+            color: "#e6edf3",
+            fontSize: 13,
+            minWidth: 180,
+          }}
+        >
+          <option value="">All GPUs</option>
+          {gpuOptions.map(g => (
+            <option key={g} value={g}>{g}</option>
+          ))}
+        </select>
+        {(search || gpuFilter) && (
+          <button
+            onClick={() => { setSearch(""); setGpuFilter(""); }}
+            style={{
+              padding: "8px 12px",
+              background: "transparent",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 8,
+              color: "rgba(255,255,255,0.5)",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Status filters */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginRight: 4 }}>Filter:</span>
         <button style={filterBtnStyle(filter === null)} onClick={() => setFilter(null)}>
           Issues only
@@ -181,6 +258,9 @@ export default function FleetOverview() {
         </button>
         <button style={filterBtnStyle(filter === "pass", "#238636")} onClick={() => setFilter(filter === "pass" ? null : "pass")}>
           Healthy
+        </button>
+        <button style={filterBtnStyle(filter === "stale", "#8b95a3")} onClick={() => setFilter(filter === "stale" ? null : "stale")}>
+          Stale
         </button>
       </div>
 
@@ -245,7 +325,26 @@ export default function FleetOverview() {
                             display: "inline-block",
                             transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
                           }}>▶</span>
-                          <strong>{m.hostname}</strong>
+                          <strong style={{ color: m.stale ? "rgba(230,237,243,0.55)" : undefined }}>
+                            {m.hostname}
+                          </strong>
+                          {m.stale && (
+                            <span
+                              title="No report received in over an hour"
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 600,
+                                padding: "2px 7px",
+                                borderRadius: 10,
+                                background: "rgba(139,149,163,0.18)",
+                                color: "#b1bac4",
+                                border: "1px solid rgba(139,149,163,0.4)",
+                                letterSpacing: 0.4,
+                              }}
+                            >
+                              STALE
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td style={{ ...tdS, color: "rgba(255,255,255,0.7)" }}>{m.gpu_name ?? "—"}</td>
@@ -324,8 +423,23 @@ export default function FleetOverview() {
                                 {/* Diagnostics */}
                                 {detail.latest_report?.checks && (
                                   <div>
-                                    <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: 12 }}>
-                                      Diagnostics
+                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.5)" }}>
+                                        Diagnostics
+                                      </div>
+                                      <Link
+                                        to={`/machines/${m.id}`}
+                                        style={{
+                                          fontSize: 12,
+                                          color: "#58a6ff",
+                                          textDecoration: "none",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: 4,
+                                        }}
+                                      >
+                                        Full details + history →
+                                      </Link>
                                     </div>
                                     <DiagnosticCard title="GPU / Driver" result={detail.latest_report.checks.driver} />
                                     <DiagnosticCard title="CUDA Toolkit" result={detail.latest_report.checks.cuda} />

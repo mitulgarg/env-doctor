@@ -2,12 +2,13 @@
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import database as _db
+from .auth import require_token
 from .routes import router as api_router
 
 
@@ -20,17 +21,25 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="env-doctor dashboard", lifespan=lifespan)
 
-# CORS — allow all origins for local use
+
+def _cors_origins() -> list[str]:
+    """Resolve CORS origins from ENV_DOCTOR_CORS_ORIGINS (comma-separated)."""
+    raw = os.environ.get("ENV_DOCTOR_CORS_ORIGINS")
+    if raw:
+        return [o.strip() for o in raw.split(",") if o.strip()]
+    return ["*"]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Mount API routes
-app.include_router(api_router, prefix="/api")
+# All /api/* routes require the shared bearer token (see server/auth.py).
+app.include_router(api_router, prefix="/api", dependencies=[Depends(require_token)])
 
 # Serve React static files (built output)
 _WEB_DIR = os.path.join(os.path.dirname(__file__), "..", "web")

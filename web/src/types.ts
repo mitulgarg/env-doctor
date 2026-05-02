@@ -6,6 +6,8 @@ export interface MachineListItem {
   latest_status: string | null;
   first_seen: string | null;
   last_seen: string | null;
+  last_seen_seconds: number | null;
+  stale: boolean;
   gpu_name: string | null;
   driver_version: string | null;
   cuda_version: string | null;

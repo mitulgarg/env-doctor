@@ -192,3 +192,4 @@ src/env_doctor/web/*
 !src/env_doctor/web/.gitkeep
 PR_SUMMARY.md
 CHANGES-cuda-install-run.md
+*.stackdump

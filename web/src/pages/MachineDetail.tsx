@@ -4,6 +4,7 @@ import { getMachine, getMachineHistory } from "../api";
 import type { MachineDetail, SnapshotSummary } from "../types";
 import StatusBadge from "../components/StatusBadge";
 import DiagnosticCard from "../components/DiagnosticCard";
+import CustomCommandBox from "../components/CustomCommandBox";
 
 function timeAgo(iso: string | null): string {
   if (!iso) return "never";
@@ -28,11 +29,13 @@ export default function MachineDetailPage() {
   const [history, setHistory] = useState<SnapshotSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const refresh = () => {
     if (!id) return;
     getMachine(id).then(setMachine).catch((e) => setError(e.message));
     getMachineHistory(id).then(setHistory).catch(console.error);
-  }, [id]);
+  };
+
+  useEffect(() => { refresh(); }, [id]);
 
   if (error) {
     return (
@@ -83,10 +86,28 @@ export default function MachineDetailPage() {
           </div>
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 4 }}>
             Last seen: {timeAgo(machine.last_seen)}
+            {machine.stale && (
+              <span style={{
+                marginLeft: 8,
+                fontSize: 10,
+                fontWeight: 600,
+                padding: "2px 7px",
+                borderRadius: 10,
+                background: "rgba(139,149,163,0.18)",
+                color: "#b1bac4",
+                border: "1px solid rgba(139,149,163,0.4)",
+                letterSpacing: 0.4,
+              }}>
+                STALE
+              </span>
+            )}
           </div>
         </div>
         <StatusBadge status={machine.latest_status} />
       </div>
+
+      {/* Run a command */}
+      {id && <CustomCommandBox machineId={id} onComplete={refresh} />}
 
       {/* Summary row */}
       {report && (

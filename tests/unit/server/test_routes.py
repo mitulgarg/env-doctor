@@ -99,8 +99,12 @@ def client(monkeypatch):
 
     # Import app AFTER patching so lifespan picks up the override
     from env_doctor.server.app import app
+    from env_doctor.server.auth import require_token
 
     app.dependency_overrides[get_session] = override_get_session
+    # Bypass shared-token auth for these route-level tests; auth itself is
+    # covered in tests/unit/server/test_auth.py.
+    app.dependency_overrides[require_token] = lambda: None
 
     from fastapi.testclient import TestClient
     with TestClient(app) as c:

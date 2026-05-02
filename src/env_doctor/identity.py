@@ -145,15 +145,37 @@ def load_report_config() -> Optional[dict]:
     return None
 
 
-def save_report_config(url: str, interval: str, heartbeat: str) -> None:
-    """Persist report config."""
+def save_report_config(url: str, interval: str, heartbeat: str,
+                       token: Optional[str] = None) -> None:
+    """Persist report config. ``token`` is optional and stored only when given."""
     config_path = _ensure_dir() / _CONFIG_FILE
-    config_path.write_text(json.dumps({
+    payload = {
         "url": url,
         "interval": interval,
         "heartbeat": heartbeat,
         "installed_at": datetime.now(timezone.utc).isoformat(),
-    }, indent=2))
+    }
+    if token:
+        payload["token"] = token
+    config_path.write_text(json.dumps(payload, indent=2))
+
+
+def get_report_token(cli_token: Optional[str] = None) -> Optional[str]:
+    """Resolve the API token used by the host CLI when posting reports.
+
+    Precedence: ``--token`` flag > ``ENV_DOCTOR_API_TOKEN`` env var >
+    ``token`` field of ``~/.env-doctor/report-config.json``.
+    """
+    if cli_token:
+        return cli_token.strip() or None
+    env_tok = os.environ.get("ENV_DOCTOR_API_TOKEN")
+    if env_tok:
+        return env_tok.strip() or None
+    config = load_report_config() or {}
+    cfg_tok = config.get("token")
+    if cfg_tok:
+        return str(cfg_tok).strip() or None
+    return None
 
 
 def remove_report_config() -> None:

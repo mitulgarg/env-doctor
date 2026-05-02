@@ -125,9 +125,12 @@ The dashboard exposes a REST API that machines post to:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/report` | POST | Receive a check report |
+| `/api/report` | POST | Receive a check report; returns `pending_commands[]` for the machine |
 | `/api/machines` | GET | List all machines with latest status |
 | `/api/machines/{id}` | GET | Full machine detail and latest report |
 | `/api/machines/{id}/history` | GET | Snapshot timeline |
+| `/api/machines/{id}/commands` | POST | Queue a remediation command (must start with `env-doctor` or `doctor`) |
+| `/api/machines/{id}/commands` | GET | List recent commands with status and output |
+| `/api/machines/{id}/commands/{cmd_id}/result` | POST | Machine posts execution result `{output, exit_code}` |
 
 See the [Fleet Monitoring Guide](../guides/fleet-monitoring.md) for full setup instructions.

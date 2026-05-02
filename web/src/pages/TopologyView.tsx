@@ -524,7 +524,8 @@ export default function TopologyView() {
         ctx.fillText("No machines reporting yet.", w / 2, h / 2 + 60);
         ctx.font = "12px -apple-system, sans-serif";
         ctx.fillStyle = "rgba(255,255,255,0.2)";
-        ctx.fillText("Run: env-doctor check --report-to http://this-server:8765", w / 2, h / 2 + 82);
+        const host = window.location.hostname;
+        ctx.fillText(`Run: env-doctor check --report-to http://${host}:8765`, w / 2, h / 2 + 82);
       }
 
       ctx.restore();
@@ -644,7 +645,7 @@ export default function TopologyView() {
             padding: "20px 16px", overflowY: "auto", color: TEXT_COL,
             animation: "slideL .25s ease-out",
           }}>
-            <button onClick={handleClose} style={backBtnStyle}>← Back</button>
+            <button onClick={handleClose} style={backBtnStyle}>✕ Close</button>
 
             <h2 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 700 }}>{detail.hostname}</h2>
             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 20 }}>
@@ -716,6 +717,45 @@ export default function TopologyView() {
           </div>
         </>
       )}
+
+      {/* Zoom controls */}
+      <div style={{
+        position: "absolute", bottom: 20, right: 20,
+        display: "flex", flexDirection: "column", gap: 4,
+        zIndex: 10,
+      }}>
+        {[
+          { label: "+", delta: 1.25, title: "Zoom in" },
+          { label: "−", delta: 0.8, title: "Zoom out" },
+          { label: "⌂", delta: null, title: "Reset view" },
+        ].map(({ label, delta, title }) => (
+          <button
+            key={label}
+            title={title}
+            onClick={() => {
+              const cam = camRef.current;
+              if (delta === null) {
+                cam.tx = 0; cam.ty = 0; cam.tz = 1;
+              } else {
+                cam.tz = Math.max(0.3, Math.min(5, cam.tz * delta));
+              }
+            }}
+            style={{
+              width: 32, height: 32,
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.14)",
+              borderRadius: 6,
+              color: "#e6edf3",
+              fontSize: label === "⌂" ? 16 : 18,
+              cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              lineHeight: 1,
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       {hubModalOpen && (
         <div

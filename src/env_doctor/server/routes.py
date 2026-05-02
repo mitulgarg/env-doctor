@@ -1,5 +1,6 @@
 """API route handlers for the dashboard."""
 import json
+import os
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -12,6 +13,20 @@ from .database import get_session
 from .models import Command, Machine, Snapshot
 
 router = APIRouter()
+
+
+# A machine is "stale" when its last_seen is older than this many seconds.
+# Default 1 hour = 2× the host CLI's default heartbeat interval (30m).
+_STALE_AFTER_SECONDS = int(os.environ.get("ENV_DOCTOR_STALE_SECONDS", "3600"))
+
+
+def _seconds_since(when: Optional[datetime]) -> Optional[float]:
+    """Seconds elapsed since ``when``. Treats naive datetimes as UTC."""
+    if when is None:
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - when).total_seconds()
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +182,9 @@ async def list_machines(
     output = []
     for m in machines:
         item = m.to_dict()
+        elapsed = _seconds_since(m.last_seen)
+        item["last_seen_seconds"] = elapsed
+        item["stale"] = elapsed is not None and elapsed > _STALE_AFTER_SECONDS
         if m.latest_snapshot_id:
             snap = await session.get(Snapshot, m.latest_snapshot_id)
             if snap:
@@ -194,6 +212,9 @@ async def get_machine(
         raise HTTPException(status_code=404, detail="Machine not found")
 
     result = machine.to_dict()
+    elapsed = _seconds_since(machine.last_seen)
+    result["last_seen_seconds"] = elapsed
+    result["stale"] = elapsed is not None and elapsed > _STALE_AFTER_SECONDS
 
     if machine.latest_snapshot_id:
         snap = await session.get(Snapshot, machine.latest_snapshot_id)

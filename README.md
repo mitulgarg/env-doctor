@@ -184,7 +184,11 @@ There are two roles — the **dashboard host** (receives and displays reports) a
 pip install "env-doctor[dashboard]"
 env-doctor dashboard
 # → Serving at http://localhost:8765
+# → 🔐 Generated new API token at ~/.env-doctor/api-token
+#    Token: <copy this — paste into the browser login + share with hosts>
 ```
+
+On first launch the dashboard generates a shared API token (saved at `~/.env-doctor/api-token`, mode 0600). The browser login screen and every host CLI need that token. Override the location with `ENV_DOCTOR_API_TOKEN=<token>` in the dashboard's environment.
 
 **Step 2 — Report from each GPU machine** (only needs the core CLI, not the `[dashboard]` extra):
 
@@ -192,11 +196,16 @@ env-doctor dashboard
 pip install env-doctor
 
 # One-time report
-env-doctor check --report-to http://<dashboard-host>:8765
+env-doctor check --report-to http://<dashboard-host>:8765 --token <token>
 
 # Or: set up automatic reporting every 2 minutes
-env-doctor report install --url http://<dashboard-host>:8765 --interval 2m
+env-doctor report install \
+    --url http://<dashboard-host>:8765 \
+    --token <token> \
+    --interval 2m
 ```
+
+The token is saved in `~/.env-doctor/report-config.json` so the scheduled cron / Task Scheduler entry stays clean (no secrets in `crontab -l`).
 
 `report install` creates a scheduled task on the GPU machine — a **cron job** on Linux/macOS or a **Windows Task Scheduler** entry on Windows. That task runs `env-doctor check --report-to <url>` on the configured interval.
 
@@ -248,8 +257,18 @@ For machines behind NAT (different networks), use [Tailscale](https://tailscale.
 
 ```bash
 # Install Tailscale on each machine, then use the Tailscale IP
-env-doctor report install --url http://100.x.x.x:8765
+env-doctor report install --url http://100.x.x.x:8765 --token <token>
 ```
+
+### Deploying to a Shared Host
+
+If you're hosting one dashboard for a small team rather than running it on a single laptop:
+
+1. **Use the API token.** Generated automatically on first launch (see Step 1 above), or pin a known value with `ENV_DOCTOR_API_TOKEN`. All `/api/*` routes require `Authorization: Bearer <token>`.
+2. **Put TLS in front.** The dashboard speaks plain HTTP. Terminate TLS in nginx, Caddy, or a cloud load balancer and forward to `127.0.0.1:8765`. Tokens travel in the `Authorization` header — they need TLS to stay private outside trusted networks.
+3. **Restrict CORS.** Set `ENV_DOCTOR_CORS_ORIGINS=https://dashboard.example.com` on the dashboard process so the browser only honours requests from your origin (defaults to `*` for backward compatibility with local use).
+4. **Tune staleness.** A machine is flagged "stale" once its `last_seen` is older than `ENV_DOCTOR_STALE_SECONDS` seconds (default 3600 = 1 hour, ≈ 2× the default heartbeat).
+5. **Rotating the token.** Edit `~/.env-doctor/api-token` (or update `ENV_DOCTOR_API_TOKEN` and restart). Each host CLI needs `env-doctor report install --token <new>` re-run, or its `~/.env-doctor/report-config.json` updated, before the next check-in.
 
 ### What the Dashboard Shows
 
@@ -269,11 +288,11 @@ The dashboard can queue `env-doctor` CLI commands to run on remote machines — 
 ```
   Dashboard                           GPU Machine
   ┌────────────┐                     ┌──────────────────┐
-  │ Operator    │                     │ Scheduled check  │
-  │ clicks      │                     │ (cron / Task     │
-  │ "▶ Run" on  │                     │  Scheduler)      │
-  │ Fleet page  │                     │                  │
-  └──────┬──────┘                     └────────┬─────────┘
+  │ Operator   │                     │ Scheduled check  │
+  │ clicks     │                     │ (cron / Task     │
+  │ "▶ Run" on │                     │  Scheduler)      │
+  │ Fleet page │                     │                  │
+  └──────┬─────┘                     └────────┬─────────┘
          │                                     │
          ▼                                     ▼
   Queue command                        env-doctor check
@@ -661,6 +680,14 @@ env-doctor check --json
 # CI mode with exit codes (0=pass, 1=warn, 2=error)
 env-doctor check --ci
 ```
+
+**Exit code semantics for `check --json` / `check --ci`:**
+
+| Code | Meaning |
+|------|---------|
+| `0` | All detected components are compatible (uninstalled libraries do not count as failures) |
+| `1` | Installed components have warnings or version conflicts |
+| `2` | One or more components are in an error state |
 
 **GitHub Actions example:**
 ```yaml

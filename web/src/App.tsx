@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { getMachines } from "./api";
+import { clearToken, getMachines, getToken } from "./api";
+import Login from "./components/Login";
 
 function TopologyIcon() {
   return (
@@ -29,20 +30,6 @@ function FleetIcon() {
   );
 }
 
-
-function StatusDot({ color, count }: { color: string; count: number }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <div style={{
-        width: 8, height: 8, borderRadius: "50%",
-        background: color,
-        boxShadow: `0 0 6px ${color}`,
-      }} />
-      <span style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", fontWeight: 600 }}>{count}</span>
-    </div>
-  );
-}
-
 const navStyle = (isActive: boolean): React.CSSProperties => ({
   display: "flex",
   alignItems: "center",
@@ -58,8 +45,16 @@ const navStyle = (isActive: boolean): React.CSSProperties => ({
 
 export default function App() {
   const [counts, setCounts] = useState({ pass: 0, warning: 0, fail: 0 });
+  const [authed, setAuthed] = useState<boolean>(() => Boolean(getToken()));
 
   useEffect(() => {
+    const onUnauthorized = () => setAuthed(false);
+    window.addEventListener("envdoctor:unauthorized", onUnauthorized);
+    return () => window.removeEventListener("envdoctor:unauthorized", onUnauthorized);
+  }, []);
+
+  useEffect(() => {
+    if (!authed) return;
     const load = () => {
       getMachines().then(machines => {
         setCounts({
@@ -72,7 +67,16 @@ export default function App() {
     load();
     const id = setInterval(load, 30_000);
     return () => clearInterval(id);
-  }, []);
+  }, [authed]);
+
+  const signOut = () => {
+    clearToken();
+    setAuthed(false);
+  };
+
+  if (!authed) {
+    return <Login onAuthenticated={() => setAuthed(true)} />;
+  }
 
   return (
     <div style={{
@@ -118,10 +122,20 @@ export default function App() {
           gap: 10,
           alignItems: "center",
         }}>
-          <div style={{ display: "flex", gap: 16 }}>
-            <StatusDot color="#40c057" count={counts.pass} />
-            <StatusDot color="#fab005" count={counts.warning} />
-            <StatusDot color="#fa5252" count={counts.fail} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+            {[
+              { color: "#40c057", count: counts.pass, label: "Healthy" },
+              { color: "#fab005", count: counts.warning, label: "Warning" },
+              { color: "#fa5252", count: counts.fail, label: "Failed" },
+            ].map(({ color, count, label }) => (
+              <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: color, boxShadow: `0 0 5px ${color}` }} />
+                  <span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}>{label}</span>
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>{count}</span>
+              </div>
+            ))}
           </div>
           <a
             href="https://github.com/mitulgarg/env-doctor/issues"
@@ -138,6 +152,23 @@ export default function App() {
           >
             Feedback / Issues ↗
           </a>
+          <button
+            type="button"
+            onClick={signOut}
+            style={{
+              fontSize: 11,
+              color: "rgba(255,255,255,0.25)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: 0,
+              letterSpacing: 0.2,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.55)")}
+            onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.25)")}
+          >
+            Sign out
+          </button>
         </div>
       </nav>
 

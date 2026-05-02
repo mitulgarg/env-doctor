@@ -271,6 +271,44 @@ env-doctor check --report-to http://10.0.1.50:8765
 
 ---
 
+## Remote Remediation
+
+The dashboard can queue `env-doctor` commands to run on remote machines — no SSH required.
+
+### How it works
+
+1. **Operator** opens a machine's detail page in the dashboard and types a command in the "Run a command" box (e.g. `env-doctor install torch --execute`).
+2. The command is stored in the database with status `pending`.
+3. On the **next check-in** (`POST /api/report`), the server returns the pending command in the response.
+4. The **GPU machine CLI** executes the command, captures stdout/stderr, and POSTs the result back to `/api/machines/{id}/commands/{cmd_id}/result`.
+5. The CLI then re-runs `env-doctor check --report-to <url>` to verify the fix and post a fresh diagnostic snapshot.
+6. The **dashboard auto-refreshes** the machine detail page 1.5 s after the command completes, showing updated diagnostics without a manual page reload.
+
+### Security
+
+Only commands prefixed with `env-doctor` or `doctor` are accepted by the server. Arbitrary shell commands are rejected with HTTP 400.
+
+### Command lifecycle
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Queued, waiting for machine to check in |
+| `running` | Machine picked it up, executing now |
+| `done` | Completed with exit code 0 |
+| `failed` | Completed with non-zero exit code |
+
+### Exit codes for `env-doctor check --json`
+
+When `env-doctor check --json` is queued as a remote command, exit code 1 does **not** mean the check failed — it means there are installed components with warnings. Uninstalled libraries alone do not produce a non-zero exit code.
+
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | All detected components compatible; uninstalled libraries ignored |
+| `1` | Installed components have warnings or version conflicts |
+| `2` | One or more components in error state |
+
+---
+
 ## Data Storage
 
 **On the dashboard host:**

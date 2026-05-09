@@ -3,6 +3,7 @@ import type {
   CommandActivityRow,
   CommandRecord,
   MachineDetail,
+  MachineGroup,
   MachineListItem,
   SnapshotSummary,
 } from "./types";
@@ -102,6 +103,32 @@ export async function queueCommand(machineId: string, command: string): Promise<
 
 export function getCommands(machineId: string): Promise<CommandRecord[]> {
   return fetchJson(`${BASE}/machines/${machineId}/commands`);
+}
+
+export function getGroups(): Promise<MachineGroup[]> {
+  return fetchJson(`${BASE}/groups`);
+}
+
+export async function updateMachineGroup(
+  id: string,
+  group_name: string | null
+): Promise<MachineDetail> {
+  const res = await apiFetch(`${BASE}/machines/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ group_name }),
+  });
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`;
+    try {
+      const body = await res.json();
+      if (body && typeof body.detail === "string") detail = body.detail;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+  return res.json();
 }
 
 export function getCommandActivity(

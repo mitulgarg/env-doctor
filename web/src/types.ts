@@ -4,6 +4,7 @@ export interface MachineListItem {
   platform: string | null;
   python_version: string | null;
   latest_status: string | null;
+  group_name: string | null;
   first_seen: string | null;
   last_seen: string | null;
   last_seen_seconds: number | null;
@@ -12,6 +13,16 @@ export interface MachineListItem {
   driver_version: string | null;
   cuda_version: string | null;
   torch_version: string | null;
+}
+
+export interface MachineGroup {
+  name: string;
+  machine_count: number;
+  status_breakdown: {
+    pass: number;
+    warning: number;
+    fail: number;
+  };
 }
 
 export interface MachineDetail extends MachineListItem {

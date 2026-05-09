@@ -44,6 +44,7 @@ class Machine(Base):
     python_version = Column(String, nullable=True)
     latest_status = Column(String, nullable=True)  # "pass"/"warning"/"fail"
     latest_snapshot_id = Column(Integer, nullable=True)
+    group_name = Column(String(64), nullable=True, index=True)
     first_seen = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     last_seen = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -60,6 +61,7 @@ class Machine(Base):
             "platform": self.platform,
             "python_version": self.python_version,
             "latest_status": self.latest_status,
+            "group_name": self.group_name,
             "first_seen": self.first_seen.isoformat() if self.first_seen else None,
             "last_seen": self.last_seen.isoformat() if self.last_seen else None,
         }

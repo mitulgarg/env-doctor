@@ -1,12 +1,13 @@
 """API route handlers for the dashboard."""
 import json
 import os
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
-from sqlalchemy import select
+from pydantic import BaseModel, Field
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .database import get_session
@@ -30,6 +31,40 @@ def _seconds_since(when: Optional[datetime]) -> Optional[float]:
 
 
 # ---------------------------------------------------------------------------
+# Group name validation
+# ---------------------------------------------------------------------------
+
+# Groups must be human-readable identifiers safe for URLs, file paths, and
+# topology labels. Allow alphanumerics, hyphen, underscore, dot, and space.
+_GROUP_NAME_PATTERN = re.compile(r"^[\w\-. ]+$")
+_UNGROUPED_LABEL = "ungrouped"
+
+
+def _clean_group_name(raw: Optional[str]) -> Optional[str]:
+    """Normalise a group name. Returns None for empty/whitespace input.
+
+    Raises HTTPException(400) on invalid characters so callers do not have to
+    validate separately.
+    """
+    if raw is None:
+        return None
+    cleaned = raw.strip()
+    if not cleaned:
+        return None
+    if len(cleaned) > 64:
+        raise HTTPException(status_code=400, detail="group_name must be 64 characters or fewer")
+    if not _GROUP_NAME_PATTERN.match(cleaned):
+        raise HTTPException(
+            status_code=400,
+            detail="group_name may only contain letters, numbers, spaces, '-', '_', '.'",
+        )
+    if cleaned.lower() == _UNGROUPED_LABEL:
+        # Reserved synthetic label used by GET /api/groups for NULL machines.
+        raise HTTPException(status_code=400, detail=f"'{_UNGROUPED_LABEL}' is a reserved name")
+    return cleaned
+
+
+# ---------------------------------------------------------------------------
 # Pydantic request/response models
 # ---------------------------------------------------------------------------
 
@@ -40,6 +75,7 @@ class MachineInfo(BaseModel):
     platform_release: Optional[str] = None
     python_version: Optional[str] = None
     reported_at: Optional[str] = None
+    group_name: Optional[str] = None  # Optional self-tag from CLI; dashboard PATCH overrides.
 
 
 class ReportPayload(BaseModel):
@@ -111,6 +147,7 @@ async def receive_report(
             first_seen=now,
             last_seen=now,
             latest_status=payload.status,
+            group_name=_clean_group_name(payload.machine.group_name),
         )
         session.add(machine)
     else:
@@ -119,6 +156,11 @@ async def receive_report(
         machine.python_version = payload.machine.python_version
         machine.last_seen = now
         machine.latest_status = payload.status
+        # Only honour CLI self-tag when no group was set via the dashboard PATCH.
+        # Dashboard-assigned groups are the source of truth and must not be
+        # silently overwritten by every check-in.
+        if machine.group_name is None and payload.machine.group_name:
+            machine.group_name = _clean_group_name(payload.machine.group_name)
 
     # Create snapshot
     fields = _extract_fields(payload)
@@ -226,6 +268,102 @@ async def get_machine(
             result["torch_version"] = snap.torch_version
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/machines/{id}  (mutate machine metadata — currently group_name)
+# ---------------------------------------------------------------------------
+
+class MachineUpdate(BaseModel):
+    # Use Field(...) sentinel so we can distinguish "set to null" from "field omitted".
+    group_name: Optional[str] = Field(default=None, max_length=64)
+
+
+@router.patch("/machines/{machine_id}")
+async def update_machine(
+    machine_id: str,
+    body: MachineUpdate,
+    session: AsyncSession = Depends(get_session),
+):
+    """Update mutable machine fields. Currently supports group_name.
+
+    Pass ``{"group_name": "training-east"}`` to assign, or ``{"group_name": ""}``
+    / ``{"group_name": null}`` to ungroup.
+    """
+    machine = await session.get(Machine, machine_id)
+    if not machine:
+        raise HTTPException(status_code=404, detail="Machine not found")
+
+    # _clean_group_name raises 400 on invalid characters.
+    machine.group_name = _clean_group_name(body.group_name)
+    await session.commit()
+    await session.refresh(machine)
+
+    result = machine.to_dict()
+    elapsed = _seconds_since(machine.last_seen)
+    result["last_seen_seconds"] = elapsed
+    result["stale"] = elapsed is not None and elapsed > _STALE_AFTER_SECONDS
+    if machine.latest_snapshot_id:
+        snap = await session.get(Snapshot, machine.latest_snapshot_id)
+        if snap:
+            # Match GET /api/machines/{id} shape so callers (MachineDetail) can
+            # safely setMachine(patchResponse) without losing diagnostics.
+            result["latest_report"] = json.loads(snap.report_json)
+            result["gpu_name"] = snap.gpu_name
+            result["driver_version"] = snap.driver_version
+            result["cuda_version"] = snap.cuda_version
+            result["torch_version"] = snap.torch_version
+    return result
+
+
+# ---------------------------------------------------------------------------
+# GET /api/groups
+# ---------------------------------------------------------------------------
+
+@router.get("/groups")
+async def list_groups(session: AsyncSession = Depends(get_session)):
+    """Return all distinct group names with member counts and status breakdown.
+
+    NULL group_name values are aggregated under the synthetic "ungrouped" entry
+    and listed last; named groups are sorted alphabetically.
+    """
+    pass_sum = func.sum(case((Machine.latest_status == "pass", 1), else_=0))
+    warn_sum = func.sum(case((Machine.latest_status == "warning", 1), else_=0))
+    fail_sum = func.sum(case((Machine.latest_status == "fail", 1), else_=0))
+
+    query = (
+        select(
+            Machine.group_name,
+            func.count(Machine.id),
+            pass_sum,
+            warn_sum,
+            fail_sum,
+        )
+        .group_by(Machine.group_name)
+    )
+    result = await session.execute(query)
+
+    named: list[dict] = []
+    ungrouped: Optional[dict] = None
+    for group_name, count, n_pass, n_warn, n_fail in result.all():
+        entry = {
+            "name": group_name if group_name else _UNGROUPED_LABEL,
+            "machine_count": int(count or 0),
+            "status_breakdown": {
+                "pass": int(n_pass or 0),
+                "warning": int(n_warn or 0),
+                "fail": int(n_fail or 0),
+            },
+        }
+        if group_name:
+            named.append(entry)
+        else:
+            ungrouped = entry
+
+    named.sort(key=lambda g: g["name"].lower())
+    if ungrouped is not None:
+        named.append(ungrouped)
+    return named
 
 
 # ---------------------------------------------------------------------------

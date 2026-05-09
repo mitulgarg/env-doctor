@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { getMachines, getMachine } from "../api";
 import type { MachineListItem, MachineDetail, CheckResult } from "../types";
 
@@ -674,30 +675,57 @@ export default function TopologyView() {
             padding: "20px 16px", overflowY: "auto", color: TEXT_COL,
             animation: "slideR .25s ease-out",
           }}>
-            <div style={{ marginBottom: 16 }}>
+            <div style={{
+              marginBottom: 16,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}>
               <span style={{
                 padding: "4px 12px", borderRadius: 12, fontSize: 12, fontWeight: 600,
                 textTransform: "uppercase",
                 background: STATUS_FILL[detail.latest_status ?? ""] ?? "#484f58",
                 color: "#fff",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
               }}>
                 {detail.latest_status ?? "unknown"}
+                {report && (
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    opacity: 0.85,
+                    textTransform: "none",
+                    letterSpacing: 0,
+                  }}>
+                    · {report.summary.issues_count} {report.summary.issues_count === 1 ? "issue" : "issues"}
+                  </span>
+                )}
               </span>
+              <Link
+                to={`/machines/${detail.id}`}
+                style={{
+                  padding: "6px 12px",
+                  background: "#1f6feb",
+                  color: "#fff",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  transition: "background .15s",
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = "#388bfd")}
+                onMouseLeave={e => (e.currentTarget.style.background = "#1f6feb")}
+                title="Open the full details page (history, command runner, group editor)"
+              >
+                Open full details →
+              </Link>
             </div>
-
-            {report && (
-              <>
-                <SectionLabel text="Summary" />
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 16 }}>
-                  {[
-                    { k: "Driver", v: report.summary.driver },
-                    { k: "CUDA", v: report.summary.cuda },
-                    { k: "cuDNN", v: report.summary.cudnn },
-                    { k: "Issues", v: String(report.summary.issues_count) },
-                  ].map(i => <InfoCard key={i.k} label={i.k} value={i.v || "—"} />)}
-                </div>
-              </>
-            )}
 
             {checks && (
               <>

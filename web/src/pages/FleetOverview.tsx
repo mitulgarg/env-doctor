@@ -325,9 +325,20 @@ export default function FleetOverview() {
                             display: "inline-block",
                             transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
                           }}>▶</span>
-                          <strong style={{ color: m.stale ? "rgba(230,237,243,0.55)" : undefined }}>
+                          <Link
+                            to={`/machines/${m.id}`}
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                              color: m.stale ? "rgba(230,237,243,0.55)" : "#e6edf3",
+                              textDecoration: "none",
+                              fontWeight: 600,
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.color = "#58a6ff")}
+                            onMouseLeave={e => (e.currentTarget.style.color = m.stale ? "rgba(230,237,243,0.55)" : "#e6edf3")}
+                            title="Open full details page"
+                          >
                             {m.hostname}
-                          </strong>
+                          </Link>
                           {m.stale && (
                             <span
                               title="No report received in over an hour"
@@ -369,6 +380,41 @@ export default function FleetOverview() {
                               </div>
                             ) : (
                               <>
+                                {/* Top action bar — primary navigation to MachineDetail */}
+                                <div style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  marginBottom: 18,
+                                  paddingBottom: 14,
+                                  borderBottom: "1px solid rgba(255,255,255,0.06)",
+                                }}>
+                                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
+                                    Quick view · use full details for command runner, history, and group editor
+                                  </div>
+                                  <Link
+                                    to={`/machines/${m.id}`}
+                                    onClick={e => e.stopPropagation()}
+                                    style={{
+                                      padding: "8px 14px",
+                                      background: "#1f6feb",
+                                      color: "#fff",
+                                      borderRadius: 6,
+                                      fontSize: 13,
+                                      fontWeight: 600,
+                                      textDecoration: "none",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 6,
+                                      transition: "background .15s",
+                                    }}
+                                    onMouseEnter={e => (e.currentTarget.style.background = "#388bfd")}
+                                    onMouseLeave={e => (e.currentTarget.style.background = "#1f6feb")}
+                                  >
+                                    Open full details →
+                                  </Link>
+                                </div>
+
                                 {/* Gauge + Commands row */}
                                 <div style={{ display: "flex", gap: 24, marginBottom: 24, alignItems: "flex-start" }}>
                                   {/* Left: Gauge */}
@@ -423,23 +469,8 @@ export default function FleetOverview() {
                                 {/* Diagnostics */}
                                 {detail.latest_report?.checks && (
                                   <div>
-                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                                      <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.5)" }}>
-                                        Diagnostics
-                                      </div>
-                                      <Link
-                                        to={`/machines/${m.id}`}
-                                        style={{
-                                          fontSize: 12,
-                                          color: "#58a6ff",
-                                          textDecoration: "none",
-                                          display: "flex",
-                                          alignItems: "center",
-                                          gap: 4,
-                                        }}
-                                      >
-                                        Full details + history →
-                                      </Link>
+                                    <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: 12 }}>
+                                      Diagnostics
                                     </div>
                                     <DiagnosticCard title="GPU / Driver" result={detail.latest_report.checks.driver} />
                                     <DiagnosticCard title="CUDA Toolkit" result={detail.latest_report.checks.cuda} />

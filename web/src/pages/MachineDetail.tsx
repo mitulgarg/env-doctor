@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { getMachine, getMachineHistory } from "../api";
-import type { MachineDetail, SnapshotSummary } from "../types";
+import { getGroups, getMachine, getMachineHistory, updateMachineGroup } from "../api";
+import type { MachineDetail, MachineGroup, SnapshotSummary } from "../types";
 import StatusBadge from "../components/StatusBadge";
 import DiagnosticCard from "../components/DiagnosticCard";
 import CustomCommandBox from "../components/CustomCommandBox";
+import GroupPicker from "../components/GroupPicker";
 
 function timeAgo(iso: string | null): string {
   if (!iso) return "never";
@@ -28,14 +29,47 @@ export default function MachineDetailPage() {
   const [machine, setMachine] = useState<MachineDetail | null>(null);
   const [history, setHistory] = useState<SnapshotSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [groups, setGroups] = useState<MachineGroup[]>([]);
+  const [editingGroup, setEditingGroup] = useState(false);
+  const [groupError, setGroupError] = useState<string | null>(null);
+  const [groupSaving, setGroupSaving] = useState(false);
 
   const refresh = () => {
     if (!id) return;
     getMachine(id).then(setMachine).catch((e) => setError(e.message));
     getMachineHistory(id).then(setHistory).catch(console.error);
+    getGroups().then(setGroups).catch(() => {});
   };
 
   useEffect(() => { refresh(); }, [id]);
+
+  const handleGroupChange = async (next: string | null) => {
+    if (!id || !machine) return;
+    if ((machine.group_name ?? null) === (next ?? null)) {
+      // No change — just close the editor.
+      setEditingGroup(false);
+      return;
+    }
+    const previous = machine.group_name;
+    setGroupSaving(true);
+    setGroupError(null);
+    // Optimistic update so the UI reflects the choice instantly.
+    setMachine({ ...machine, group_name: next });
+    setEditingGroup(false);
+    try {
+      const updated = await updateMachineGroup(id, next);
+      setMachine(updated);
+      // Re-fetch groups so counts reflect the move.
+      getGroups().then(setGroups).catch(() => {});
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to update group";
+      setGroupError(msg);
+      // Revert.
+      setMachine({ ...machine, group_name: previous });
+    } finally {
+      setGroupSaving(false);
+    }
+  };
 
   if (error) {
     return (
@@ -111,7 +145,55 @@ export default function MachineDetailPage() {
 
       {/* Summary row */}
       {report && (
-        <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+        <div style={{ display: "flex", gap: 12, marginBottom: 20, alignItems: "stretch" }}>
+          {/* Group card — clickable, opens inline GroupPicker. */}
+          <div
+            style={{
+              ...card,
+              flex: 1,
+              padding: 12,
+              textAlign: "center",
+              position: "relative",
+              cursor: editingGroup ? "default" : "pointer",
+              borderColor: editingGroup ? "rgba(88,166,255,0.5)" : "rgba(255,255,255,0.08)",
+            }}
+            onClick={() => { if (!editingGroup) setEditingGroup(true); }}
+            title={editingGroup ? undefined : "Click to assign or change group"}
+          >
+            <div style={{
+              fontSize: 11,
+              color: "rgba(255,255,255,0.35)",
+              textTransform: "uppercase",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: 4,
+            }}>
+              Group
+              {!editingGroup && (
+                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)" }}>✎</span>
+              )}
+            </div>
+            {editingGroup ? (
+              <div style={{ marginTop: 6, textAlign: "left" }} onClick={e => e.stopPropagation()}>
+                <GroupPicker
+                  value={machine.group_name}
+                  groups={groups}
+                  onChange={handleGroupChange}
+                  onClose={() => { setEditingGroup(false); setGroupError(null); }}
+                />
+              </div>
+            ) : (
+              <div style={{
+                fontSize: 14,
+                fontWeight: 600,
+                marginTop: 4,
+                color: machine.group_name ? "#58a6ff" : "rgba(255,255,255,0.4)",
+              }}>
+                {groupSaving ? "Saving…" : (machine.group_name ?? "—")}
+              </div>
+            )}
+          </div>
           {[
             { label: "GPU", value: machine.gpu_name },
             { label: "Driver", value: machine.driver_version },
@@ -124,6 +206,20 @@ export default function MachineDetailPage() {
               <div style={{ fontSize: 14, fontWeight: 600, marginTop: 4, color: "#e6edf3" }}>{item.value ?? "—"}</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {groupError && (
+        <div style={{
+          padding: "8px 12px",
+          marginBottom: 16,
+          border: "1px solid rgba(218,54,51,0.4)",
+          background: "rgba(218,54,51,0.08)",
+          borderRadius: 6,
+          color: "#f85149",
+          fontSize: 12,
+        }}>
+          Group update failed: {groupError}
         </div>
       )}
 

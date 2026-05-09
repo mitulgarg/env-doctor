@@ -330,3 +330,71 @@ async def list_commands(
     )
     result = await session.execute(query)
     return [c.to_dict() for c in result.scalars().all()]
+
+
+# ---------------------------------------------------------------------------
+# GET /api/commands  (cross-fleet activity log)
+# ---------------------------------------------------------------------------
+
+_VALID_COMMAND_STATUSES = {"pending", "running", "done", "failed"}
+
+
+def _parse_iso(value: str) -> datetime:
+    # datetime.fromisoformat in 3.11+ accepts trailing "Z"; older Pythons need a swap.
+    if value.endswith("Z"):
+        value = value[:-1] + "+00:00"
+    return datetime.fromisoformat(value)
+
+
+@router.get("/commands")
+async def list_command_activity(
+    status: Optional[str] = Query(None, description="pending | running | done | failed"),
+    machine_id: Optional[str] = Query(None),
+    since: Optional[str] = Query(None, description="ISO-8601 timestamp lower bound on created_at"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    session: AsyncSession = Depends(get_session),
+):
+    """Cross-fleet command activity log with hostname joined in."""
+    if status is not None and status not in _VALID_COMMAND_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"status must be one of {sorted(_VALID_COMMAND_STATUSES)}",
+        )
+
+    since_dt: Optional[datetime] = None
+    if since:
+        try:
+            since_dt = _parse_iso(since)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="since must be an ISO-8601 timestamp")
+
+    query = (
+        select(Command, Machine.hostname)
+        .join(Machine, Command.machine_id == Machine.id, isouter=True)
+        .order_by(Command.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    if status:
+        query = query.where(Command.status == status)
+    if machine_id:
+        query = query.where(Command.machine_id == machine_id)
+    if since_dt is not None:
+        query = query.where(Command.created_at >= since_dt)
+
+    result = await session.execute(query)
+    rows = result.all()
+
+    output = []
+    for cmd, hostname in rows:
+        item = cmd.to_dict()
+        item["hostname"] = hostname
+        if cmd.created_at and cmd.executed_at:
+            created = cmd.created_at if cmd.created_at.tzinfo else cmd.created_at.replace(tzinfo=timezone.utc)
+            executed = cmd.executed_at if cmd.executed_at.tzinfo else cmd.executed_at.replace(tzinfo=timezone.utc)
+            item["duration_seconds"] = (executed - created).total_seconds()
+        else:
+            item["duration_seconds"] = None
+        output.append(item)
+    return output

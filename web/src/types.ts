@@ -78,6 +78,19 @@ export interface CommandRecord {
   executed_at: string | null;
 }
 
+export interface CommandActivityRow extends CommandRecord {
+  hostname: string | null;
+  duration_seconds: number | null;
+}
+
+export interface CommandActivityFilters {
+  status?: string;
+  machine_id?: string;
+  since?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export interface SnapshotSummary {
   id: number;
   machine_id: string;

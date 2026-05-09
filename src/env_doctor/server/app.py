@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import database as _db
-from .auth import require_token
+from .auth import get_active_token, require_token
 from .routes import router as api_router
 
 
@@ -58,9 +58,17 @@ if os.path.isdir(_WEB_DIR):
         file_path = os.path.join(_WEB_DIR, full_path)
         if full_path and os.path.isfile(file_path):
             return FileResponse(file_path)
-        # Fallback to index.html for client-side routing
+        # Fallback to index.html for client-side routing.
+        # Inject the API token so the browser auto-authenticates without a login form.
         index = os.path.join(_WEB_DIR, "index.html")
         if os.path.isfile(index):
+            token = get_active_token()
+            if token:
+                from fastapi.responses import HTMLResponse
+                html = open(index, encoding="utf-8").read()
+                snippet = f'<script>window.__ENV_DOCTOR_TOKEN__="{token}"</script>'
+                html = html.replace("</head>", f"{snippet}</head>", 1)
+                return HTMLResponse(html)
             return FileResponse(index)
         return {"detail": "Frontend not built. Run 'npm run build' in web/ directory."}
 else:

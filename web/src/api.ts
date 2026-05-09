@@ -1,7 +1,23 @@
-import type { CommandRecord, MachineListItem, MachineDetail, SnapshotSummary } from "./types";
+import type {
+  CommandActivityFilters,
+  CommandActivityRow,
+  CommandRecord,
+  MachineDetail,
+  MachineListItem,
+  SnapshotSummary,
+} from "./types";
 
 const BASE = "/api";
 const TOKEN_KEY = "envDoctorToken";
+
+// When the server injects the token into the HTML, auto-store it so the login
+// screen is skipped entirely. This runs before React mounts.
+(function seedInjectedToken() {
+  const injected = (window as unknown as Record<string, unknown>).__ENV_DOCTOR_TOKEN__;
+  if (typeof injected === "string" && injected) {
+    try { localStorage.setItem(TOKEN_KEY, injected); } catch { /* ignore */ }
+  }
+})();
 
 export function getToken(): string | null {
   try {
@@ -86,6 +102,19 @@ export async function queueCommand(machineId: string, command: string): Promise<
 
 export function getCommands(machineId: string): Promise<CommandRecord[]> {
   return fetchJson(`${BASE}/machines/${machineId}/commands`);
+}
+
+export function getCommandActivity(
+  filters: CommandActivityFilters = {}
+): Promise<CommandActivityRow[]> {
+  const params = new URLSearchParams();
+  if (filters.status) params.set("status", filters.status);
+  if (filters.machine_id) params.set("machine_id", filters.machine_id);
+  if (filters.since) params.set("since", filters.since);
+  if (filters.limit != null) params.set("limit", String(filters.limit));
+  if (filters.offset != null) params.set("offset", String(filters.offset));
+  const qs = params.toString();
+  return fetchJson(`${BASE}/commands${qs ? `?${qs}` : ""}`);
 }
 
 export async function verifyToken(): Promise<boolean> {

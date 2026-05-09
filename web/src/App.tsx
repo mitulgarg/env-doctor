@@ -30,6 +30,14 @@ function FleetIcon() {
   );
 }
 
+function ActivityIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="2 9 5 9 7 4 11 14 13 9 16 9" />
+    </svg>
+  );
+}
+
 const navStyle = (isActive: boolean): React.CSSProperties => ({
   display: "flex",
   alignItems: "center",
@@ -111,6 +119,9 @@ export default function App() {
           </NavLink>
           <NavLink to="/fleet" style={({ isActive }) => navStyle(isActive)}>
             <FleetIcon /> Fleet
+          </NavLink>
+          <NavLink to="/activity" style={({ isActive }) => navStyle(isActive)}>
+            <ActivityIcon /> Activity
           </NavLink>
         </div>
 

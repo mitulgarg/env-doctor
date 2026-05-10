@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { getMachines, getMachine } from "../api";
-import type { MachineListItem, MachineDetail, CheckResult } from "../types";
+import { getGroups, getMachine, getMachines, updateMachineGroup } from "../api";
+import type { CheckResult, MachineDetail, MachineGroup, MachineListItem } from "../types";
+import GroupPicker from "../components/GroupPicker";
+import SelectionActionBar from "../components/SelectionActionBar";
 
 /* ─── constants ─── */
 const BG = "#0d1117";
@@ -20,6 +22,16 @@ const CENTER_R = 32;
 const IDEAL_DIST = 220;
 const REFRESH_MS = 30_000;
 const LERP = 0.07;
+// Same-group attractive force tuning. GROUP_IDEAL is the target distance between
+// nodes that share a group; k_GROUP scales the spring stiffness. Values picked
+// to nudge clustering without overpowering the global repulsion (3500/dist²).
+const GROUP_IDEAL = 110;
+const K_GROUP = 0.0008;
+// Bubble centroid is lerped each frame so the background bubble doesn't jitter
+// every time a node moves under the simulation.
+const BUBBLE_LERP = 0.08;
+// Synthetic name reserved for machines with group_name = null (mirrors backend).
+const UNGROUPED_LABEL = "ungrouped";
 
 /* ─── types ─── */
 interface GNode {
@@ -34,8 +46,17 @@ interface GNode {
   cuda: string | null;
   torch: string | null;
   lastSeen: string | null;
+  group: string | null;
   isCenter: boolean;
   r: number;
+}
+
+interface BubbleState {
+  cx: number; cy: number; r: number;
+}
+
+interface LassoInfo {
+  sx: number; sy: number; cx: number; cy: number;
 }
 
 interface Camera {
@@ -48,6 +69,17 @@ interface DragInfo {
   ox: number; oy: number;
   sx: number; sy: number;
   moved: boolean;
+}
+
+/* ─── group colour ─── */
+// Stable per-group hue from a string hash — same name → same colour every load.
+function groupHue(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
+  return Math.abs(h) % 360;
+}
+function groupFill(name: string, alpha: number): string {
+  return `hsla(${groupHue(name)}, 60%, 55%, ${alpha})`;
 }
 
 /* ─── coord transforms ─── */
@@ -170,6 +202,24 @@ function simulate(nodes: GNode[]) {
     }
   }
 
+  // Same-group attraction: nodes sharing a group are gently pulled toward
+  // GROUP_IDEAL distance from each other, producing visual clusters without
+  // overpowering the global repulsion.
+  for (let i = 0; i < nodes.length; i++) {
+    const a = nodes[i];
+    if (a.isCenter || !a.group) continue;
+    for (let j = i + 1; j < nodes.length; j++) {
+      const b = nodes[j];
+      if (b.isCenter || a.group !== b.group) continue;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const f = (dist - GROUP_IDEAL) * K_GROUP;
+      const fx = (dx / dist) * f, fy = (dy / dist) * f;
+      a.vx += fx; a.vy += fy;
+      b.vx -= fx; b.vy -= fy;
+    }
+  }
+
   for (const n of nodes) {
     if (n.isCenter) continue; // hub position is set directly by drag; skip velocity
     n.vx *= 0.86;
@@ -250,6 +300,7 @@ function drawHubNode(
 function drawGpuNode(
   ctx: CanvasRenderingContext2D, node: GNode, cam: Camera,
   w: number, h: number, hovered: boolean, sel: boolean, t: number,
+  inMultiSelect: boolean = false, dim: boolean = false,
 ) {
   const [sx, sy] = w2s(node.x, node.y, cam, w, h);
   const pulse = 0.85 + 0.15 * Math.sin(t * 2 + node.x * 0.02);
@@ -265,7 +316,23 @@ function drawGpuNode(
   const glowCol = STATUS_GLOW[node.status] ?? "#868e96";
   const statusFill = STATUS_FILL[node.status] ?? "#484f58";
 
+  // Outer dim wrapper so heatsink/text/labels also fade for non-search-matches.
   ctx.save();
+  if (dim) ctx.globalAlpha = 0.35;
+
+  ctx.save();
+
+  // Multi-select highlight ring (drawn behind the card so it haloes it).
+  if (inMultiSelect) {
+    ctx.save();
+    ctx.shadowColor = "#58a6ff";
+    ctx.shadowBlur = 20 * pulse;
+    roundRect(ctx, cx - 5, cy - 5, cw + 10, ch + 10, cr + 4);
+    ctx.strokeStyle = "#58a6ff";
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.restore();
+  }
 
   // Outer glow
   ctx.shadowColor = glowCol;
@@ -349,6 +416,44 @@ function drawGpuNode(
     ctx.fillStyle = "rgba(230,237,243,0.45)";
     ctx.fillText(node.gpu, sx, cy + ch + 6 + Math.round(15 * cam.zoom));
   }
+
+  ctx.restore(); // closes the outer dim wrapper
+}
+
+function drawGroupBubble(
+  ctx: CanvasRenderingContext2D, name: string, b: BubbleState,
+  cam: Camera, w: number, h: number,
+) {
+  const [sx, sy] = w2s(b.cx, b.cy, cam, w, h);
+  const r = b.r * cam.zoom;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(sx, sy, r, 0, Math.PI * 2);
+  ctx.fillStyle = groupFill(name, 0.08);
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = groupFill(name, 0.4);
+  ctx.stroke();
+  // Label above the bubble.
+  ctx.font = `600 ${Math.max(11, Math.round(12 * cam.zoom))}px -apple-system, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.fillStyle = groupFill(name, 0.85);
+  ctx.fillText(name, sx, sy - r - 6);
+  ctx.restore();
+}
+
+function drawLasso(ctx: CanvasRenderingContext2D, l: LassoInfo) {
+  const x = Math.min(l.sx, l.cx), y = Math.min(l.sy, l.cy);
+  const w = Math.abs(l.cx - l.sx), h = Math.abs(l.cy - l.sy);
+  ctx.save();
+  ctx.fillStyle = "rgba(88,166,255,0.10)";
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = "rgba(88,166,255,0.7)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.strokeRect(x + 0.5, y + 0.5, w, h);
+  ctx.restore();
 }
 
 /* ─── detail panel helpers ─── */
@@ -389,7 +494,46 @@ export default function TopologyView() {
   const [detail, setDetail] = useState<MachineDetail | null>(null);
   const [hubModalOpen, setHubModalOpen] = useState(false);
 
+  // Phase 3 — group filter, search, multi-select, right-click context menu.
+  const [groups, setGroups] = useState<MachineGroup[]>([]);
+  const [groupFilter, setGroupFilter] = useState<string | null>(null); // null = "All", "ungrouped" = synthetic
+  const [searchQuery, setSearchQuery] = useState("");
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  // Groups created in the UI before any node is assigned. They appear in the
+  // dropdown so the user can immediately assign nodes to them; they "persist"
+  // implicitly once the first PATCH lands and getGroups() picks them up.
+  const [pendingGroups, setPendingGroups] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [contextMenu, setContextMenu] = useState<{ nodeId: string; sx: number; sy: number } | null>(null);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [createdHint, setCreatedHint] = useState<string | null>(null);
+
+  // Refs the animation loop reads (state in refs to avoid re-render churn).
+  const groupFilterRef = useRef<string | null>(null);
+  const searchQueryRef = useRef<string>("");
+  const selectedIdsRef = useRef<Set<string>>(new Set());
+  const lassoRef = useRef<LassoInfo | null>(null);
+  const bubblesRef = useRef<Map<string, BubbleState>>(new Map());
+
   useEffect(() => { selectedRef.current = selected; }, [selected]);
+  useEffect(() => { groupFilterRef.current = groupFilter; }, [groupFilter]);
+  useEffect(() => { searchQueryRef.current = searchQuery.trim().toLowerCase(); }, [searchQuery]);
+  useEffect(() => { selectedIdsRef.current = selectedIds; }, [selectedIds]);
+
+  // Combined dropdown source: server-known groups + UI-created pending names.
+  const dropdownGroups = useMemo<MachineGroup[]>(() => {
+    const known = new Set(groups.map(g => g.name.toLowerCase()));
+    const extras: MachineGroup[] = pendingGroups
+      .filter(p => !known.has(p.toLowerCase()))
+      .map(name => ({ name, machine_count: 0, status_breakdown: { pass: 0, warning: 0, fail: 0 } }));
+    return [...groups.filter(g => g.name !== UNGROUPED_LABEL), ...extras];
+  }, [groups, pendingGroups]);
+
+  const refreshGroups = useCallback(() => {
+    getGroups().then(setGroups).catch(() => {});
+  }, []);
+  useEffect(() => { refreshGroups(); }, [refreshGroups]);
 
   // sync machines → graph nodes
   useEffect(() => {
@@ -402,7 +546,7 @@ export default function TopologyView() {
           id: "__hub__", x: 0, y: 0, vx: 0, vy: 0,
           hostname: "Dashboard", status: "pass",
           platform: null, gpu: null, driver: null, cuda: null, torch: null, lastSeen: null,
-          isCenter: true, r: CENTER_R,
+          group: null, isCenter: true, r: CENTER_R,
         };
       }
       const total = machines.length || 1;
@@ -412,6 +556,7 @@ export default function TopologyView() {
         if (ex) {
           ex.hostname = m.hostname;
           ex.status = m.latest_status ?? "unknown";
+          ex.group = m.group_name;
           ex.platform = m.platform;
           ex.gpu = m.gpu_name;
           ex.driver = m.driver_version;
@@ -434,13 +579,17 @@ export default function TopologyView() {
             cuda: m.cuda_version,
             torch: m.torch_version,
             lastSeen: m.last_seen,
+            group: m.group_name,
             isCenter: false, r: NODE_R,
           });
         }
       });
       nodesRef.current = next;
     };
-    const load = () => getMachines().then(sync).catch(console.error);
+    const load = () => {
+      getMachines().then(sync).catch(console.error);
+      getGroups().then(setGroups).catch(() => {});
+    };
     load();
     const id = setInterval(load, REFRESH_MS);
     return () => clearInterval(id);
@@ -495,15 +644,65 @@ export default function TopologyView() {
       if (!ctx) { animRef.current = requestAnimationFrame(loop); return; }
       const { w, h } = sizeRef.current;
       const dpr = devicePixelRatio || 1;
-      const nodes = nodesRef.current;
+      const allNodes = nodesRef.current;
       const cam = camRef.current;
       const sel = selectedRef.current;
+      const filter = groupFilterRef.current;
+      const search = searchQueryRef.current;
+      const selSet = selectedIdsRef.current;
       const t = Date.now() * 0.001;
 
-      simulate(nodes);
+      // Visibility: hub always shown; others honour the group filter.
+      // null filter = "All", "ungrouped" = nodes with group === null.
+      const isVisible = (n: GNode): boolean => {
+        if (n.isCenter) return true;
+        if (filter == null) return true;
+        if (filter === UNGROUPED_LABEL) return n.group == null;
+        return n.group === filter;
+      };
+      const visibleNodes = allNodes.filter(isVisible);
+
+      // Simulate only visible — hidden nodes don't tug from off-screen.
+      simulate(visibleNodes);
       cam.x += (cam.tx - cam.x) * LERP;
       cam.y += (cam.ty - cam.y) * LERP;
       cam.zoom += (cam.tz - cam.zoom) * LERP;
+
+      // Group bubble centroid + radius (lerped to dampen jitter).
+      // Skip bubble drawing entirely when filter narrows to a single group.
+      const showBubbles = filter == null;
+      const bubbles = bubblesRef.current;
+      if (showBubbles) {
+        const byGroup = new Map<string, GNode[]>();
+        for (const n of visibleNodes) {
+          if (n.isCenter || !n.group) continue;
+          const list = byGroup.get(n.group) ?? [];
+          list.push(n);
+          byGroup.set(n.group, list);
+        }
+        // Drop bubbles for groups that no longer exist.
+        for (const k of bubbles.keys()) if (!byGroup.has(k)) bubbles.delete(k);
+        for (const [name, members] of byGroup) {
+          const cx = members.reduce((s, n) => s + n.x, 0) / members.length;
+          const cy = members.reduce((s, n) => s + n.y, 0) / members.length;
+          let r = 0;
+          for (const n of members) {
+            const d = Math.hypot(n.x - cx, n.y - cy);
+            if (d > r) r = d;
+          }
+          r = Math.max(60, r + 36); // padding so the bubble surrounds the cards
+          const prev = bubbles.get(name);
+          if (!prev) {
+            bubbles.set(name, { cx, cy, r });
+          } else {
+            prev.cx += (cx - prev.cx) * BUBBLE_LERP;
+            prev.cy += (cy - prev.cy) * BUBBLE_LERP;
+            prev.r += (r - prev.r) * BUBBLE_LERP;
+          }
+        }
+      } else {
+        bubbles.clear();
+      }
 
       ctx.save();
       ctx.scale(dpr, dpr);
@@ -511,14 +710,31 @@ export default function TopologyView() {
       ctx.fillRect(0, 0, w, h);
       drawGrid(ctx, w, h, cam);
 
-      const hub = nodes.find(n => n.isCenter);
-      if (hub) for (const n of nodes) { if (!n.isCenter) drawEdge(ctx, hub, n, cam, w, h, t); }
-      for (const n of nodes) {
-        if (n.isCenter) drawHubNode(ctx, n, cam, w, h, hoveredRef.current === n.id, sel === n.id, t);
-        else drawGpuNode(ctx, n, cam, w, h, hoveredRef.current === n.id, sel === n.id, t);
+      // Bubbles below edges/nodes.
+      if (showBubbles) {
+        for (const [name, b] of bubbles) drawGroupBubble(ctx, name, b, cam, w, h);
       }
 
-      if (nodes.length <= 1) {
+      const hub = visibleNodes.find(n => n.isCenter);
+      if (hub) for (const n of visibleNodes) { if (!n.isCenter) drawEdge(ctx, hub, n, cam, w, h, t); }
+      for (const n of visibleNodes) {
+        const matchesSearch = !search || n.hostname.toLowerCase().includes(search);
+        const dim = !!search && !matchesSearch;
+        if (n.isCenter) {
+          drawHubNode(ctx, n, cam, w, h, hoveredRef.current === n.id, sel === n.id, t);
+        } else {
+          drawGpuNode(
+            ctx, n, cam, w, h,
+            hoveredRef.current === n.id, sel === n.id, t,
+            selSet.has(n.id), dim,
+          );
+        }
+      }
+
+      // Lasso overlay (in screen coords — drawn last, no transform).
+      if (lassoRef.current) drawLasso(ctx, lassoRef.current);
+
+      if (allNodes.length <= 1) {
         ctx.fillStyle = "rgba(255,255,255,0.3)";
         ctx.font = "14px -apple-system, sans-serif";
         ctx.textAlign = "center";
@@ -543,12 +759,31 @@ export default function TopologyView() {
   }, []);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button === 2) return; // right-click handled by onContextMenu
     e.preventDefault();
     const [sx, sy] = mpos(e);
     const { w, h } = sizeRef.current;
     const cam = camRef.current;
     const [wx, wy] = s2w(sx, sy, cam, w, h);
     const hit = hitTest(nodesRef.current, wx, wy);
+
+    // Close any open right-click menu when the user starts a new gesture.
+    setContextMenu(null);
+
+    // Shift modifier: multi-select toggle (on hit) or lasso (on empty canvas).
+    if (e.shiftKey) {
+      if (hit && !hit.isCenter) {
+        setSelectedIds(prev => {
+          const next = new Set(prev);
+          if (next.has(hit.id)) next.delete(hit.id); else next.add(hit.id);
+          return next;
+        });
+      } else if (!hit) {
+        lassoRef.current = { sx, sy, cx: sx, cy: sy };
+      }
+      return;
+    }
+
     if (hit) {
       dragRef.current = { nodeId: hit.id, ox: hit.x - wx, oy: hit.y - wy, sx, sy, moved: false };
     } else {
@@ -562,6 +797,12 @@ export default function TopologyView() {
     const cam = camRef.current;
     const canvas = canvasRef.current!;
 
+    if (lassoRef.current) {
+      lassoRef.current.cx = sx;
+      lassoRef.current.cy = sy;
+      canvas.style.cursor = "crosshair";
+      return;
+    }
     if (dragRef.current) {
       const d = dragRef.current;
       if (Math.abs(sx - d.sx) > 3 || Math.abs(sy - d.sy) > 3) d.moved = true;
@@ -583,10 +824,43 @@ export default function TopologyView() {
     const [wx, wy] = s2w(sx, sy, cam, w, h);
     const hit = hitTest(nodesRef.current, wx, wy);
     hoveredRef.current = hit ? hit.id : null;
-    canvas.style.cursor = hit ? "pointer" : "default";
+    canvas.style.cursor = e.shiftKey ? "crosshair" : (hit ? "pointer" : "default");
   }, [mpos]);
 
   const onMouseUp = useCallback(() => {
+    // Resolve lasso: bulk-select every visible non-center node whose screen
+    // position lies inside the rectangle.
+    if (lassoRef.current) {
+      const l = lassoRef.current;
+      const minX = Math.min(l.sx, l.cx), maxX = Math.max(l.sx, l.cx);
+      const minY = Math.min(l.sy, l.cy), maxY = Math.max(l.sy, l.cy);
+      // Only treat as a lasso if the user actually dragged (not a misfired shift+click).
+      if (maxX - minX > 4 || maxY - minY > 4) {
+        const { w, h } = sizeRef.current;
+        const cam = camRef.current;
+        const filter = groupFilterRef.current;
+        const hits: string[] = [];
+        for (const n of nodesRef.current) {
+          if (n.isCenter) continue;
+          // Honour the group filter — invisible nodes can't be lassoed.
+          if (filter != null) {
+            if (filter === UNGROUPED_LABEL && n.group != null) continue;
+            if (filter !== UNGROUPED_LABEL && n.group !== filter) continue;
+          }
+          const [px, py] = w2s(n.x, n.y, cam, w, h);
+          if (px >= minX && px <= maxX && py >= minY && py <= maxY) hits.push(n.id);
+        }
+        if (hits.length > 0) {
+          setSelectedIds(prev => {
+            const next = new Set(prev);
+            for (const id of hits) next.add(id);
+            return next;
+          });
+        }
+      }
+      lassoRef.current = null;
+    }
+
     if (dragRef.current && !dragRef.current.moved) {
       const nid = dragRef.current.nodeId;
       const node = nodesRef.current.find(n => n.id === nid);
@@ -608,14 +882,88 @@ export default function TopologyView() {
     if (canvasRef.current) canvasRef.current.style.cursor = "default";
   }, []);
 
+  const onContextMenu = useCallback((e: React.MouseEvent) => {
+    const [sx, sy] = mpos(e);
+    const { w, h } = sizeRef.current;
+    const cam = camRef.current;
+    const [wx, wy] = s2w(sx, sy, cam, w, h);
+    const hit = hitTest(nodesRef.current, wx, wy);
+    if (hit && !hit.isCenter) {
+      e.preventDefault();
+      setContextMenu({ nodeId: hit.id, sx, sy });
+    }
+  }, [mpos]);
+
   const handleClose = useCallback(() => {
     setSelected(null);
     camRef.current.tx = 0; camRef.current.ty = 0; camRef.current.tz = 1;
   }, []);
 
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Escape" && selectedRef.current) handleClose();
-  }, [handleClose]);
+    if (e.key !== "Escape") return;
+    if (contextMenu) { setContextMenu(null); return; }
+    if (selectedIds.size > 0) { setSelectedIds(new Set()); return; }
+    if (selectedRef.current) handleClose();
+  }, [handleClose, contextMenu, selectedIds]);
+
+  // Bulk-assign helper used by the SelectionActionBar and the right-click menu.
+  const assignGroupBulk = useCallback(async (ids: string[], group: string | null) => {
+    if (ids.length === 0) return;
+    setBulkError(null);
+    try {
+      await Promise.all(ids.map(id => updateMachineGroup(id, group)));
+      // Optimistically update the in-memory nodes so clustering reacts on the
+      // next animation frame without waiting for the next 30s machine poll.
+      const set = new Set(ids);
+      for (const n of nodesRef.current) {
+        if (!n.isCenter && set.has(n.id)) n.group = group;
+      }
+      // Also sync the open detail panel if its machine was in the batch.
+      if (detail && set.has(detail.id)) {
+        setDetail({ ...detail, group_name: group });
+      }
+      // If we just used a pending group, it's now real — drop it from pending.
+      if (group) setPendingGroups(prev => prev.filter(p => p !== group));
+      refreshGroups();
+    } catch (e: unknown) {
+      setBulkError(e instanceof Error ? e.message : "Bulk update failed");
+    }
+  }, [detail, refreshGroups]);
+
+  const handleSelectionAssign = useCallback(async (group: string | null) => {
+    const ids = Array.from(selectedIds);
+    await assignGroupBulk(ids, group);
+    setSelectedIds(new Set());
+  }, [assignGroupBulk, selectedIds]);
+
+  const handleContextMenuAssign = useCallback(async (group: string | null) => {
+    if (!contextMenu) return;
+    await assignGroupBulk([contextMenu.nodeId], group);
+    setContextMenu(null);
+  }, [assignGroupBulk, contextMenu]);
+
+  const handleCreateNewGroup = useCallback(() => {
+    const name = newGroupName.trim();
+    if (!name) { setCreatingGroup(false); return; }
+    if (name.toLowerCase() === UNGROUPED_LABEL) {
+      setBulkError("'ungrouped' is reserved");
+      return;
+    }
+    setPendingGroups(prev => prev.includes(name) ? prev : [...prev, name]);
+    // Reset filter to "All" so the user can see and select nodes to assign,
+    // and surface a transient hint pointing them at the next step.
+    setGroupFilter(null);
+    setNewGroupName("");
+    setCreatingGroup(false);
+    setCreatedHint(name);
+  }, [newGroupName]);
+
+  // Auto-dismiss the "group created" hint after a few seconds.
+  useEffect(() => {
+    if (!createdHint) return;
+    const id = setTimeout(() => setCreatedHint(null), 6000);
+    return () => clearTimeout(id);
+  }, [createdHint]);
 
   const report = detail?.latest_report;
   const checks = report?.checks;
@@ -623,18 +971,235 @@ export default function TopologyView() {
   return (
     <div
       ref={containerRef}
-      style={{ flex: 1, position: "relative", overflow: "hidden", outline: "none" }}
+      style={{ flex: 1, position: "relative", overflow: "hidden", outline: "none", display: "flex", flexDirection: "column" }}
       tabIndex={0}
       onKeyDown={onKeyDown}
     >
+      {/* Toolbar — Group filter + new group + search */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "10px 16px",
+        background: "rgba(13,17,23,0.85)",
+        borderBottom: "1px solid rgba(255,255,255,0.08)",
+        flexShrink: 0,
+        zIndex: 10,
+        position: "relative",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>Group:</span>
+          <select
+            value={groupFilter ?? ""}
+            onChange={e => setGroupFilter(e.target.value || null)}
+            style={{
+              padding: "6px 10px",
+              background: "#0d1117",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 6,
+              color: "#e6edf3",
+              fontSize: 13,
+              minWidth: 160,
+            }}
+          >
+            <option value="">All ({groups.reduce((s, g) => s + g.machine_count, 0)})</option>
+            {dropdownGroups.map(g => (
+              <option key={g.name} value={g.name}>{g.name} ({g.machine_count})</option>
+            ))}
+            {groups.find(g => g.name === UNGROUPED_LABEL) && (
+              <option value={UNGROUPED_LABEL}>
+                Ungrouped ({groups.find(g => g.name === UNGROUPED_LABEL)?.machine_count ?? 0})
+              </option>
+            )}
+          </select>
+        </div>
+
+        {creatingGroup ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input
+              type="text"
+              autoFocus
+              value={newGroupName}
+              onChange={e => setNewGroupName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter") handleCreateNewGroup();
+                else if (e.key === "Escape") { setCreatingGroup(false); setNewGroupName(""); }
+              }}
+              placeholder="Group name…"
+              style={{
+                padding: "6px 10px",
+                background: "#0d1117",
+                border: "1px solid rgba(88,166,255,0.5)",
+                borderRadius: 6,
+                color: "#e6edf3",
+                fontSize: 13,
+                width: 180,
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleCreateNewGroup}
+              style={{
+                padding: "6px 12px",
+                background: "#1f6feb",
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >Add</button>
+            <button
+              type="button"
+              onClick={() => { setCreatingGroup(false); setNewGroupName(""); }}
+              style={{
+                padding: "6px 8px",
+                background: "transparent",
+                border: "1px solid rgba(255,255,255,0.15)",
+                borderRadius: 6,
+                color: "rgba(255,255,255,0.6)",
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >✕</button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCreatingGroup(true)}
+            style={{
+              padding: "6px 12px",
+              background: "transparent",
+              border: "1px dashed rgba(255,255,255,0.25)",
+              borderRadius: 6,
+              color: "rgba(255,255,255,0.7)",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+            title="Create a new group (assign nodes via shift+click + Assign group)"
+          >+ New group</button>
+        )}
+
+        <div style={{ flex: 1 }} />
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>🔍</span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search hostname…"
+            style={{
+              padding: "6px 10px",
+              background: "#0d1117",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 6,
+              color: "#e6edf3",
+              fontSize: 13,
+              width: 200,
+            }}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              style={{
+                padding: "6px 8px",
+                background: "transparent",
+                border: "1px solid rgba(255,255,255,0.15)",
+                borderRadius: 6,
+                color: "rgba(255,255,255,0.6)",
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >✕</button>
+          )}
+        </div>
+
+        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginLeft: 8 }} title="Hold Shift to multi-select or lasso, right-click a node for quick group assignment">
+          Shift+click / drag · Right-click
+        </div>
+      </div>
+
+      <div style={{ flex: 1, position: "relative" }}>
       <canvas
         ref={canvasRef}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
+        onContextMenu={onContextMenu}
         onMouseLeave={() => { hoveredRef.current = null; dragRef.current = null; panRef.current = null; }}
         style={{ display: "block" }}
       />
+
+      {createdHint && (
+        <div style={{
+          position: "absolute",
+          top: 16,
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: "rgba(31,111,235,0.95)",
+          color: "#fff",
+          padding: "10px 18px",
+          borderRadius: 8,
+          fontSize: 13,
+          fontWeight: 500,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+          zIndex: 35,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+        }}>
+          <span>
+            Group <strong style={{ fontWeight: 700 }}>"{createdHint}"</strong> created.
+            Shift-click or lasso nodes to add them, or right-click a single node.
+          </span>
+          <button
+            type="button"
+            onClick={() => setCreatedHint(null)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "rgba(255,255,255,0.85)",
+              fontSize: 16,
+              cursor: "pointer",
+              lineHeight: 1,
+              padding: 0,
+            }}
+            title="Dismiss"
+          >×</button>
+        </div>
+      )}
+
+      {selectedIds.size > 0 && (
+        <SelectionActionBar
+          count={selectedIds.size}
+          groups={dropdownGroups}
+          onAssign={handleSelectionAssign}
+          onClear={() => setSelectedIds(new Set())}
+          error={bulkError}
+        />
+      )}
+
+      {contextMenu && (
+        <div
+          style={{
+            position: "absolute",
+            left: contextMenu.sx,
+            top: contextMenu.sy,
+            zIndex: 40,
+            minWidth: 240,
+          }}
+        >
+          <GroupPicker
+            value={nodesRef.current.find(n => n.id === contextMenu.nodeId)?.group ?? null}
+            groups={dropdownGroups}
+            onChange={handleContextMenuAssign}
+            onClose={() => setContextMenu(null)}
+          />
+        </div>
+      )}
 
       {selected && detail && (
         <>
@@ -861,6 +1426,7 @@ export default function TopologyView() {
           </div>
         </div>
       )}
+      </div>
 
       <style>{`
         @keyframes slideL { from { transform: translateX(-100%); opacity: 0 } to { transform: translateX(0); opacity: 1 } }

@@ -12,7 +12,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<App />}>
-          <Route index element={<Navigate to="/topology" replace />} />
+          <Route index element={<Navigate to="/fleet" replace />} />
           <Route path="topology" element={<TopologyView />} />
           <Route path="fleet" element={<FleetOverview />} />
           <Route path="activity" element={<Activity />} />

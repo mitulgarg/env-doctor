@@ -14,6 +14,8 @@ interface Props {
 
 const UNGROUPED_LABEL = "ungrouped";
 
+const DROPDOWN_MAX_HEIGHT = 240;
+
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "8px 10px",
@@ -26,20 +28,22 @@ const inputStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-const dropdownStyle: React.CSSProperties = {
-  position: "absolute",
-  top: "calc(100% + 4px)",
-  left: 0,
-  right: 0,
-  minWidth: 200,
-  background: "#161b22",
-  border: "1px solid rgba(255,255,255,0.12)",
-  borderRadius: 6,
-  maxHeight: 240,
-  overflowY: "auto",
-  zIndex: 50,
-  boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
-};
+function dropdownStyle(openUp: boolean): React.CSSProperties {
+  return {
+    position: "absolute",
+    [openUp ? "bottom" : "top"]: "calc(100% + 4px)",
+    left: 0,
+    right: 0,
+    minWidth: 200,
+    background: "#161b22",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: 6,
+    maxHeight: DROPDOWN_MAX_HEIGHT,
+    overflowY: "auto",
+    zIndex: 50,
+    boxShadow: openUp ? "0 -4px 16px rgba(0,0,0,0.4)" : "0 4px 16px rgba(0,0,0,0.4)",
+  };
+}
 
 const itemStyle = (active: boolean): React.CSSProperties => ({
   padding: "8px 12px",
@@ -63,7 +67,21 @@ export default function GroupPicker({
 }: Props) {
   const [text, setText] = useState(value ?? "");
   const [highlight, setHighlight] = useState(0);
+  const [openUp, setOpenUp] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // Auto-detect whether the dropdown should open upward — if there's not
+  // enough vertical room below the input (e.g. picker rendered near the
+  // bottom of the viewport, like inside SelectionActionBar), flip up.
+  useEffect(() => {
+    if (!rootRef.current) return;
+    const rect = rootRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    if (spaceBelow < DROPDOWN_MAX_HEIGHT + 20 && spaceAbove > spaceBelow) {
+      setOpenUp(true);
+    }
+  }, []);
 
   // Filter out the synthetic "ungrouped" entry — it's not a real group.
   const realGroups = useMemo(
@@ -144,7 +162,7 @@ export default function GroupPicker({
         style={inputStyle}
         aria-label="Group name"
       />
-      <div style={dropdownStyle} role="listbox">
+      <div style={dropdownStyle(openUp)} role="listbox">
         {filtered.length === 0 && !showCreate && !showUngroup && (
           <div style={{ padding: "10px 12px", fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
             No groups yet — type a name to create one.

@@ -1,12 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { getMachines, getMachine } from "../api";
-import type { MachineDetail, MachineListItem } from "../types";
+import { getGroups, getMachine, getMachines } from "../api";
+import type { MachineDetail, MachineGroup, MachineListItem } from "../types";
 import StatusBadge from "../components/StatusBadge";
 import PieChart from "../components/PieChart";
 import HealthGauge from "../components/HealthGauge";
 import CommandBlock from "../components/CommandBlock";
 import DiagnosticCard from "../components/DiagnosticCard";
+
+const UNGROUPED_LABEL = "ungrouped";
+
+function groupHue(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
+  return Math.abs(h) % 360;
+}
 
 const REFRESH_MS = 30_000;
 
@@ -76,9 +84,11 @@ const tdS: React.CSSProperties = {
 
 export default function FleetOverview() {
   const [machines, setMachines] = useState<MachineListItem[]>([]);
+  const [groups, setGroups] = useState<MachineGroup[]>([]);
   const [filter, setFilter] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [gpuFilter, setGpuFilter] = useState<string>("");
+  const [groupFilter, setGroupFilter] = useState<string>("");  // "" = all, name = that group, "ungrouped" = NULL
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [detailCache, setDetailCache] = useState<Map<string, MachineDetail>>(new Map());
@@ -91,6 +101,7 @@ export default function FleetOverview() {
       .then(setMachines)
       .catch(console.error)
       .finally(() => setLoading(false));
+    getGroups().then(setGroups).catch(() => {});
   };
 
   useEffect(() => {
@@ -98,6 +109,12 @@ export default function FleetOverview() {
     const id = setInterval(load, REFRESH_MS);
     return () => clearInterval(id);
   }, [filter]);
+
+  const groupOptions = useMemo(
+    () => groups.filter(g => g.name !== UNGROUPED_LABEL).sort((a, b) => a.name.localeCompare(b.name)),
+    [groups]
+  );
+  const ungroupedCount = groups.find(g => g.name === UNGROUPED_LABEL)?.machine_count ?? 0;
 
   const handleRowClick = async (id: string) => {
     if (expandedId === id) { setExpandedId(null); return; }
@@ -130,6 +147,11 @@ export default function FleetOverview() {
     return m.hostname.toLowerCase().includes(q);
   };
   const matchesGpu = (m: MachineListItem) => !gpuFilter || m.gpu_name === gpuFilter;
+  const matchesGroup = (m: MachineListItem) => {
+    if (!groupFilter) return true;
+    if (groupFilter === UNGROUPED_LABEL) return m.group_name == null;
+    return m.group_name === groupFilter;
+  };
 
   // Issues-focused: show all that aren't passing or are stale (unless a filter is active)
   const baseMachines = filter === "stale"
@@ -138,7 +160,7 @@ export default function FleetOverview() {
       ? machines
       : machines.filter(m => m.latest_status !== "pass" || m.stale);
 
-  const issuesMachines = baseMachines.filter(m => matchesSearch(m) && matchesGpu(m));
+  const issuesMachines = baseMachines.filter(m => matchesSearch(m) && matchesGpu(m) && matchesGroup(m));
 
   const filterBtnStyle = (active: boolean, color?: string): React.CSSProperties => ({
     padding: "5px 14px",
@@ -226,9 +248,31 @@ export default function FleetOverview() {
             <option key={g} value={g}>{g}</option>
           ))}
         </select>
-        {(search || gpuFilter) && (
+        <select
+          value={groupFilter}
+          onChange={e => setGroupFilter(e.target.value)}
+          style={{
+            padding: "8px 12px",
+            background: "#0d1117",
+            border: groupFilter ? "1px solid rgba(88,166,255,0.5)" : "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 8,
+            color: "#e6edf3",
+            fontSize: 13,
+            minWidth: 160,
+          }}
+          title="Filter by group"
+        >
+          <option value="">All groups</option>
+          {groupOptions.map(g => (
+            <option key={g.name} value={g.name}>{g.name} ({g.machine_count})</option>
+          ))}
+          {ungroupedCount > 0 && (
+            <option value={UNGROUPED_LABEL}>Ungrouped ({ungroupedCount})</option>
+          )}
+        </select>
+        {(search || gpuFilter || groupFilter) && (
           <button
-            onClick={() => { setSearch(""); setGpuFilter(""); }}
+            onClick={() => { setSearch(""); setGpuFilter(""); setGroupFilter(""); }}
             style={{
               padding: "8px 12px",
               background: "transparent",
@@ -294,7 +338,7 @@ export default function FleetOverview() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                {["Machine", "GPU", "Status", "Issues", "Last Seen"].map(h => (
+                {["Machine", "Group", "GPU", "Status", "Issues", "Last Seen"].map(h => (
                   <th key={h} style={thS}>{h}</th>
                 ))}
               </tr>
@@ -358,6 +402,29 @@ export default function FleetOverview() {
                           )}
                         </div>
                       </td>
+                      <td style={tdS}>
+                        {m.group_name ? (
+                          <button
+                            type="button"
+                            onClick={e => { e.stopPropagation(); setGroupFilter(m.group_name!); }}
+                            title={`Filter to group "${m.group_name}"`}
+                            style={{
+                              padding: "2px 10px",
+                              borderRadius: 12,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              background: `hsla(${groupHue(m.group_name)}, 60%, 55%, 0.18)`,
+                              border: `1px solid hsla(${groupHue(m.group_name)}, 60%, 55%, 0.4)`,
+                              color: `hsl(${groupHue(m.group_name)}, 60%, 75%)`,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {m.group_name}
+                          </button>
+                        ) : (
+                          <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 12 }}>—</span>
+                        )}
+                      </td>
                       <td style={{ ...tdS, color: "rgba(255,255,255,0.7)" }}>{m.gpu_name ?? "—"}</td>
                       <td style={tdS}><StatusBadge status={m.latest_status} /></td>
                       <td style={{ ...tdS, fontWeight: 600, color: m.latest_status === "fail" ? "#da3633" : "#d29922" }}>
@@ -368,7 +435,7 @@ export default function FleetOverview() {
 
                     {isExpanded && (
                       <tr key={`${m.id}-expand`}>
-                        <td colSpan={5} style={{ padding: 0, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                        <td colSpan={6} style={{ padding: 0, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                           <div style={{
                             background: "rgba(13,17,23,0.8)",
                             borderTop: "1px solid rgba(255,255,255,0.06)",

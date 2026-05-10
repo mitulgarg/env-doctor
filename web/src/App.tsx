@@ -114,11 +114,11 @@ export default function App() {
         </div>
 
         <div style={{ padding: "12px 8px", display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
-          <NavLink to="/topology" style={({ isActive }) => navStyle(isActive)}>
-            <TopologyIcon /> Topology
-          </NavLink>
           <NavLink to="/fleet" style={({ isActive }) => navStyle(isActive)}>
             <FleetIcon /> Fleet
+          </NavLink>
+          <NavLink to="/topology" style={({ isActive }) => navStyle(isActive)}>
+            <TopologyIcon /> Topology
           </NavLink>
           <NavLink to="/activity" style={({ isActive }) => navStyle(isActive)}>
             <ActivityIcon /> Activity

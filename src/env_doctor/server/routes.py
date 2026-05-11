@@ -7,7 +7,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import case, func, select
+from sqlalchemy import case, delete as delete_stmt, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .database import get_session
@@ -314,6 +314,31 @@ async def update_machine(
             result["cuda_version"] = snap.cuda_version
             result["torch_version"] = snap.torch_version
     return result
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/machines/{id}
+# ---------------------------------------------------------------------------
+
+@router.delete("/machines/{machine_id}", status_code=204)
+async def delete_machine(
+    machine_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    """Remove a machine and all its snapshots / queued commands.
+
+    Useful for cleaning up demo / decommissioned hosts. Returns 204 even if
+    the machine doesn't exist (idempotent so re-runs of cleanup scripts are
+    safe).
+    """
+    machine = await session.get(Machine, machine_id)
+    if not machine:
+        return
+    # Manually clear FK rows — Snapshot/Command don't cascade in the schema.
+    await session.execute(delete_stmt(Snapshot).where(Snapshot.machine_id == machine_id))
+    await session.execute(delete_stmt(Command).where(Command.machine_id == machine_id))
+    await session.delete(machine)
+    await session.commit()
 
 
 # ---------------------------------------------------------------------------

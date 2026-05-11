@@ -274,12 +274,14 @@ If you're hosting one dashboard for a small team rather than running it on a sin
 
 The web UI at `http://<dashboard-host>:8765` displays:
 
-- **Topology view** — force-directed graph showing the dashboard hub and all GPU machines as nodes, colour-coded by health status, with click-to-zoom detail panels
-- **Fleet overview** — aggregate health pie chart, issues table with expandable per-machine diagnostics, health gauge, and remote command execution
-- **Machine detail** — full diagnostic breakdown identical to what `env-doctor check` prints locally
-- **History timeline** — past snapshots per machine to track when issues appeared or were resolved
+- **Fleet overview** *(landing page)* — sortable table of every machine with status, GPU, driver, CUDA, torch, and group. Filter by status pill or group dropdown; click any group chip in the column to scope the view. Expand a row to drill into per-machine issues or queue a remediation command.
+- **Topology view** — force-directed canvas of the dashboard hub and all GPU machines, colour-coded by health. Group machines into clusters (e.g. `training-prod`, `inference-prod`, `dev`) — same-group nodes drift together inside a faint coloured bubble. Filter by group, search by hostname, **shift+click** or **shift+drag (lasso)** to multi-select, then bulk-assign via the floating action bar. Right-click any node for a quick group picker.
+- **Activity log** — cross-fleet log of every queued remediation command (timestamp, machine, status, exit code, duration, output). Filter by machine, status, or time range; expand any row to inspect output. Auto-refreshes every 10s.
+- **Machine detail** — full diagnostic breakdown identical to what `env-doctor check` prints locally, plus an inline group editor and the snapshot history timeline.
 
-All data stored in `~/.env-doctor/dashboard.db` (SQLite) on the dashboard host. No external database or cloud dependencies.
+All data is stored in `~/.env-doctor/dashboard.db` (SQLite) on the dashboard host. No external database or cloud dependencies.
+
+> **Auto-login:** when you visit the dashboard from the same host that runs it, the API token is injected into the page automatically — no copy-paste step. Remote browsers still need to enter the token from `~/.env-doctor/api-token`.
 
 ### Remote Remediation
 

@@ -63,49 +63,95 @@ def stable_machine_id(hostname: str) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, SEED_PREFIX + hostname))
 
 
+def _check(component, status, version=None, path=None, metadata=None,
+           issues=None, recommendations=None):
+    """Build a CheckResult dict matching what real env-doctor produces.
+
+    The dashboard frontend (DiagnosticCard.tsx) reads `issues.length` and
+    `recommendations.length` directly — these MUST always be lists, never
+    omitted, or React throws and the MachineDetail page renders blank.
+    `status` uses the success/warning/error/not_found vocabulary, not
+    pass/fail (those are the snapshot-level values).
+    """
+    return {
+        "component": component,
+        "status": status,
+        "detected": status in ("success", "warning"),
+        "version": version,
+        "path": path,
+        "metadata": metadata or {},
+        "issues": issues or [],
+        "recommendations": recommendations or [],
+    }
+
+
 def build_report(host, plat, gpu, sm, driver, max_cuda, sys_cuda, torch_ver, status):
     """Synthesize a check report payload that the dashboard will accept."""
     now = datetime.now(timezone.utc).isoformat()
+    torch_cuda = torch_ver.split("+cu")[-1] if "+cu" in torch_ver else None
 
-    issues = []
-    if status == "warning":
-        issues.append({"severity": "warning", "message": f"PyTorch built for CUDA {torch_ver.split('+cu')[-1][:2]}.x but system nvcc is {sys_cuda or 'missing'}"})
-    if status == "fail":
-        if "5090" in gpu:
-            issues.append({"severity": "error", "message": f"PyTorch {torch_ver} does not include sm_{sm.replace('.', '')} (Blackwell). torch.cuda.is_available() may return False."})
-        else:
-            issues.append({"severity": "error", "message": "CUDA toolkit not found in PATH; pip-installed torch wheel cannot find nvcc."})
+    # Per-check status + issue/recommendation lists, derived from machine status.
+    cuda_issues, cuda_recs = [], []
+    cuda_status = "success"
+    if not sys_cuda:
+        cuda_status = "not_found"
+        cuda_issues.append("CUDA toolkit not found in PATH; nvcc unavailable.")
+        cuda_recs.append("env-doctor cuda-install")
+
+    torch_issues, torch_recs = [], []
+    torch_status = "success"
+    if status == "fail" and "5090" in gpu:
+        torch_status = "error"
+        torch_issues.append(
+            f"PyTorch {torch_ver} does not include sm_{sm.replace('.', '')} (Blackwell). "
+            "torch.cuda.is_available() may return False."
+        )
+        torch_recs.append(
+            "pip install --pre torch torchvision torchaudio "
+            "--index-url https://download.pytorch.org/whl/nightly/cu126"
+        )
+    elif status == "warning":
+        torch_status = "warning"
+        torch_issues.append(
+            f"PyTorch built for CUDA {torch_cuda} but system nvcc is "
+            f"{sys_cuda or 'missing'}."
+        )
+
+    summary_issues = []
+    for c in (cuda_issues, torch_issues):
+        summary_issues.extend(c)
 
     checks = {
-        "driver": {
-            "status": "pass",
-            "version": driver,
-            "metadata": {
+        "driver": _check(
+            "nvidia_driver", "success", version=driver,
+            metadata={
                 "primary_gpu_name": gpu,
                 "max_cuda_version": max_cuda,
                 "gpu_count": 1,
             },
-        },
-        "cuda": {
-            "status": "pass" if sys_cuda else "fail",
-            "version": sys_cuda,
-            "metadata": {"installation_count": 1 if sys_cuda else 0},
-        },
-        "cudnn": {"status": "pass", "version": "9.1.0"},
-        "wsl2": {"status": "pass" if plat == "Linux" else "skipped"},
-        "python_compat": {"status": "pass"},
+        ),
+        "cuda": _check(
+            "cuda_toolkit", cuda_status, version=sys_cuda,
+            metadata={"installation_count": 1 if sys_cuda else 0},
+            issues=cuda_issues, recommendations=cuda_recs,
+        ),
+        "cudnn": _check("cudnn", "success", version="9.1.0"),
+        "wsl2": _check("wsl2", "success" if plat == "Linux" else "not_found"),
+        "python_compat": _check("python_compat", "success"),
         "libraries": {
-            "torch": {
-                "status": "pass" if status != "fail" else "fail",
-                "version": torch_ver,
-                "metadata": {"cuda_version": torch_ver.split("+cu")[-1] if "+cu" in torch_ver else None},
-            },
+            "torch": _check(
+                "torch", torch_status, version=torch_ver,
+                metadata={"cuda_version": torch_cuda},
+                issues=torch_issues, recommendations=torch_recs,
+            ),
         },
         "compute_compatibility": {
             "gpu_name": gpu,
+            "compute_capability": sm,
             "sm": sm,
             "arch_name": _arch_for_sm(sm),
-            "status": "compatible" if status != "fail" or "5090" not in gpu else "incompatible",
+            "arch_list": [],
+            "status": "compatible" if not (status == "fail" and "5090" in gpu) else "incompatible",
         },
     }
 
@@ -123,8 +169,9 @@ def build_report(host, plat, gpu, sm, driver, max_cuda, sys_cuda, torch_ver, sta
         "summary": {
             "driver": driver,
             "cuda": sys_cuda or "not installed",
-            "issues_count": len(issues),
-            "issues": issues,
+            "cudnn": "9.1.0",
+            "issues_count": len(summary_issues),
+            "issues": summary_issues,
         },
         "checks": checks,
     }
@@ -140,6 +187,12 @@ def _arch_for_sm(sm: str) -> str:
     }.get(sm, "Unknown")
 
 
+# Sending Connection: close keeps urllib and uvicorn's Windows ProactorEventLoop
+# in agreement on socket teardown — without it, every request prints a benign
+# but noisy WinError 10054 / ConnectionResetError trace from the server side.
+_BASE_HEADERS = {"Connection": "close"}
+
+
 def post(url, token, machine):
     """POST one report. Returns (ok, message)."""
     body = json.dumps(machine).encode()
@@ -148,6 +201,7 @@ def post(url, token, machine):
         data=body,
         method="POST",
         headers={
+            **_BASE_HEADERS,
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
         },
@@ -166,7 +220,7 @@ def delete(url, token, machine_id):
     req = urllib.request.Request(
         f"{url.rstrip('/')}/api/machines/{machine_id}",
         method="DELETE",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={**_BASE_HEADERS, "Authorization": f"Bearer {token}"},
     )
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:

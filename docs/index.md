@@ -144,6 +144,15 @@ Use env-doctor as an MCP server and let your AI assistant diagnose GPU environme
 [:octicons-arrow-right-24: MCP Integration Guide](guides/mcp-integration.md)
 
 
+## Fleet Dashboard Demo
+
+Monitor multiple GPU machines from a single web UI — aggregate status, topology view, activity log, and remote remediation.
+
+<video src="https://github.com/user-attachments/assets/1ef99c91-3656-467b-9b0d-31fab6ec9797" autoplay loop muted playsinline style="width:100%;border-radius:8px;"></video>
+
+[:octicons-arrow-right-24: Fleet Monitoring Guide](guides/fleet-monitoring.md)
+
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=mitulgarg/env-doctor&type=Date)](https://star-history.com/#mitulgarg/env-doctor&Date)

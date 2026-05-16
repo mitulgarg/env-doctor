@@ -26,6 +26,9 @@
   <a href="https://github.com/mitulgarg/env-doctor/stargazers">
     <img src="https://img.shields.io/github/stars/mitulgarg/env-doctor?style=flat-square&color=yellow" alt="GitHub Stars">
   </a>
+  <a href="https://discord.gg/5wDK6k8Fp">
+    <img src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord">
+  </a>
 </p>
 
 ---
@@ -100,57 +103,24 @@ This adds: `fastapi`, `uvicorn`, `sqlalchemy`, `aiosqlite`
 
 ## MCP Server (AI Assistant Integration)
 
-Env-Doctor includes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes diagnostic tools to AI assistants like Claude Code and Claude Desktop.
+Env-Doctor includes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes 11 diagnostic tools to AI assistants like Claude Code and Claude Desktop.
 
-### Quick Setup for Claude Desktop
+### Quick Setup
 
-1. **Install env-doctor:**
-   ```bash
-   pip install env-doctor
-   ```
-
-2. **Add to Claude Desktop config** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
-   ```json
-   {
-     "mcpServers": {
-       "env-doctor": {
-         "command": "env-doctor-mcp"
-       }
-     }
-   }
-   ```
-
-3. **Restart Claude Desktop** - the tools will be available automatically.
-
-### Available Tools (11 Total)
-
-- `env_check` - Full GPU/CUDA environment diagnostics
-- `env_check_component` - Check specific component (driver, CUDA, cuDNN, etc.)
-- `python_compat_check` - Check Python version compatibility with installed AI libraries
-- `cuda_info` - Detailed CUDA toolkit information
-- `cudnn_info` - Detailed cuDNN library information
-- `cuda_install` - Step-by-step CUDA installation instructions
-- `install_command` - Get safe pip install commands for AI libraries
-- `model_check` - Analyze if AI models fit on your GPU
-- `model_list` - List all available models in database
-- `dockerfile_validate` - Validate Dockerfiles for GPU issues
-- `docker_compose_validate` - Validate docker-compose.yml for GPU configuration
-
-### Demo — Claude Code using env-doctor MCP tools
+```json
+// Claude Desktop config (~/.config/Claude/claude_desktop_config.json)
+{
+  "mcpServers": {
+    "env-doctor": {
+      "command": "env-doctor-mcp"
+    }
+  }
+}
+```
 
 <video src="https://github.com/user-attachments/assets/7e761c28-1f44-44a0-8dfd-cf06cb9939a2" autoplay loop muted playsinline width="100%"></video>
 
-### Example Usage
-
-Ask your AI assistant:
-- "Check my GPU environment"
-- "Is my Python version compatible with my installed AI libraries?"
-- "How do I install CUDA Toolkit on Ubuntu?"
-- "Get me the pip install command for PyTorch"
-- "Can I run Llama 3 70B on my GPU?"
-- "Validate this Dockerfile for GPU issues"
-- "What CUDA version does my PyTorch require?"
-- "Show me detailed CUDA toolkit information"
+Ask your AI assistant things like *"Check my GPU environment"*, *"Can I run Llama 3 70B on my GPU?"*, or *"Validate this Dockerfile for GPU issues"*.
 
 **Learn more:** [MCP Integration Guide](docs/guides/mcp-integration.md)
 
@@ -160,37 +130,22 @@ Ask your AI assistant:
 
 > The core CLI works standalone. The dashboard is an observability layer for teams running multiple GPU machines.
 
+<video src="https://github.com/user-attachments/assets/1ef99c91-3656-467b-9b0d-31fab6ec9797" autoplay loop muted playsinline width="100%"></video>
+
 `pip install "env-doctor[dashboard]"` unlocks a web UI that aggregates diagnostic results from every machine in your fleet into a single view — no SSH required.
 
-### How It Works
+### Quick Start
 
-There are two roles — the **dashboard host** (receives and displays reports) and the **GPU machines** (run checks and send results). They communicate over a simple REST API.
-
-```
-  Dashboard Host                                GPU Machine 1
-  ┌─────────────────────-┐                 ┌───────────────────────────────┐
-  │ env-doctor dashboard │ ◄──── POST ──── │ env-doctor check --report-to  │
-  │ (React UI + SQLite)  │    /api/report  │ (runs locally, POSTs result)  │
-  └─────────────────────-┘                 └───────────────────────────────┘
-         ▲                                     GPU Machine 2
-         │                               ┌───────────────────────────────┐
-         └──────────── POST ─────────────│ env-doctor check --report-to  │
-                       /api/report       └───────────────────────────────┘
-```
-
-**Step 1 — Start the dashboard** on any machine with a reachable IP (a cheap CPU instance is enough, no GPU needed):
+**1. Start the dashboard** (any machine — no GPU needed):
 
 ```bash
 pip install "env-doctor[dashboard]"
 env-doctor dashboard
 # → Serving at http://localhost:8765
-# → 🔐 Generated new API token at ~/.env-doctor/api-token
-#    Token: <copy this — paste into the browser login + share with hosts>
+# → Generated API token at ~/.env-doctor/api-token
 ```
 
-On first launch the dashboard generates a shared API token (saved at `~/.env-doctor/api-token`, mode 0600). The browser login screen and every host CLI need that token. Override the location with `ENV_DOCTOR_API_TOKEN=<token>` in the dashboard's environment.
-
-**Step 2 — Report from each GPU machine** (only needs the core CLI, not the `[dashboard]` extra):
+**2. Report from each GPU machine:**
 
 ```bash
 pip install env-doctor
@@ -198,137 +153,19 @@ pip install env-doctor
 # One-time report
 env-doctor check --report-to http://<dashboard-host>:8765 --token <token>
 
-# Or: set up automatic reporting every 2 minutes
-env-doctor report install \
-    --url http://<dashboard-host>:8765 \
-    --token <token> \
-    --interval 2m
+# Automatic reporting every 2 minutes (cron on Linux, Task Scheduler on Windows)
+env-doctor report install --url http://<dashboard-host>:8765 --token <token> --interval 2m
 ```
 
-The token is saved in `~/.env-doctor/report-config.json` so the scheduled cron / Task Scheduler entry stays clean (no secrets in `crontab -l`).
+### What You Get
 
-`report install` creates a scheduled task on the GPU machine — a **cron job** on Linux/macOS or a **Windows Task Scheduler** entry on Windows. That task runs `env-doctor check --report-to <url>` on the configured interval.
+- **Fleet overview** — sortable table with status, GPU, driver, CUDA, torch, and group filtering
+- **Topology view** — force-directed graph of all machines, colour-coded by health, grouped into clusters
+- **Activity log** — cross-fleet command log with status, output, and filtering
+- **Machine detail** — full diagnostics + snapshot history timeline
+- **Remote remediation** — queue `env-doctor` commands from the UI, executed on next check-in (no SSH needed)
 
-### Smart Change Detection
-
-The scheduled task fires every 2 minutes, but it does **not** POST every 2 minutes. Each run:
-
-1. Runs `env-doctor check` locally on the GPU machine
-2. Hashes the result (status, checks — excluding timestamps)
-3. Compares to the last sent hash stored in `~/.env-doctor/report-state.json`
-
-| Condition | Action |
-|-----------|--------|
-| Hash changed (driver updated, library installed, new issue) | POST full report immediately |
-| Hash unchanged, 30 min since last POST | POST lightweight heartbeat (confirms machine is alive) |
-| Hash unchanged, heartbeat not due | Skip — no network call, sub-second no-op |
-
-On a stable machine, this means **~1 POST every 30 minutes** instead of 720.
-
-### Reporting Commands (run on GPU machines)
-
-These commands run **on each GPU machine**, not on the dashboard host:
-
-| Command | Where | What it does |
-|---------|-------|-------------|
-| `env-doctor dashboard` | Dashboard host | Starts the web UI and API server |
-| `env-doctor check --report-to URL` | GPU machine | Runs check locally, POSTs result to dashboard |
-| `env-doctor report install --url URL` | GPU machine | Creates a cron job / scheduled task on this machine |
-| `env-doctor report status` | GPU machine | Reads this machine's local config and last report time |
-| `env-doctor report uninstall` | GPU machine | Removes the scheduled task from this machine |
-
-`report status` is purely local — it reads `~/.env-doctor/report-state.json` and prints when this machine last reported and whether the scheduler is active. No network call.
-
-### Setting Up on Cloud Instances
-
-```bash
-# AWS / GCP / Azure — on your dashboard VM
-pip install "env-doctor[dashboard]"
-env-doctor dashboard --host 0.0.0.0 --port 8765
-# Open port 8765 in your security group / firewall rules
-```
-
-```bash
-# On each GPU instance (same VPC) — one command
-pip install env-doctor && env-doctor report install --url http://<vm-private-ip>:8765
-```
-
-For machines behind NAT (different networks), use [Tailscale](https://tailscale.com) for zero-config networking:
-
-```bash
-# Install Tailscale on each machine, then use the Tailscale IP
-env-doctor report install --url http://100.x.x.x:8765 --token <token>
-```
-
-### Deploying to a Shared Host
-
-If you're hosting one dashboard for a small team rather than running it on a single laptop:
-
-1. **Use the API token.** Generated automatically on first launch (see Step 1 above), or pin a known value with `ENV_DOCTOR_API_TOKEN`. All `/api/*` routes require `Authorization: Bearer <token>`.
-2. **Put TLS in front.** The dashboard speaks plain HTTP. Terminate TLS in nginx, Caddy, or a cloud load balancer and forward to `127.0.0.1:8765`. Tokens travel in the `Authorization` header — they need TLS to stay private outside trusted networks.
-3. **Restrict CORS.** Set `ENV_DOCTOR_CORS_ORIGINS=https://dashboard.example.com` on the dashboard process so the browser only honours requests from your origin (defaults to `*` for backward compatibility with local use).
-4. **Tune staleness.** A machine is flagged "stale" once its `last_seen` is older than `ENV_DOCTOR_STALE_SECONDS` seconds (default 3600 = 1 hour, ≈ 2× the default heartbeat).
-5. **Rotating the token.** Edit `~/.env-doctor/api-token` (or update `ENV_DOCTOR_API_TOKEN` and restart). Each host CLI needs `env-doctor report install --token <new>` re-run, or its `~/.env-doctor/report-config.json` updated, before the next check-in.
-
-### What the Dashboard Shows
-
-The web UI at `http://<dashboard-host>:8765` displays:
-
-- **Fleet overview** *(landing page)* — sortable table of every machine with status, GPU, driver, CUDA, torch, and group. Filter by status pill or group dropdown; click any group chip in the column to scope the view. Expand a row to drill into per-machine issues or queue a remediation command.
-- **Topology view** — force-directed canvas of the dashboard hub and all GPU machines, colour-coded by health. Group machines into clusters (e.g. `training-prod`, `inference-prod`, `dev`) — same-group nodes drift together inside a faint coloured bubble. Filter by group, search by hostname, **shift+click** or **shift+drag (lasso)** to multi-select, then bulk-assign via the floating action bar. Right-click any node for a quick group picker.
-- **Activity log** — cross-fleet log of every queued remediation command (timestamp, machine, status, exit code, duration, output). Filter by machine, status, or time range; expand any row to inspect output. Auto-refreshes every 10s.
-- **Machine detail** — full diagnostic breakdown identical to what `env-doctor check` prints locally, plus an inline group editor and the snapshot history timeline.
-
-All data is stored in `~/.env-doctor/dashboard.db` (SQLite) on the dashboard host. No external database or cloud dependencies.
-
-> **Auto-login:** when you visit the dashboard from the same host that runs it, the API token is injected into the page automatically — no copy-paste step. Remote browsers still need to enter the token from `~/.env-doctor/api-token`.
-
-### Remote Remediation
-
-The dashboard can queue `env-doctor` CLI commands to run on remote machines — no SSH required.
-
-```
-  Dashboard                           GPU Machine
-  ┌────────────┐                     ┌──────────────────┐
-  │ Operator   │                     │ Scheduled check  │
-  │ clicks     │                     │ (cron / Task     │
-  │ "▶ Run" on │                     │  Scheduler)      │
-  │ Fleet page │                     │                  │
-  └──────┬─────┘                     └────────┬─────────┘
-         │                                     │
-         ▼                                     ▼
-  Queue command                        env-doctor check
-  in database                          --report-to <url>
-  (status: pending)                            │
-         │                                     ▼
-         │                            Server returns pending
-         │                            commands in response
-         │                                     │
-         │                                     ▼
-         │                            CLI executes commands,
-         │                            posts results back
-         │                                     │
-         │                                     ▼
-         │                            CLI re-runs check to
-         └─────────────────────────── verify the fix
-```
-
-**How it works:** GPU machines check in periodically via `env-doctor check --report-to`. On each check-in, the server returns any pending commands in the HTTP response. The CLI executes them, posts the output back, and re-runs diagnostics to verify the fix. This pull-based model means:
-
-- No inbound ports needed on GPU machines (works behind NATs, firewalls, VPNs)
-- No SSH credentials stored on the dashboard
-- Only `env-doctor` commands are accepted (security scoped)
-- Commands typically execute within one check-in interval (default: 5 minutes)
-
-Set up scheduled check-ins on each GPU machine:
-
-```bash
-# Linux / macOS — creates a cron job
-env-doctor report install --url http://<dashboard-host>:8765 --interval 5m
-
-# Windows — creates a Task Scheduler entry
-env-doctor report install --url http://<dashboard-host>:8765 --interval 5m
-```
+Smart change detection means stable machines only POST ~1 heartbeat every 30 minutes, not on every poll.
 
 **Learn more:** [Fleet Monitoring Guide](docs/guides/fleet-monitoring.md)
 
@@ -362,33 +199,15 @@ env-doctor check
 ✅ All checks passed!
 ```
 
-**On new-generation GPUs** (e.g. RTX 5070 / Blackwell), env-doctor catches architecture mismatches and distinguishes between two failure modes:
+**On new-generation GPUs** (e.g. RTX 5070 / Blackwell), env-doctor catches compute capability mismatches — the reason `torch.cuda.is_available()` returns `False` even when your driver and CUDA are healthy:
 
-**Hard failure** — `torch.cuda.is_available()` returns `False`:
 ```
 🎯  COMPUTE CAPABILITY CHECK
     GPU: NVIDIA GeForce RTX 5070 (Compute 12.0, Blackwell, sm_120)
     PyTorch compiled for: sm_50, sm_60, sm_70, sm_80, sm_90, compute_90
     ❌ ARCHITECTURE MISMATCH: Your GPU needs sm_120 but PyTorch 2.5.1 doesn't include it.
 
-    This is likely why torch.cuda.is_available() returns False even though
-    your driver and CUDA toolkit are working correctly.
-
     FIX: Install PyTorch nightly with sm_120 support:
-       pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu126
-```
-
-**Soft failure** — `torch.cuda.is_available()` returns `True` via NVIDIA's PTX JIT, but complex ops may silently degrade:
-```
-🎯  COMPUTE CAPABILITY CHECK
-    GPU: NVIDIA GeForce RTX 5070 (Compute 12.0, Blackwell, sm_120)
-    PyTorch compiled for: sm_50, sm_60, sm_70, sm_80, sm_90, compute_90
-    ⚠️  ARCHITECTURE MISMATCH (Soft): Your GPU needs sm_120 but PyTorch 2.5.1 doesn't include it.
-
-    torch.cuda.is_available() returned True via NVIDIA's driver-level PTX JIT,
-    but you may experience degraded performance or failures with complex CUDA ops.
-
-    FIX: Install a newer PyTorch with native sm_120 support for full compatibility:
        pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu126
 ```
 
@@ -402,30 +221,17 @@ env-doctor python-compat
 🐍  PYTHON VERSION COMPATIBILITY CHECK
 ============================================================
 Python Version: 3.13 (3.13.0)
-Libraries Checked: 2
 
 ❌  2 compatibility issue(s) found:
 
-    tensorflow:
-      tensorflow supports Python <=3.12, but you have Python 3.13
-      Note: TensorFlow 2.15+ requires Python 3.9-3.12. Python 3.13 not yet supported.
-
-    torch:
-      torch supports Python <=3.12, but you have Python 3.13
-      Note: PyTorch 2.x supports Python 3.9-3.12. Python 3.13 support experimental.
+    tensorflow: supports Python <=3.12, but you have Python 3.13
+    torch: supports Python <=3.12, but you have Python 3.13
 
 ⚠️   Dependency Cascades:
-    tensorflow [high]: TensorFlow's Python ceiling propagates to keras and tensorboard
-      Affected: keras, tensorboard, tensorflow-estimator
-    torch [high]: PyTorch's Python version constraint affects all torch ecosystem packages
-      Affected: torchvision, torchaudio, triton
+    tensorflow [high]: propagates to keras, tensorboard
+    torch [high]: propagates to torchvision, torchaudio, triton
 
 💡  Consider using Python 3.12 or lower for full compatibility
-
-💡  Cascade: tensorflow constraint also affects: keras, tensorboard, tensorflow-estimator
-
-💡  Cascade: torch constraint also affects: torchvision, torchaudio, triton
-
 ============================================================
 ```
 
@@ -496,68 +302,23 @@ Every run writes a timestamped log to `~/.env-doctor/install.log` for debugging.
 
 ### Install Compilation Packages (Extension Libraries)
 
-For extension libraries like **flash-attn**, **SageAttention**, **auto-gptq**, **apex**, and **xformers** that require compilation from source, `env-doctor` provides special guidance to handle CUDA version mismatches:
+For packages like **flash-attn**, **SageAttention**, **auto-gptq**, **apex**, and **xformers** that compile from source, `env-doctor` detects CUDA mismatches and provides two fix paths:
 
 ```bash
 env-doctor install flash-attn
 ```
 
-**Example output (with CUDA mismatch):**
 ```
 🩺  PRESCRIPTION FOR: flash-attn
 
 ⚠️   CUDA VERSION MISMATCH DETECTED
-     System nvcc: 12.1.1
-     PyTorch CUDA: 12.4.1
+     System nvcc: 12.1.1 | PyTorch CUDA: 12.4.1
 
-🔧  flash-attn requires EXACT CUDA version match for compilation.
-    You have TWO options to fix this:
+🔧  Two options:
+    📦 OPTION 1: Downgrade PyTorch to match nvcc (12.1) — no system changes
+    ⚙️  OPTION 2: Upgrade nvcc to match PyTorch (12.4) — better long-term
 
-============================================================
-📦  OPTION 1: Install PyTorch matching your nvcc (12.1)
-============================================================
-
-Trade-offs:
-  ✅ No system changes needed
-  ✅ Faster to implement
-  ❌ Older PyTorch version (may lack new features)
-
-Commands:
-  # Uninstall current PyTorch
-  pip uninstall torch torchvision torchaudio -y
-
-  # Install PyTorch for CUDA 12.1
-  pip install torch --index-url https://download.pytorch.org/whl/cu121
-
-  # Install flash-attn
-  pip install flash-attn --no-build-isolation
-
-============================================================
-⚙️   OPTION 2: Upgrade nvcc to match PyTorch (12.4)
-============================================================
-
-Trade-offs:
-  ✅ Keep latest PyTorch
-  ✅ Better long-term solution
-  ❌ Requires system-level changes
-  ❌ Verify driver supports CUDA 12.4
-
-Steps:
-  1. Check driver compatibility:
-     env-doctor check
-
-  2. Download CUDA Toolkit 12.4:
-     https://developer.nvidia.com/cuda-12-4-0-download-archive
-
-  3. Install CUDA Toolkit (follow NVIDIA's platform-specific guide)
-
-  4. Verify installation:
-     nvcc --version
-
-  5. Install flash-attn:
-     pip install flash-attn --no-build-isolation
-
-============================================================
+    (Full step-by-step commands shown for both options)
 ```
 
 ### Check Model Compatibility

@@ -5,6 +5,21 @@ All notable changes to env-doctor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] - 2026-06-15
+
+### Added
+- **Jupyter / notebook HTML output**: `from env_doctor import check; check()` auto-detects a live Jupyter kernel and renders a rich, self-contained HTML report inline. Falls back to the familiar terminal text report everywhere else.
+- **`CheckReport` public API**: `check()` returns a `CheckReport` object with `_repr_html_()` (Jupyter display protocol), `__repr__()`, `.html` (raw HTML string), and `.to_dict()`.
+- **`--format {text,html,json}` CLI flag**: `env-doctor check --format html` emits a self-contained HTML fragment for CI reports or `> report.html`. `--json` / `--ci` still work identically.
+- **`report` module**: `env_doctor.report.is_notebook()` detects Jupyter/Colab kernels; `env_doctor.report.format_result_html(output)` produces inline-CSS HTML with no external deps.
+- **`[notebook]` optional extra**: `pip install env-doctor[notebook]` pulls in IPython. Core deps unchanged — IPython stays optional and lazily imported.
+
+### Changed
+- Extracted `collect_check_results()` and `render_check_text()` from `check_command()` so the JSON, HTML, text, and public API renderers share a single detection pass.
+- Logo in HTML report now uses the project SVG (`src/env_doctor/report/logo.svg`) instead of an emoji.
+
+---
+
 ## [0.3.2] - 2026-05-02
 
 ### Fixed
@@ -301,6 +316,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic CUDA toolkit detection
 - Library installation commands
 
+[0.3.4]: https://github.com/mitulgarg/env-doctor/compare/v0.3.3...v0.3.4
 [0.3.1]: https://github.com/mitulgarg/env-doctor/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/mitulgarg/env-doctor/compare/v0.2.9...v0.3.0
 [0.2.9]: https://github.com/mitulgarg/env-doctor/compare/v0.2.8...v0.2.9

@@ -54,6 +54,7 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 | **One-Command Diagnosis** | Check compatibility: GPU Driver → CUDA Toolkit → cuDNN → PyTorch/TensorFlow/JAX |
 | **Compute Capability Check** | Detect GPU architecture mismatches — catches why `torch.cuda.is_available()` returns `False` on new GPUs (e.g. Blackwell) even when driver and CUDA are healthy |
 | **Python Version Compatibility** | Detect Python version conflicts with AI libraries and dependency cascade impacts |
+| **Jupyter / Notebook Output** | `from env_doctor import check; check()` renders a rich HTML diagnosis inline in Jupyter, Colab, or VS Code notebooks — falls back to text in the terminal |
 | **CUDA Auto-Installer** | Execute CUDA Toolkit installation directly with `--run`; CI-friendly with `--yes`; preview with `--dry-run` |
 | **Safe Install Commands** | Get the exact `pip install` command that works with YOUR driver |
 | **Extension Library Support** | Install compilation packages (flash-attn, SageAttention, auto-gptq, apex, xformers) with CUDA version matching |
@@ -210,6 +211,18 @@ env-doctor check
     FIX: Install PyTorch nightly with sm_120 support:
        pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu126
 ```
+
+### Notebook / Jupyter Output
+
+Inside a Jupyter, Colab, or VS Code notebook, the Python API renders a rich, self-contained HTML report inline:
+
+```python
+from env_doctor import check
+check()   # auto-renders HTML in notebooks, prints text in terminals
+```
+
+Install the optional extra for notebook support: `pip install "env-doctor[notebook]"`.
+You can also force HTML from the CLI with `env-doctor check --format html > report.html`.
 
 ### Check Python Version Compatibility
 

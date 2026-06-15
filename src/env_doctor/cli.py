@@ -429,23 +429,18 @@ def _build_check_output(results, driver_result, cuda_result, cudnn_result,
     }
 
 
-def check_command(output_json: bool = False, ci: bool = False,
-                  report_to: str = None, force_report: bool = False,
-                  token: str = None):
-    """
-    Main diagnostic command using detector architecture.
+def collect_check_results() -> Dict[str, Any]:
+    """Run every detector once and return a bundle of results.
 
-    This is the MODERNIZED version that uses DetectorRegistry
-    instead of direct function calls.
+    Centralizes detection so the human, JSON, HTML, and dashboard-report
+    renderers all consume the exact same data without re-running detectors.
 
-    Args:
-        output_json: Output as JSON (machine-readable)
-        ci: CI-friendly mode (implies JSON + proper exit codes)
-        report_to: Dashboard URL to POST results to
-        force_report: Bypass change detection (always send)
-        token: Bearer token for the dashboard API (overrides env var/config)
+    Returns:
+        dict with the raw DetectionResult objects, the ``results`` map used
+        for status/exit-code logic, the computed compute-capability info,
+        torch's ``cuda_available`` flag, and the structured ``output`` dict
+        produced by ``_build_check_output``.
     """
-    # === Collect all detection results ===
     # STEP 1: Environment Detection
     wsl2_detector = DetectorRegistry.get("wsl2")
     wsl2_result = wsl2_detector.detect() if wsl2_detector.can_run() else None
@@ -482,7 +477,7 @@ def check_command(output_json: bool = False, ci: bool = False,
     python_compat_detector = DetectorRegistry.get("python_compat")
     python_compat_result = python_compat_detector.detect()
 
-    # Organize results for JSON output
+    # Organize results for status/exit-code logic
     results = {
         "wsl2": wsl2_result,
         "driver": driver_result,
@@ -492,49 +487,95 @@ def check_command(output_json: bool = False, ci: bool = False,
         "python_compat": python_compat_result,
     }
 
-    # === Choose output format ===
-    # Compute capability check (for JSON, CI, and --report-to modes)
+    # Compute capability check (pure computation, no printing)
     compute_compat_info = None
-    need_structured = ci or output_json or report_to
+    cuda_available = None
     if torch_result and torch_result.detected and driver_result.detected:
-        if need_structured:
-            from .detectors.compute_capability import (
-                get_sm_for_compute_capability,
-                get_arch_name,
-                is_sm_in_arch_list,
-            )
-            gpu_cc = driver_result.metadata.get("primary_gpu_compute_capability")
-            arch_list = torch_result.metadata.get("arch_list", [])
-            gpu_name = driver_result.metadata.get("primary_gpu_name", "Unknown GPU")
-            torch_cuda = torch_result.metadata.get("cuda_version", "Unknown")
-            cuda_available_json = _get_torch_cuda_available()
-
-            compute_compat_info = {
-                "gpu_name": gpu_name,
-                "compute_capability": gpu_cc,
-                "arch_list": arch_list,
-                "cuda_available": cuda_available_json,
-            }
-
-            if gpu_cc and arch_list:
-                sm = get_sm_for_compute_capability(gpu_cc)
-                arch_name_val = get_arch_name(gpu_cc)
-                compute_compat_info["sm"] = sm
-                compute_compat_info["arch_name"] = arch_name_val
-                compatible = is_sm_in_arch_list(sm, arch_list)
-                compute_compat_info["status"] = "compatible" if compatible else "mismatch"
-                if not compatible and torch_cuda and torch_cuda != "Unknown":
-                    cuda_slug = "cu" + torch_cuda.replace(".", "").split()[0]
-                    compute_compat_info["nightly_url"] = f"https://download.pytorch.org/whl/nightly/{cuda_slug}"
-            else:
-                compute_compat_info["status"] = "unknown"
-
-    # Build the output dict (needed for JSON, CI, and --report-to)
-    if need_structured:
-        output = _build_check_output(
-            results, driver_result, cuda_result, cudnn_result,
-            lib_results, python_compat_result, compute_compat_info
+        from .detectors.compute_capability import (
+            get_sm_for_compute_capability,
+            get_arch_name,
+            is_sm_in_arch_list,
         )
+        gpu_cc = driver_result.metadata.get("primary_gpu_compute_capability")
+        arch_list = torch_result.metadata.get("arch_list", [])
+        gpu_name = driver_result.metadata.get("primary_gpu_name", "Unknown GPU")
+        torch_cuda = torch_result.metadata.get("cuda_version", "Unknown")
+        cuda_available = _get_torch_cuda_available()
+
+        compute_compat_info = {
+            "gpu_name": gpu_name,
+            "compute_capability": gpu_cc,
+            "arch_list": arch_list,
+            "cuda_available": cuda_available,
+        }
+
+        if gpu_cc and arch_list:
+            sm = get_sm_for_compute_capability(gpu_cc)
+            arch_name_val = get_arch_name(gpu_cc)
+            compute_compat_info["sm"] = sm
+            compute_compat_info["arch_name"] = arch_name_val
+            compatible = is_sm_in_arch_list(sm, arch_list)
+            compute_compat_info["status"] = "compatible" if compatible else "mismatch"
+            if not compatible and torch_cuda and torch_cuda != "Unknown":
+                cuda_slug = "cu" + torch_cuda.replace(".", "").split()[0]
+                compute_compat_info["nightly_url"] = f"https://download.pytorch.org/whl/nightly/{cuda_slug}"
+        else:
+            compute_compat_info["status"] = "unknown"
+
+    output = _build_check_output(
+        results, driver_result, cuda_result, cudnn_result,
+        lib_results, python_compat_result, compute_compat_info
+    )
+
+    return {
+        "wsl2_result": wsl2_result,
+        "driver_result": driver_result,
+        "cuda_result": cuda_result,
+        "cudnn_result": cudnn_result,
+        "lib_results": lib_results,
+        "torch_result": torch_result,
+        "python_compat_result": python_compat_result,
+        "max_cuda": max_cuda,
+        "compute_compat_info": compute_compat_info,
+        "cuda_available": cuda_available,
+        "results": results,
+        "output": output,
+    }
+
+
+def check_command(output_json: bool = False, ci: bool = False,
+                  report_to: str = None, force_report: bool = False,
+                  token: str = None, output_format: str = None):
+    """
+    Main diagnostic command using detector architecture.
+
+    This is the MODERNIZED version that uses DetectorRegistry
+    instead of direct function calls.
+
+    Args:
+        output_json: Output as JSON (machine-readable)
+        ci: CI-friendly mode (implies JSON + proper exit codes)
+        report_to: Dashboard URL to POST results to
+        force_report: Bypass change detection (always send)
+        token: Bearer token for the dashboard API (overrides env var/config)
+        output_format: Explicit renderer: "text", "json", or "html".
+            Takes precedence over output_json/ci when set.
+    """
+    # Normalize the requested format. --json/--ci stay backward compatible.
+    fmt = output_format or ("json" if (ci or output_json) else "text")
+
+    # === Collect all detection results ===
+    bundle = collect_check_results()
+    wsl2_result = bundle["wsl2_result"]
+    driver_result = bundle["driver_result"]
+    cuda_result = bundle["cuda_result"]
+    cudnn_result = bundle["cudnn_result"]
+    lib_results = bundle["lib_results"]
+    torch_result = bundle["torch_result"]
+    python_compat_result = bundle["python_compat_result"]
+    max_cuda = bundle["max_cuda"]
+    results = bundle["results"]
+    output = bundle["output"]
 
     # Smart reporting to dashboard
     if report_to:
@@ -580,7 +621,7 @@ def check_command(output_json: bool = False, ci: bool = False,
                     return
                 resp.raise_for_status()
                 mark_reported(output, url, is_heartbeat=is_heartbeat)
-                if not (ci or output_json):
+                if fmt == "text":
                     kind = "heartbeat" if is_heartbeat else "report"
                     print(f"✅ Sent {kind} to {url} (HTTP {resp.status_code})", file=sys.stderr)
 
@@ -641,112 +682,135 @@ def check_command(output_json: bool = False, ci: bool = False,
             except Exception as e:
                 print(f"⚠️  Failed to report to dashboard: {e}", file=sys.stderr)
 
-    if ci or output_json:
+    if fmt == "json":
         print(json.dumps(output, indent=2))
         sys.exit(determine_exit_code(results))
+    elif fmt == "html":
+        from .report import format_result_html
+        print(format_result_html(output))
+        sys.exit(determine_exit_code(results))
     else:
-        # Human output (existing code)
-        print("\n🩺  ENV-DOCTOR DIAGNOSIS  🩺")
-        print("==============================")
+        # Human-readable terminal output
+        render_check_text(bundle)
 
-        # --- Show DB Status ---
-        meta = DB_DATA.get("_metadata", {})
-        if meta:
-            print(f"🛡️  DB Verified: {meta.get('last_verified', 'Unknown')}")
-            print(f"    Method: {meta.get('method', 'Unknown')}")
-            print("------------------------------")
 
-        # === STEP 1: Environment Detection ===
-        if wsl2_result:
-            print_detection_result(wsl2_result, "🐧")
-            print("------------------------------")
+def render_check_text(bundle: Dict[str, Any]) -> None:
+    """Print the human-readable terminal diagnosis from a results bundle.
 
-        # === STEP 2: Hardware Detection ===
-        if driver_result.detected:
-            print(f"✅  GPU Driver Found: {driver_result.version}")
-            print(f"    → Max Supported CUDA: {max_cuda}")
-            print(f"    → Detection Method: {driver_result.metadata.get('detection_method', 'unknown')}")
-        else:
-            print("⚠️   No NVIDIA Driver detected.")
-            for rec in driver_result.recommendations:
-                print(f"    → {rec}")
+    Single source of truth for the ``check`` command's text output, shared by
+    the CLI and the public ``env_doctor.check()`` API (non-notebook path).
+    """
+    wsl2_result = bundle["wsl2_result"]
+    driver_result = bundle["driver_result"]
+    cuda_result = bundle["cuda_result"]
+    cudnn_result = bundle["cudnn_result"]
+    lib_results = bundle["lib_results"]
+    torch_result = bundle["torch_result"]
+    python_compat_result = bundle["python_compat_result"]
+    max_cuda = bundle["max_cuda"]
 
-        # === STEP 3: System CUDA Detection ===
-        if cuda_result.detected:
-            print(f"✅  System CUDA (nvcc): {cuda_result.version}")
-            if cuda_result.path:
-                print(f"    Path: {cuda_result.path}")
+    print("\n🩺  ENV-DOCTOR DIAGNOSIS  🩺")
+    print("==============================")
 
-            # Show quick status
-            install_count = cuda_result.metadata.get("installation_count", 1)
-            if install_count > 1:
-                print(f"    ⚠️  {install_count} CUDA installations detected")
-
-            if cuda_result.status == Status.WARNING:
-                print(f"    ⚠️  Configuration issues detected (run 'doctor debug' for details)")
-            elif cuda_result.status == Status.ERROR:
-                print(f"    ❌ Critical issues detected (run 'doctor debug' for details)")
-        else:
-            print("ℹ️   System CUDA (nvcc) not found.")
-            if cuda_result.recommendations:
-                print(f"    → {cuda_result.recommendations[0]}")
-
+    # --- Show DB Status ---
+    meta = DB_DATA.get("_metadata", {})
+    if meta:
+        print(f"🛡️  DB Verified: {meta.get('last_verified', 'Unknown')}")
+        print(f"    Method: {meta.get('method', 'Unknown')}")
         print("------------------------------")
 
-        # cuDNN Detection
-        if cudnn_result and cudnn_result.detected:
-            print(f"✅  cuDNN: v{cudnn_result.version}")
+    # === STEP 1: Environment Detection ===
+    if wsl2_result:
+        print_detection_result(wsl2_result, "🐧")
+        print("------------------------------")
 
-        # === STEP 4: Python Libraries Detection ===
-        for lib, lib_result in lib_results.items():
-            if lib_result.detected:
-                print(f"📦  Found {lib}: v{lib_result.version}")
+    # === STEP 2: Hardware Detection ===
+    if driver_result.detected:
+        print(f"✅  GPU Driver Found: {driver_result.version}")
+        print(f"    → Max Supported CUDA: {max_cuda}")
+        print(f"    → Detection Method: {driver_result.metadata.get('detection_method', 'unknown')}")
+    else:
+        print("⚠️   No NVIDIA Driver detected.")
+        for rec in driver_result.recommendations:
+            print(f"    → {rec}")
 
-                # Show bundled CUDA info
-                cuda_ver = lib_result.metadata.get("cuda_version", "Unknown")
-                if cuda_ver != "Unknown":
-                    print(f"    → Bundled CUDA: {cuda_ver}")
+    # === STEP 3: System CUDA Detection ===
+    if cuda_result.detected:
+        print(f"✅  System CUDA (nvcc): {cuda_result.version}")
+        if cuda_result.path:
+            print(f"    Path: {cuda_result.path}")
 
-                    # Check compatibility with driver
-                    if max_cuda:
-                        check_library_compatibility(lib_result, max_cuda)
-                else:
-                    print(f"    → Bundled CUDA: Not Detected")
+        # Show quick status
+        install_count = cuda_result.metadata.get("installation_count", 1)
+        if install_count > 1:
+            print(f"    ⚠️  {install_count} CUDA installations detected")
+
+        if cuda_result.status == Status.WARNING:
+            print(f"    ⚠️  Configuration issues detected (run 'doctor debug' for details)")
+        elif cuda_result.status == Status.ERROR:
+            print(f"    ❌ Critical issues detected (run 'doctor debug' for details)")
+    else:
+        print("ℹ️   System CUDA (nvcc) not found.")
+        if cuda_result.recommendations:
+            print(f"    → {cuda_result.recommendations[0]}")
+
+    print("------------------------------")
+
+    # cuDNN Detection
+    if cudnn_result and cudnn_result.detected:
+        print(f"✅  cuDNN: v{cudnn_result.version}")
+
+    # === STEP 4: Python Libraries Detection ===
+    for lib, lib_result in lib_results.items():
+        if lib_result.detected:
+            print(f"📦  Found {lib}: v{lib_result.version}")
+
+            # Show bundled CUDA info
+            cuda_ver = lib_result.metadata.get("cuda_version", "Unknown")
+            if cuda_ver != "Unknown":
+                print(f"    → Bundled CUDA: {cuda_ver}")
+
+                # Check compatibility with driver
+                if max_cuda:
+                    check_library_compatibility(lib_result, max_cuda)
             else:
-                print(f"❌  {lib} is NOT installed.")
+                print(f"    → Bundled CUDA: Not Detected")
+        else:
+            print(f"❌  {lib} is NOT installed.")
 
-        # === STEP 5: Python Compatibility Check ===
-        print("------------------------------")
-        conflicts = python_compat_result.metadata.get("conflicts", [])
-        if python_compat_result.status == Status.SUCCESS:
-            checked = python_compat_result.metadata.get("constraints_checked", 0)
-            print(f"✅  Python {python_compat_result.version}: Compatible with all {checked} checked libraries")
-        elif python_compat_result.status == Status.ERROR:
-            print(f"❌  Python {python_compat_result.version}: {len(conflicts)} compatibility issue(s)")
-            for conflict in conflicts:
-                print(f"    ⚠️  {conflict['message']}")
-            for rec in python_compat_result.recommendations:
-                print(f"    → {rec}")
+    # === STEP 5: Python Compatibility Check ===
+    print("------------------------------")
+    conflicts = python_compat_result.metadata.get("conflicts", [])
+    if python_compat_result.status == Status.SUCCESS:
+        checked = python_compat_result.metadata.get("constraints_checked", 0)
+        print(f"✅  Python {python_compat_result.version}: Compatible with all {checked} checked libraries")
+    elif python_compat_result.status == Status.ERROR:
+        print(f"❌  Python {python_compat_result.version}: {len(conflicts)} compatibility issue(s)")
+        for conflict in conflicts:
+            print(f"    ⚠️  {conflict['message']}")
+        for rec in python_compat_result.recommendations:
+            print(f"    → {rec}")
 
-        # === STEP 6: Compilation Health Check ===
-        if torch_result and torch_result.detected:
-            check_compilation_health(cuda_result, torch_result)
+    # === STEP 6: Compilation Health Check ===
+    if torch_result and torch_result.detected:
+        check_compilation_health(cuda_result, torch_result)
 
-        # === STEP 6b: Compute Capability Check ===
-        if torch_result and torch_result.detected and driver_result.detected:
-            cuda_available = _get_torch_cuda_available()
-            check_compute_capability_compatibility(driver_result, torch_result, cuda_available)
+    # === STEP 6b: Compute Capability Check ===
+    if torch_result and torch_result.detected and driver_result.detected:
+        check_compute_capability_compatibility(
+            driver_result, torch_result, bundle["cuda_available"]
+        )
 
-        # === STEP 7: System Path Check ===
-        check_system_path()
+    # === STEP 7: System Path Check ===
+    check_system_path()
 
-        # === STEP 7: Code Migration Check ===
-        # (Not yet refactored - still using legacy function)
-        check_broken_imports()
+    # === STEP 7: Code Migration Check ===
+    # (Not yet refactored - still using legacy function)
+    check_broken_imports()
 
-        # === STEP 8: Offer detailed analysis ===
-        if cuda_result.detected and (cuda_result.issues or cuda_result.metadata.get("installation_count", 1) > 1):
-            print("\n💡  TIP: Run 'env-doctor cuda-info' for detailed CUDA analysis")
+    # === STEP 8: Offer detailed analysis ===
+    if cuda_result.detected and (cuda_result.issues or cuda_result.metadata.get("installation_count", 1) > 1):
+        print("\n💡  TIP: Run 'env-doctor cuda-info' for detailed CUDA analysis")
 
 
 
@@ -2769,6 +2833,12 @@ Examples:
         help='CI-friendly mode (implies --json with proper exit codes)'
     )
     check_parser.add_argument(
+        '--format',
+        choices=['text', 'html', 'json'],
+        default=None,
+        help='Output format (overrides --json/--ci). html emits a self-contained report.'
+    )
+    check_parser.add_argument(
         '--report-to',
         metavar='URL',
         help='POST check results to a dashboard URL (e.g., http://localhost:8765)'
@@ -3062,6 +3132,7 @@ Examples:
             report_to=getattr(args, 'report_to', None),
             force_report=getattr(args, 'force', False),
             token=getattr(args, 'token', None),
+            output_format=getattr(args, 'format', None),
         )
     elif args.command == "cuda-info":
         cuda_info_command(

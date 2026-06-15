@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "env-doctor"
-version = "0.3.3"
+version = "0.3.4"
 description = "A CLI tool to verify and fix AI/ML environment compatibility (Driver <-> CUDA <-> Wheels) with platform-specific installation guides."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -39,6 +39,9 @@ dashboard = [
     "sqlalchemy>=2.0.0,<3.0.0",
     "aiosqlite>=0.17.0,<1.0.0",
 ]
+notebook = [
+    "ipython>=7.0",
+]
 
 [project.scripts]
 env-doctor = "env_doctor.cli:main"
@@ -57,7 +60,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-"*" = ["data/*.json", "web/**/*"]
+"*" = ["data/*.json", "web/**/*", "report/*.svg"]
 
 [dependency-groups]
 dev = ["pytest"]

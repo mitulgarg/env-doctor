@@ -372,3 +372,160 @@ class TestDockerfileValidatorDBIntegration:
         assert "tensorflow" in validator.detected_libraries
         assert validator.detected_libraries["torch"]["line_number"] > 0
         assert validator.detected_libraries["tensorflow"]["line_number"] > 0
+
+
+class TestDockerfileBloatDetection:
+    """Tests for image size / bloat detection."""
+
+    def test_devel_without_compilation_flagged(self):
+        """A devel image with no compilation should suggest a slimmer variant."""
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.devel_no_compilation"))
+        result = validator.validate()
+
+        bloat = [i for i in result.issues if "no CUDA compilation was detected" in i.issue]
+        assert len(bloat) == 1
+        assert bloat[0].severity == Severity.INFO
+        # Savings are expressed as a delta, not an absolute pair
+        assert "GB smaller" in bloat[0].recommendation
+        assert "-runtime" in bloat[0].corrected_command
+
+    def test_devel_with_compilation_not_flagged_as_bloated(self):
+        """A devel image that genuinely compiles must not be called bloated."""
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.devel_with_compilation"))
+        result = validator.validate()
+
+        bloat = [i for i in result.issues if "no CUDA compilation was detected" in i.issue]
+        assert len(bloat) == 0
+
+    def test_single_stage_compilation_suggests_multi_stage(self):
+        """Compilation in a single-stage devel build should suggest a split."""
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.devel_with_compilation"))
+        result = validator.validate()
+
+        suggestions = [i for i in result.issues if "Single-stage" in i.issue]
+        assert len(suggestions) == 1
+        assert suggestions[0].severity == Severity.INFO
+        assert "AS builder" in suggestions[0].corrected_command
+        assert "-runtime" in suggestions[0].corrected_command
+
+    def test_multistage_compilation_no_false_error(self):
+        """
+        Regression: compiling in a devel builder stage and shipping a runtime
+        final stage is correct and must not be reported as a mismatch.
+        """
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.multistage_compilation"))
+        result = validator.validate()
+
+        assert result.error_count == 0, [i.issue for i in result.get_issues_by_severity(Severity.ERROR)]
+        mismatches = [i for i in result.issues if "CUDA compilation required" in i.issue]
+        assert len(mismatches) == 0
+
+    def test_multistage_not_given_multistage_suggestion(self):
+        """A Dockerfile that is already multi-stage needs no such suggestion."""
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.multistage_compilation"))
+        result = validator.validate()
+
+        assert [i for i in result.issues if "Single-stage" in i.issue] == []
+
+    def test_single_stage_runtime_compilation_still_errors(self):
+        """The genuine single-stage runtime/compilation error must survive."""
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.runtime_needs_compilation"))
+        result = validator.validate()
+
+        mismatches = [i for i in result.issues if "CUDA compilation required" in i.issue]
+        assert len(mismatches) == 1
+        assert mismatches[0].severity == Severity.ERROR
+
+    def test_redundant_cuda_install_flagged(self):
+        """Installing CUDA on a CUDA base image is redundant."""
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.redundant_cuda_install"))
+        result = validator.validate()
+
+        redundant = [i for i in result.issues if "Redundant CUDA installation" in i.issue]
+        assert len(redundant) == 1
+        assert redundant[0].severity == Severity.WARNING
+
+    def test_redundant_install_reported_once(self):
+        """The toolkit check must not double-report on the same line."""
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.redundant_cuda_install"))
+        result = validator.validate()
+
+        toolkit_issues = [i for i in result.issues if "CUDA" in i.issue and "install" in i.issue.lower()]
+        lines = [i.line_number for i in toolkit_issues]
+        assert len(lines) == len(set(lines))
+
+    def test_cudnn_devel_variant_detected(self):
+        """cuDNN variants must resolve to their own bucket."""
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.cudnn_devel"))
+        validator.validate()
+
+        assert validator.base_image_variant == "cudnn-devel"
+
+    def test_variant_detection_across_registries(self):
+        """Variant detection should work for pytorch images too."""
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.valid"))
+
+        assert validator._detect_image_variant("nvidia/cuda:12.4.0-devel-ubuntu22.04") == "devel"
+        assert validator._detect_image_variant("nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04") == "cudnn-runtime"
+        assert validator._detect_image_variant("pytorch/pytorch:2.1.0-cuda12.1-cudnn8-devel") == "cudnn-devel"
+        assert validator._detect_image_variant("nvidia/cuda:12.4.0-base-ubuntu22.04") == "base"
+        assert validator._detect_image_variant("python:3.11") is None
+
+    def test_stage_partitioning(self):
+        """Lines must be assigned to the stage that contains them."""
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.multistage_compilation"))
+        validator.validate()
+
+        assert len(validator.stages) == 2
+        assert validator.stages[0]["alias"] == "builder"
+        assert validator.stages[1]["alias"] is None
+        # flash-attn belongs to the builder stage only
+        assert any("flash-attn" in line for _, line in validator.stages[0]["lines"])
+        assert not any("flash-attn" in line for _, line in validator.final_stage_lines)
+
+    def test_single_stage_final_lines_equal_all_lines(self):
+        """Single-stage files must be unaffected by stage scoping."""
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.valid"))
+        validator.validate()
+
+        assert len(validator.stages) == 1
+        # Lines before the FROM carry no instructions; everything from the
+        # FROM onward must be preserved so single-stage checks are unchanged.
+        from_line = validator.stages[0]["line_number"]
+        expected = [(n, t) for n, t in validator.lines if n >= from_line]
+        assert validator.final_stage_lines == expected
+
+    def test_opaque_dependencies_suppress_bloat_warning(self):
+        """requirements.txt hides what is installed, so stay quiet."""
+        content = (
+            "FROM nvidia/cuda:12.4.0-devel-ubuntu22.04\n"
+            "COPY requirements.txt .\n"
+            "RUN pip install -r requirements.txt\n"
+        )
+        with tempfile.NamedTemporaryFile("w", suffix=".Dockerfile", delete=False) as f:
+            f.write(content)
+            path = f.name
+
+        try:
+            result = DockerfileValidator(path).validate()
+            assert [i for i in result.issues if "no CUDA compilation was detected" in i.issue] == []
+        finally:
+            os.unlink(path)
+
+    def test_size_data_loaded(self):
+        """The bundled size table must load and expose all variants."""
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.valid"))
+
+        variants = validator.image_sizes.get("variants", {})
+        for name in ["base", "runtime", "cudnn-runtime", "devel", "cudnn-devel"]:
+            assert name in variants
+            assert variants[name]["approx_gb"] > 0
+
+    def test_savings_formatting(self):
+        """Savings are a positive delta, or empty when not meaningful."""
+        validator = DockerfileValidator(str(FIXTURES_DIR / "Dockerfile.valid"))
+
+        assert "GB smaller" in validator._format_savings("devel", "runtime")
+        # Downgrading to a larger image yields no claim
+        assert validator._format_savings("runtime", "devel") == ""
+        assert validator._format_savings("devel", "nonexistent") == ""

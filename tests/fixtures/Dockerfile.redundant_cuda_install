@@ -1,0 +1,7 @@
+# Installs CUDA on top of an image that already provides it
+FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04
+
+RUN apt-get update && apt-get install -y cuda-toolkit-12-4
+RUN pip install torch --index-url https://download.pytorch.org/whl/cu124
+
+CMD ["python3", "app.py"]

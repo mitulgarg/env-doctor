@@ -1,0 +1,8 @@
+# Single stage devel image that genuinely compiles CUDA extensions
+FROM nvidia/cuda:12.4.0-devel-ubuntu22.04
+
+WORKDIR /app
+RUN pip install torch --index-url https://download.pytorch.org/whl/cu124
+RUN pip install flash-attn
+
+CMD ["python3", "app.py"]

@@ -1,0 +1,10 @@
+# Correct multi-stage build: compile in devel, ship in runtime.
+# Regression fixture - must not be reported as a runtime/devel mismatch.
+FROM nvidia/cuda:12.4.0-devel-ubuntu22.04 AS builder
+RUN pip install flash-attn
+
+FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04
+COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+RUN pip install torch --index-url https://download.pytorch.org/whl/cu124
+
+CMD ["python3", "app.py"]

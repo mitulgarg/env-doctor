@@ -1,0 +1,6 @@
+# cudnn-devel variant, no compilation
+FROM nvidia/cuda:12.4.0-cudnn-devel-ubuntu22.04
+
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu124
+
+CMD ["python3", "app.py"]

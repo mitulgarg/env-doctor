@@ -1,0 +1,33 @@
+{
+  "_metadata": {
+    "note": "Approximate uncompressed sizes for CUDA base image variants. These are order-of-magnitude values used to estimate savings, not exact per-tag sizes. Keyed on variant rather than tag because the nvidia/cuda tag space (CUDA patch x variant x cuDNN x distro) is combinatorial and changes monthly, while the ratio between variants has been stable for years.",
+    "last_reviewed": "2026-08-30",
+    "source": "nvidia/cuda published image sizes, ubuntu22.04 line"
+  },
+  "variants": {
+    "base": {
+      "approx_gb": 0.25,
+      "description": "CUDA runtime libraries only, no cuDNN or toolkit"
+    },
+    "runtime": {
+      "approx_gb": 1.2,
+      "description": "CUDA runtime plus math libraries"
+    },
+    "cudnn-runtime": {
+      "approx_gb": 1.8,
+      "description": "CUDA runtime plus cuDNN"
+    },
+    "devel": {
+      "approx_gb": 4.5,
+      "description": "Full CUDA toolkit including nvcc, headers and static libraries"
+    },
+    "cudnn-devel": {
+      "approx_gb": 5.2,
+      "description": "Full CUDA toolkit plus cuDNN"
+    }
+  },
+  "downgrade_paths": {
+    "devel": ["runtime", "base"],
+    "cudnn-devel": ["cudnn-runtime", "runtime"]
+  }
+}

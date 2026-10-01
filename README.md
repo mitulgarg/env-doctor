@@ -58,6 +58,7 @@ It takes **5 seconds** to find out if your environment is broken - and exactly h
 | **Jupyter / Notebook Output** | `from env_doctor import check; check()` renders a rich HTML diagnosis inline in Jupyter, Colab, or VS Code notebooks — falls back to text in the terminal |
 | **CUDA Auto-Installer** | Execute CUDA Toolkit installation directly with `--run`; CI-friendly with `--yes`; preview with `--dry-run` |
 | **Safe Install Commands** | Get the exact `pip install` command that works with YOUR driver |
+| **Inference Engine Resolver** | Resolve vLLM / SGLang → torch → CUDA build → kernel libs against your driver; get the install command that actually runs instead of a default CUDA 13 wheel on a CUDA 12 box |
 | **Extension Library Support** | Install compilation packages (flash-attn, SageAttention, auto-gptq, apex, xformers) with CUDA version matching |
 | **AI Model Compatibility** | Check if LLMs, Diffusion, or Audio models fit on your GPU before downloading |
 | **WSL2 GPU Support** | Validate GPU forwarding, detect driver conflicts within WSL2 env for Windows users |
@@ -262,6 +263,22 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 ---------------------------------------------------
 ```
 
+### Install vLLM / SGLang Without Breaking CUDA
+
+```bash
+env-doctor install vllm             # or: env-doctor check --engine vllm
+```
+
+```
+❌ Default `pip install vllm==0.30.0` pulls a CUDA 13.0 build (torch 2.13.0), but the driver supports up to CUDA 12.6.
+→ Fix options (best first):
+  1. Install the CUDA 12.9 build of vLLM 0.30.0 — via CUDA minor-version compatibility
+  2. Upgrade the NVIDIA driver to ≥ 580 ...  ⚠ RISKY
+📋 Copy-to-fix: uv pip install vllm==0.30.0 --extra-index-url https://wheels.vllm.ai/0.30.0/cu129 --torch-backend=cu129
+```
+
+Prefers a different CUDA build of the same version, then a different engine version, and only last a driver change. SGLang's sgl-kernel / FlashInfer / torch co-pins are resolved the same way. Installed engines are checked automatically by `env-doctor check`.
+
 ### Install CUDA Toolkit
 
 Display instructions or execute the installation directly:
@@ -426,7 +443,8 @@ env-doctor dockerfile
 | `env-doctor check` | Full environment diagnosis |
 | `env-doctor python-compat` | Check Python version compatibility with AI libraries |
 | `env-doctor cuda-install` | Step-by-step CUDA Toolkit installation guide |
-| `env-doctor install <lib>` | Safe install command for PyTorch/TensorFlow/JAX, extension libraries (flash-attn, auto-gptq, apex, xformers, SageAttention, etc.) |
+| `env-doctor install <lib>` | Safe install command for PyTorch/TensorFlow/JAX, inference engines (vLLM, SGLang), extension libraries (flash-attn, auto-gptq, apex, xformers, SageAttention, etc.) |
+| `env-doctor check --engine vllm[@ver]` | Check an inference engine against your driver before installing |
 | `env-doctor model <name>` | Check model VRAM requirements |
 | `env-doctor cuda-info` | Detailed CUDA toolkit analysis |
 | `env-doctor cudnn-info` | cuDNN library analysis |

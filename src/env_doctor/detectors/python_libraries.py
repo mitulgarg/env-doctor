@@ -5,6 +5,21 @@ import importlib.metadata
 from typing import Optional
 from env_doctor.core.detector import Detector, DetectionResult, Status
 from env_doctor.core.registry import DetectorRegistry
+from env_doctor.engines import cuda_from_local_tag
+
+# Inference engines and the kernel libraries co-pinned with them.
+ENGINE_KERNEL_LIBS = {
+    "vllm": ["flashinfer-python"],
+    "sglang": ["sglang-kernel", "sgl-kernel", "flashinfer-python", "sgl-deep-gemm"],
+}
+
+
+def _dist_version(name: str) -> Optional[str]:
+    try:
+        return importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
 
 @DetectorRegistry.register("python_library")
 class PythonLibraryDetector(Detector):
@@ -15,6 +30,8 @@ class PythonLibraryDetector(Detector):
         self.library_name = library_name
     
     def detect(self) -> DetectionResult:
+        if self.library_name in ENGINE_KERNEL_LIBS:
+            return self._detect_engine()
         try:
             lib = importlib.import_module(self.library_name)
             version = getattr(lib, "__version__", "Unknown")
@@ -66,6 +83,42 @@ class PythonLibraryDetector(Detector):
                 ]
             )
     
+    def _detect_engine(self) -> DetectionResult:
+        """
+        Detect an inference engine (vLLM / SGLang) from package metadata only.
+
+        Importing vllm/sglang is slow and initializes CUDA, so we read versions
+        via importlib.metadata. The CUDA build comes from local version tags
+        (e.g. vllm 0.30.0+cu129, torch 2.13.0+cu129) when present.
+        """
+        name = self.library_name
+        engine_version = _dist_version(name)
+        if engine_version is None:
+            return DetectionResult(
+                component=f"python_library_{name}",
+                status=Status.NOT_FOUND,
+                recommendations=[f"Get a driver-compatible install command: env-doctor install {name}"],
+            )
+
+        torch_version = _dist_version("torch")
+        kernel_libs = {
+            lib: ver for lib in ENGINE_KERNEL_LIBS[name]
+            for ver in [_dist_version(lib)] if ver
+        }
+        metadata = {
+            "engine_version": engine_version,
+            "engine_cuda": cuda_from_local_tag(engine_version),
+            "torch_version": torch_version,
+            "torch_cuda": cuda_from_local_tag(torch_version),
+            "kernel_libs": kernel_libs,
+        }
+        return DetectionResult(
+            component=f"python_library_{name}",
+            status=Status.SUCCESS,
+            version=engine_version,
+            metadata=metadata,
+        )
+
     def _detect_torch_cuda(self, lib):
         cuda_ver = "Unknown"
         cudnn_ver = "Unknown"

@@ -401,7 +401,8 @@ def determine_exit_code(results: Dict[str, Any]) -> int:
 
 
 def _build_check_output(results, driver_result, cuda_result, cudnn_result,
-                         lib_results, python_compat_result, compute_compat_info):
+                         lib_results, python_compat_result, compute_compat_info,
+                         engine_results=None):
     """Build the check output dict (shared by JSON output and --report-to)."""
     from .identity import get_machine_info
     return {
@@ -425,11 +426,68 @@ def _build_check_output(results, driver_result, cuda_result, cudnn_result,
             },
             "python_compat": python_compat_result.to_dict(),
             "compute_compatibility": compute_compat_info,
+            "engines": {
+                name: res.to_detection_result().to_dict()
+                for name, res in (engine_results or {}).items()
+            },
         }
     }
 
 
-def collect_check_results() -> Dict[str, Any]:
+def collect_engine_results(engines: Optional[List[str]], max_cuda: Optional[str],
+                           cuda_result: Optional[DetectionResult] = None,
+                           torch_result: Optional[DetectionResult] = None) -> Dict[str, Any]:
+    """Resolve requested and installed inference engines against the driver.
+
+    Returns:
+        dict mapping engine name -> EngineResolution (empty if no engine is
+        requested or installed, in which case the engine DB is never loaded).
+    """
+    import shutil
+    from .engines import SUPPORTED_ENGINES, parse_engine_spec, resolve_engine
+    from .detectors.python_libraries import PythonLibraryDetector
+
+    targets: Dict[str, Optional[str]] = {}
+    for spec in engines or []:
+        name, version = parse_engine_spec(spec)
+        targets[name] = version
+
+    detected = {}
+    for name in SUPPORTED_ENGINES:
+        det = PythonLibraryDetector(name).detect()
+        if det.status == Status.SUCCESS:
+            detected[name] = det.metadata
+
+    names = list(targets) + [n for n in detected if n not in targets]
+    if not names:
+        return {}
+
+    from .db import load_engine_data, get_min_driver_for_cuda
+    engine_db = load_engine_data()
+
+    torch_cuda = None
+    if torch_result is not None and torch_result.detected:
+        torch_cuda = torch_result.metadata.get("cuda_version")
+    toolkit_cuda = cuda_result.version if (cuda_result is not None and cuda_result.detected) else None
+    have_uv = shutil.which("uv") is not None
+
+    resolutions = {}
+    for name in names:
+        installed = detected.get(name)
+        if installed and not installed.get("torch_cuda") and torch_cuda not in (None, "Unknown"):
+            installed = {**installed, "torch_cuda": torch_cuda}
+        resolutions[name] = resolve_engine(
+            name, max_cuda, engine_db,
+            target_version=targets.get(name),
+            installed=installed,
+            toolkit_cuda=toolkit_cuda,
+            min_driver_for_cuda=get_min_driver_for_cuda,
+            have_uv=have_uv,
+        )
+    return resolutions
+
+
+def collect_check_results(engines: Optional[List[str]] = None) -> Dict[str, Any]:
     """Run every detector once and return a bundle of results.
 
     Centralizes detection so the human, JSON, HTML, and dashboard-report
@@ -477,6 +535,9 @@ def collect_check_results() -> Dict[str, Any]:
     python_compat_detector = DetectorRegistry.get("python_compat")
     python_compat_result = python_compat_detector.detect()
 
+    # STEP 7: Inference engines (vLLM / SGLang) vs driver
+    engine_results = collect_engine_results(engines, max_cuda, cuda_result, torch_result)
+
     # Organize results for status/exit-code logic
     results = {
         "wsl2": wsl2_result,
@@ -486,6 +547,10 @@ def collect_check_results() -> Dict[str, Any]:
         "libraries": lib_results,
         "python_compat": python_compat_result,
     }
+    if engine_results:
+        results["engines"] = {
+            name: res.to_detection_result() for name, res in engine_results.items()
+        }
 
     # Compute capability check (pure computation, no printing)
     compute_compat_info = None
@@ -524,7 +589,8 @@ def collect_check_results() -> Dict[str, Any]:
 
     output = _build_check_output(
         results, driver_result, cuda_result, cudnn_result,
-        lib_results, python_compat_result, compute_compat_info
+        lib_results, python_compat_result, compute_compat_info,
+        engine_results,
     )
 
     return {
@@ -538,6 +604,7 @@ def collect_check_results() -> Dict[str, Any]:
         "max_cuda": max_cuda,
         "compute_compat_info": compute_compat_info,
         "cuda_available": cuda_available,
+        "engine_results": engine_results,
         "results": results,
         "output": output,
     }
@@ -545,7 +612,8 @@ def collect_check_results() -> Dict[str, Any]:
 
 def check_command(output_json: bool = False, ci: bool = False,
                   report_to: str = None, force_report: bool = False,
-                  token: str = None, output_format: str = None):
+                  token: str = None, output_format: str = None,
+                  engines: Optional[List[str]] = None):
     """
     Main diagnostic command using detector architecture.
 
@@ -560,12 +628,14 @@ def check_command(output_json: bool = False, ci: bool = False,
         token: Bearer token for the dashboard API (overrides env var/config)
         output_format: Explicit renderer: "text", "json", or "html".
             Takes precedence over output_json/ci when set.
+        engines: Inference engines to resolve against the driver, e.g.
+            ["vllm", "sglang@0.5.19"]. Installed engines are always checked.
     """
     # Normalize the requested format. --json/--ci stay backward compatible.
     fmt = output_format or ("json" if (ci or output_json) else "text")
 
     # === Collect all detection results ===
-    bundle = collect_check_results()
+    bundle = collect_check_results(engines=engines)
     wsl2_result = bundle["wsl2_result"]
     driver_result = bundle["driver_result"]
     cuda_result = bundle["cuda_result"]
@@ -694,6 +764,47 @@ def check_command(output_json: bool = False, ci: bool = False,
         render_check_text(bundle)
 
 
+def render_engine_resolution(res) -> None:
+    """Print an inference-engine resolution (vLLM / SGLang) with fix options."""
+    icons = {"ok": "✅", "warning": "⚠️ ", "error": "❌", "unknown": "ℹ️ "}
+    name = f"{res.display_name} {res.target_version or ''}".strip()
+    if res.driver_max_cuda:
+        verdict = {
+            "ok": f"compatible with driver (CUDA {res.driver_max_cuda})",
+            "warning": f"needs attention on driver CUDA {res.driver_max_cuda}",
+            "error": f"incompatible with driver (CUDA {res.driver_max_cuda})",
+        }.get(res.status, "could not be verified")
+    else:
+        verdict = "could not be verified"
+    print(f"{icons.get(res.status, '•')}  🚀 {name}  →  {verdict}")
+
+    if res.installed_version:
+        build = f" (CUDA {res.installed_cuda} build)" if res.installed_cuda else ""
+        print(f"    Installed: {res.display_name} {res.installed_version}{build}")
+    if res.default_cuda:
+        print(f"    Default wheel: CUDA {res.default_cuda}, torch {res.torch_pin}")
+    if res.kernel_libs:
+        libs = ", ".join(f"{k} {v}" for k, v in res.kernel_libs.items())
+        print(f"    Pinned kernel libs: {libs}")
+    for issue in res.issues:
+        print(f"    ❌ {issue}")
+    for warning in res.warnings:
+        print(f"    ⚠️  {warning}")
+
+    fixes = [o for o in res.options if not (o.kind == "default" and res.status == "ok")]
+    if fixes:
+        print("    → Fix options (best first):")
+        for i, opt in enumerate(fixes, 1):
+            risk = "  ⚠ RISKY" if opt.risky else ""
+            print(f"      {i}. {opt.summary}{risk}")
+            for cmd in opt.commands:
+                print(f"           {cmd}")
+    if res.copy_to_fix and res.status != "ok":
+        print(f"    📋 Copy-to-fix: {res.copy_to_fix}")
+    elif res.copy_to_fix:
+        print(f"    → Install: {res.copy_to_fix}")
+
+
 def render_check_text(bundle: Dict[str, Any]) -> None:
     """Print the human-readable terminal diagnosis from a results bundle.
 
@@ -801,6 +912,11 @@ def render_check_text(bundle: Dict[str, Any]) -> None:
             driver_result, torch_result, bundle["cuda_available"]
         )
 
+    # === STEP 6c: Inference Engines ===
+    for resolution in (bundle.get("engine_results") or {}).values():
+        print("------------------------------")
+        render_engine_resolution(resolution)
+
     # === STEP 7: System Path Check ===
     check_system_path()
 
@@ -868,6 +984,13 @@ def install_command(package_name, execute: bool = False):
 
     If execute=True, runs the generated pip install command directly.
     """
+    # Inference engines (vllm, sglang@0.5.19, ...) resolve against the driver
+    from .engines import SUPPORTED_ENGINES, parse_engine_spec
+    engine_name, engine_version = parse_engine_spec(package_name)
+    if engine_name in SUPPORTED_ENGINES:
+        engine_install_prescription(engine_name, engine_version, execute)
+        return
+
     # Check if this is a compilation package that requires nvcc/PyTorch CUDA matching
     for canonical_name, aliases in COMPILATION_PACKAGES.items():
         if package_name.lower() in aliases:
@@ -907,11 +1030,52 @@ def install_command(package_name, execute: bool = False):
         _run_install_command(command)
 
 
-def _run_install_command(command: str):
-    """Execute a pip install command and stream its output."""
+def engine_install_prescription(engine: str, version: Optional[str] = None,
+                                execute: bool = False):
+    """Install prescription for an inference engine (vLLM / SGLang).
+
+    Picks the newest build that runs on the installed driver, preferring a
+    different CUDA build of the same version over a version change, and a
+    version change over a (risky) driver upgrade.
+    """
+    import shutil
+    from .db import load_engine_data, get_min_driver_for_cuda
+    from .engines import resolve_engine
+
+    label = f"{engine}@{version}" if version else engine
+    print(f"\n🩺  PRESCRIPTION FOR: {label}")
+
+    driver_result = DetectorRegistry.get("nvidia_driver").detect()
+    max_cuda = driver_result.metadata.get("max_cuda_version") if driver_result.detected else None
+    if max_cuda:
+        print(f"Detected Driver: {driver_result.version} (Supports up to CUDA {max_cuda})")
+    else:
+        print("⚠️  No NVIDIA Driver found.")
+    print("---------------------------------------------------")
+
+    res = resolve_engine(
+        engine, max_cuda, load_engine_data(),
+        target_version=version,
+        min_driver_for_cuda=get_min_driver_for_cuda,
+        have_uv=shutil.which("uv") is not None,
+    )
+    render_engine_resolution(res)
+
+    if execute:
+        safe = next((o for o in res.options if not o.risky and o.commands), None)
+        if safe is None:
+            print("❌  No install command runs on this driver without a driver upgrade; not executing.")
+            return
+        for cmd in safe.commands:
+            if not _run_install_command(cmd):
+                break
+
+
+def _run_install_command(command: str) -> bool:
+    """Execute a pip install command and stream its output. Returns True on success."""
     if not command or command == "Unknown":
         print("❌  No known install command for this library/CUDA combination.")
-        return
+        return False
     import subprocess as _sp
     print(f"\n▶  Executing: {command}")
     print("---------------------------------------------------")
@@ -922,6 +1086,7 @@ def _run_install_command(command: str):
     else:
         print(f"❌  Command failed (exit code {result.returncode}).")
     # Do NOT sys.exit() here — caller may have more work to do (e.g. remote command loop)
+    return result.returncode == 0
 
 
 def compilation_package_install_prescription(canonical_name, package_input):
@@ -2853,6 +3018,13 @@ Examples:
         metavar='TOKEN',
         help='API token for the dashboard (overrides ENV_DOCTOR_API_TOKEN and saved config)'
     )
+    check_parser.add_argument(
+        '--engine',
+        action='append',
+        metavar='ENGINE[@VERSION]',
+        help='Check an inference engine against this driver, e.g. vllm, vllm@0.20.0, sglang '
+             '(repeatable; installed engines are always checked)'
+    )
 
     # CUDA Info command (NEW)
     cuda_info_parser = subparsers.add_parser(
@@ -3133,6 +3305,7 @@ Examples:
             force_report=getattr(args, 'force', False),
             token=getattr(args, 'token', None),
             output_format=getattr(args, 'format', None),
+            engines=getattr(args, 'engine', None),
         )
     elif args.command == "cuda-info":
         cuda_info_command(

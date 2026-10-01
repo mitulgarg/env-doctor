@@ -155,10 +155,30 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "library": {
                         "type": "string",
-                        "description": "Library name (e.g., 'torch', 'tensorflow', 'jax')",
+                        "description": "Library name (e.g., 'torch', 'tensorflow', 'jax', 'vllm', 'sglang@0.5.19')",
                     },
                 },
                 "required": ["library"],
+            },
+        ),
+        Tool(
+            name="engine_check",
+            description=(
+                "Check whether an inference engine (vLLM or SGLang) will run on this machine's NVIDIA "
+                "driver. Resolves engine version -> pinned torch -> CUDA build -> kernel libs against "
+                "the driver's max CUDA, and returns ranked fix options (alternate CUDA build first, "
+                "then another engine version, driver upgrade last and flagged risky) plus a "
+                "copy-to-fix install command."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "engine": {
+                        "type": "string",
+                        "description": "Engine name, optionally with a target version: 'vllm', 'sglang', 'vllm@0.20.0'",
+                    },
+                },
+                "required": ["engine"],
             },
         ),
         Tool(
@@ -258,6 +278,10 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     elif name == "install_command":
         library = arguments.get("library", "")
         result = tools.install_command(library)
+
+    elif name == "engine_check":
+        engine = arguments.get("engine", "")
+        result = tools.engine_check(engine)
 
     elif name == "cuda_info":
         result = tools.cuda_info()

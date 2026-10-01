@@ -273,6 +273,11 @@ def install_command(library: str) -> Dict[str, Any]:
     from env_doctor.detectors import nvidia_driver
     from env_doctor.core.registry import DetectorRegistry
     from env_doctor.db import get_max_cuda_for_driver, get_install_command
+    from env_doctor.engines import SUPPORTED_ENGINES, parse_engine_spec
+
+    engine_name, engine_version = parse_engine_spec(library)
+    if engine_name in SUPPORTED_ENGINES:
+        return _engine_install_command(engine_name, engine_version)
 
     try:
         driver_detector = DetectorRegistry.get("nvidia_driver")
@@ -554,3 +559,63 @@ def docker_compose_validate(content: str) -> Dict[str, Any]:
             "success": False,
             "error": str(e),
         }
+
+
+def _driver_max_cuda():
+    from env_doctor.core.registry import DetectorRegistry
+    driver_result = DetectorRegistry.get("nvidia_driver").detect()
+    if driver_result.detected:
+        return driver_result, driver_result.metadata.get("max_cuda_version")
+    return driver_result, None
+
+
+def _engine_install_command(engine: str, version: Optional[str] = None) -> Dict[str, Any]:
+    """install_command for vLLM / SGLang: resolve the build that runs on this driver."""
+    import shutil
+    from env_doctor.db import load_engine_data, get_min_driver_for_cuda
+    from env_doctor.engines import resolve_engine
+
+    try:
+        driver_result, max_cuda = _driver_max_cuda()
+        res = resolve_engine(
+            engine, max_cuda, load_engine_data(),
+            target_version=version,
+            min_driver_for_cuda=get_min_driver_for_cuda,
+            have_uv=shutil.which("uv") is not None,
+        )
+        return {
+            "library": engine,
+            "driver_detected": driver_result.detected,
+            "driver_version": driver_result.version,
+            "max_cuda": max_cuda,
+            "install_command": res.copy_to_fix,
+            "resolution": res.to_dict(),
+        }
+    except Exception as e:
+        return {"library": engine, "error": str(e)}
+
+
+def engine_check(engine: str) -> Dict[str, Any]:
+    """
+    Check an inference engine (vLLM / SGLang) against the installed driver.
+
+    Args:
+        engine: "vllm", "sglang", or with a target version ("vllm@0.20.0").
+
+    Returns:
+        Dict with the resolution: status, default wheel CUDA, issues, ranked
+        fix options (best first; driver upgrades flagged risky) and copy_to_fix.
+    """
+    from env_doctor.cli import collect_engine_results
+    from env_doctor.core.registry import DetectorRegistry
+    from env_doctor.engines import parse_engine_spec
+
+    try:
+        _, max_cuda = _driver_max_cuda()
+        cuda_result = DetectorRegistry.get("cuda_toolkit").detect()
+        resolutions = collect_engine_results([engine], max_cuda, cuda_result)
+        name, _ = parse_engine_spec(engine)
+        res = resolutions.get(name)
+        return res.to_dict() if res else {"engine": name, "error": "Could not resolve engine"}
+    except Exception as e:
+        return {"engine": engine, "error": str(e)}

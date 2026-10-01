@@ -208,6 +208,8 @@ def format_result_html(output: Dict[str, Any]) -> str:
         sections.append(_render_check(lib, lib_check))
     sections.append(_render_check("Python Compatibility", checks.get("python_compat")))
     sections.append(_render_compute_compat(checks.get("compute_compatibility")))
+    for engine, engine_check in (checks.get("engines") or {}).items():
+        sections.append(_render_check(f"Inference Engine: {engine}", engine_check))
     body = "".join(s for s in sections if s)
 
     return (

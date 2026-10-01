@@ -5,6 +5,26 @@ All notable changes to env-doctor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.5] - 2026-10-01
+
+### Added
+- **Inference-engine resolver for vLLM and SGLang** ([#139](https://github.com/mitulgarg/env-doctor/issues/139)): resolves engine version → pinned torch → CUDA build of the wheels → kernel libs (FlashInfer, sgl-kernel, sgl-deep-gemm) against the CUDA version the installed **driver** supports, and returns ranked fix options with a copy-to-fix install command.
+  - Fix options are ordered best-first: a different CUDA build of the same engine version (e.g. vLLM's `wheels.vllm.ai/<ver>/cu129` index), then the newest engine version with a usable build (e.g. SGLang 0.5.19, the last CUDA 12 lane), and only last a driver upgrade — flagged ⚠ RISKY for shared boxes.
+  - Models NVIDIA CUDA minor-version compatibility: a 12.9 build on a 12.6 driver is allowed with a warning; a 13.x build on a 12.x driver is not. System nvcc mismatches are a soft warning (only JIT-compiled kernels care).
+  - Detects installed vLLM / SGLang from package metadata (no import), including `+cuXXX` local build tags and kernel-lib version drift against the engine's pins.
+- **`env-doctor check --engine vllm[@VERSION]`** (repeatable): check an engine before installing it. Installed engines are checked automatically by plain `env-doctor check`. Results appear in text, `--json` (`checks.engines.<name>`), `--format html`, and `env_doctor.check(engines=[...])`, and feed the overall status / exit code.
+- **`env-doctor install vllm` / `install sglang[@VERSION]`**: prints the driver-compatible install command(s). `--execute` runs them in order and never runs a driver-upgrade option. Uses `uv` (`--torch-backend`); prepends `pip install uv` when it isn't on PATH.
+- **MCP**: new `engine_check` tool; `install_command` now handles `vllm` / `sglang`.
+- **`data/inference_engines.json`**: hand-curated compatibility table (15 vLLM releases 0.17.1–0.30.0, 13 SGLang releases 0.5.9–0.5.21) verified against PyPI pins, vLLM release assets/wheel index and SGLang install docs. Refreshes from GitHub through the same 24h cache path as `compatibility.json`.
+- `db.get_min_driver_for_cuda()` — inverse of `get_max_cuda_for_driver()`, derived from the existing `driver_to_cuda` table.
+- **Dockerfile CUDA image-bloat detection** ([#140](https://github.com/mitulgarg/env-doctor/pull/140)): `env-doctor dockerfile` suggests slimmer base variants when a `-devel` image does no compilation, suggests a multi-stage split for single-stage builds that must compile, and flags redundant apt/conda CUDA installs on a CUDA base image.
+
+### Fixed
+- `env-doctor dockerfile` no longer reports a correct multi-stage build (compile in `-devel`, ship in `-runtime`) as a runtime/devel mismatch error (#140).
+- Compatibility-DB status messages ("Checking for latest compatibility data...") now go to stderr, so `check --json` stdout is always valid JSON.
+
+---
+
 ## [0.3.4] - 2026-06-15
 
 ### Added
@@ -316,6 +336,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic CUDA toolkit detection
 - Library installation commands
 
+[0.3.5]: https://github.com/mitulgarg/env-doctor/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/mitulgarg/env-doctor/compare/v0.3.3...v0.3.4
 [0.3.1]: https://github.com/mitulgarg/env-doctor/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/mitulgarg/env-doctor/compare/v0.2.9...v0.3.0

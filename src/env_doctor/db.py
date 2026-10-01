@@ -2,7 +2,10 @@ import json
 import os
 import sys
 import time
+from typing import Optional
+
 import requests
+from packaging.version import Version, InvalidVersion
 
 
 def _safe_print(msg: str, **kwargs) -> None:
@@ -25,54 +28,76 @@ CACHE_FILE = os.path.expanduser("~/.env_doctor_cache.json")
 # 3. How old can the cache be before we check online? (24 hours)
 CACHE_TTL = 24 * 60 * 60 
 
-def load_bundled_json():
-    """Loads the 'Factory Default' JSON shipped with the package."""
+REMOTE_DATA_BASE = "https://raw.githubusercontent.com/mitulgarg/env-doctor/main/src/env_doctor/data/"
+
+# Inference-engine (vLLM / SGLang) compatibility data — same distribution path
+ENGINE_REMOTE_URL = REMOTE_DATA_BASE + "inference_engines.json"
+ENGINE_CACHE_FILE = os.path.expanduser("~/.env_doctor_engines_cache.json")
+
+
+def _load_bundled(filename: str, default: dict) -> dict:
+    """Loads a 'Factory Default' JSON file shipped with the package."""
     base_path = os.path.dirname(os.path.abspath(__file__))
-    json_path = os.path.join(base_path, "data", "compatibility.json")
+    json_path = os.path.join(base_path, "data", filename)
     try:
         with open(json_path, "r") as f:
             return json.load(f)
     except FileNotFoundError:
-        return {"driver_to_cuda": {}, "recommendations": {}}
+        return default
 
-def load_database():
+
+def load_bundled_json():
+    """Loads the 'Factory Default' JSON shipped with the package."""
+    return _load_bundled("compatibility.json", {"driver_to_cuda": {}, "recommendations": {}})
+
+
+def _load_remote_json(remote_url: str, cache_file: str, bundled_filename: str,
+                      default: dict, label: str = "compatibility data") -> dict:
     """
     Hybrid Loader:
     1. Check if we have a fresh local cache.
     2. If not, try to download latest from GitHub.
     3. If download fails (offline), fall back to Bundled JSON.
     """
-    
+
     # Step A: Is Cache Fresh?
-    if os.path.exists(CACHE_FILE):
+    if os.path.exists(cache_file):
         try:
-            last_modified = os.path.getmtime(CACHE_FILE)
+            last_modified = os.path.getmtime(cache_file)
             if time.time() - last_modified < CACHE_TTL:
                 # Cache is fresh, use it
-                with open(CACHE_FILE, "r") as f:
+                with open(cache_file, "r") as f:
                     return json.load(f)
         except:
             pass # Cache corrupted, ignore it
 
     # Step B: Try Fetching Remote
     # We use print with end="" to show status without cluttering if it's fast
-    _safe_print("Checking for latest compatibility data...", end=" ", flush=True)
+    _safe_print(f"Checking for latest {label}...", end=" ", flush=True, file=sys.stderr)
     try:
-        response = requests.get(REMOTE_URL, timeout=1.5) # Short timeout so CLI feels snappy
+        response = requests.get(remote_url, timeout=1.5) # Short timeout so CLI feels snappy
         if response.status_code == 200:
             data = response.json()
             # Save to cache
-            with open(CACHE_FILE, "w") as f:
+            with open(cache_file, "w") as f:
                 json.dump(data, f)
-            _safe_print("Updated.")
+            _safe_print("Updated.", file=sys.stderr)
             return data
         else:
-            _safe_print("Server error. Using local DB.")
-    except requests.RequestException:
-        _safe_print("Offline. Using local DB.")
+            _safe_print("Server error. Using local DB.", file=sys.stderr)
+    except (requests.RequestException, ValueError):
+        _safe_print("Offline. Using local DB.", file=sys.stderr)
 
     # Step C: Fallback to Bundled
-    return load_bundled_json()
+    return _load_bundled(bundled_filename, default)
+
+
+def load_database():
+    """Load the driver/CUDA/library compatibility DB (cache → GitHub → bundled)."""
+    return _load_remote_json(
+        REMOTE_URL, CACHE_FILE, "compatibility.json",
+        {"driver_to_cuda": {}, "recommendations": {}},
+    )
 
 # --- Load Data ---
 DB_DATA = load_database()
@@ -102,6 +127,46 @@ def get_max_cuda_for_driver(driver_version: str) -> str:
         return "10.0" # Safe fallback
     except Exception:
         return "Unknown"
+
+def get_min_driver_for_cuda(cuda_version: str) -> Optional[str]:
+    """
+    Inverse of get_max_cuda_for_driver: the lowest driver branch whose max
+    supported CUDA is >= cuda_version (e.g. '13.0' -> '580').
+
+    Returns None if no known driver supports that CUDA version.
+    """
+    try:
+        target = Version(cuda_version)
+    except (InvalidVersion, TypeError):
+        return None
+
+    for driver in sorted(DRIVER_TO_CUDA, key=int):
+        try:
+            if Version(DRIVER_TO_CUDA[driver]) >= target:
+                return driver
+        except InvalidVersion:
+            continue
+    return None
+
+
+_ENGINE_DATA = None
+
+
+def load_engine_data() -> dict:
+    """
+    Load inference-engine compatibility data (vLLM, SGLang), lazily.
+
+    Uses the same cache → GitHub → bundled path as the main DB, so the table
+    can be refreshed without a package release.
+    """
+    global _ENGINE_DATA
+    if _ENGINE_DATA is None:
+        _ENGINE_DATA = _load_remote_json(
+            ENGINE_REMOTE_URL, ENGINE_CACHE_FILE, "inference_engines.json",
+            {"engines": {}}, label="inference-engine data",
+        )
+    return _ENGINE_DATA
+
 
 def get_install_command(library: str, max_cuda: str) -> str:
     """

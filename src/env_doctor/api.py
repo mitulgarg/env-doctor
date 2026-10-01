@@ -47,7 +47,7 @@ class CheckReport:
         )
 
 
-def check(format: Optional[str] = None) -> CheckReport:
+def check(format: Optional[str] = None, engines=None) -> CheckReport:
     """Run the environment check and render it for the current environment.
 
     In a notebook, return the result as a cell's last expression and Jupyter
@@ -61,6 +61,9 @@ def check(format: Optional[str] = None) -> CheckReport:
             leaves rendering to the returned object's ``_repr_html_`` (use
             ``check(format="html").html`` for the raw string). ``None``
             (default) auto-detects: HTML in a notebook, text in a terminal.
+        engines: Optional inference engines to resolve against the driver,
+            e.g. ``["vllm"]`` or ``["sglang@0.5.19"]``. Installed engines are
+            always checked.
 
     Returns:
         A :class:`CheckReport`.
@@ -68,7 +71,7 @@ def check(format: Optional[str] = None) -> CheckReport:
     # Imported here to avoid a circular import (cli imports report, api).
     from .cli import collect_check_results, render_check_text
 
-    bundle = collect_check_results()
+    bundle = collect_check_results(engines=engines)
     report = CheckReport(bundle["output"])
 
     render_html = format == "html" or (format is None and is_notebook())

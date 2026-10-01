@@ -57,6 +57,38 @@ Detects "Frankenstein" environments where:
 - Multiple libraries compiled for different CUDA versions
 - System toolkit doesn't match library requirements
 
+### Inference Engines (vLLM / SGLang)
+
+Installed vLLM / SGLang are checked automatically. To check an engine *before* installing it, pass `--engine` (repeatable, optionally with a version):
+
+```bash
+env-doctor check --engine vllm
+env-doctor check --engine vllm@0.20.0 --engine sglang
+```
+
+env-doctor resolves the whole chain — engine version → pinned torch → CUDA build of the wheels → kernel libs (FlashInfer, sgl-kernel) — against the CUDA version your **driver** supports. pip wheels bundle their own CUDA runtime, so the driver is the binding constraint; the system toolkit (nvcc) only matters for JIT-compiled kernels and is reported as a soft warning.
+
+Fix options are ranked best-first:
+
+1. **Same engine version, different CUDA build** (e.g. vLLM's `cu129` wheel index instead of the default CUDA 13 wheel)
+2. **Newest engine version** with a build that runs on your driver (e.g. SGLang 0.5.19, the last release with a CUDA 12 lane)
+3. **Driver upgrade** — last resort, flagged ⚠ RISKY because it can break other deployments on a shared box
+
+A build for a newer CUDA *minor* version (e.g. 12.9 on a 12.6 driver) is allowed via NVIDIA's CUDA minor-version compatibility, with a warning; a newer *major* version (13.x on a 12.x driver) is not.
+
+```
+⚠️   🚀 vLLM 0.30.0  →  needs attention on driver CUDA 12.6
+    Default wheel: CUDA 13.0, torch 2.13.0
+    ❌ Default `pip install vllm==0.30.0` pulls a CUDA 13.0 build (torch 2.13.0), but the driver supports up to CUDA 12.6.
+    → Fix options (best first):
+      1. Install the CUDA 12.9 build of vLLM 0.30.0 — via CUDA minor-version compatibility
+           uv pip install vllm==0.30.0 --extra-index-url https://wheels.vllm.ai/0.30.0/cu129 --torch-backend=cu129
+      2. Upgrade the NVIDIA driver to ≥ 580 to use the default CUDA 13.0 build — on a shared box this can break other deployments  ⚠ RISKY
+    📋 Copy-to-fix: uv pip install vllm==0.30.0 --extra-index-url https://wheels.vllm.ai/0.30.0/cu129 --torch-backend=cu129
+```
+
+In `--json` output the resolution appears under `checks.engines.<name>` (status, ranked options, `copy_to_fix`). The compatibility table lives in `data/inference_engines.json` and refreshes from GitHub like the main compatibility DB.
+
 ## Example Output
 
 ```

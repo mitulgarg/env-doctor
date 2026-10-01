@@ -1,0 +1,77 @@
+{
+  "_metadata": {
+    "last_verified": "2026-10-01",
+    "schema_version": 1,
+    "method": "hand-curated",
+    "sources": [
+      "PyPI requires_dist (torch / kernel-lib pins)",
+      "vLLM GitHub release assets + https://wheels.vllm.ai/<version>/<cu_tag>/",
+      "SGLang install docs (CUDA 12 lane) + https://docs.sglang.ai/whl/<cu_tag>/"
+    ],
+    "notes": "cuda_builds maps each published CUDA build to an install template. Template fields: {version}, {cu_tag}, {torch}, plus every kernel_libs / extra_pins key with '-' replaced by '_'. A template line whose fields are missing for a version is skipped."
+  },
+  "engines": {
+    "vllm": {
+      "display_name": "vLLM",
+      "pip_name": "vllm",
+      "kernel_libs": ["flashinfer-python"],
+      "install_templates": {
+        "pypi": [
+          "uv pip install vllm=={version} --torch-backend={cu_tag}"
+        ],
+        "vllm_index": [
+          "uv pip install vllm=={version} --extra-index-url https://wheels.vllm.ai/{version}/{cu_tag} --torch-backend={cu_tag}"
+        ]
+      },
+      "versions": {
+        "0.30.0": {"torch": "2.13.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "vllm_index"}, "kernel_libs": {"flashinfer-python": "0.6.18.post1"}},
+        "0.29.0": {"torch": "2.13.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "vllm_index"}, "kernel_libs": {"flashinfer-python": "0.6.18"}},
+        "0.28.0": {"torch": "2.13.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "vllm_index"}, "kernel_libs": {"flashinfer-python": "0.6.16.post3"}},
+        "0.27.1": {"torch": "2.13.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "vllm_index"}, "kernel_libs": {"flashinfer-python": "0.6.16.post3"}},
+        "0.26.0": {"torch": "2.11.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "vllm_index"}, "kernel_libs": {"flashinfer-python": "0.6.14"}},
+        "0.25.1": {"torch": "2.11.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "vllm_index"}, "kernel_libs": {"flashinfer-python": "0.6.13"}},
+        "0.24.0": {"torch": "2.11.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "vllm_index"}, "kernel_libs": {"flashinfer-python": "0.6.12"}},
+        "0.23.0": {"torch": "2.11.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "vllm_index"}, "kernel_libs": {"flashinfer-python": "0.6.12"}},
+        "0.22.1": {"torch": "2.11.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "vllm_index"}, "kernel_libs": {"flashinfer-python": "0.6.11.post2"}},
+        "0.21.0": {"torch": "2.11.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "vllm_index"}, "kernel_libs": {"flashinfer-python": "0.6.8.post1"}},
+        "0.20.2": {"torch": "2.11.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "vllm_index"}, "kernel_libs": {"flashinfer-python": "0.6.8.post1"}},
+        "0.20.0": {"torch": "2.11.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "vllm_index"}, "kernel_libs": {"flashinfer-python": "0.6.8.post1"}, "notes": "First release whose default PyPI wheel targets CUDA 13.0."},
+        "0.19.1": {"torch": "2.10.0", "default_cuda": "12.9", "cuda_builds": {"12.9": "pypi", "13.0": "vllm_index"}, "kernel_libs": {"flashinfer-python": "0.6.6"}, "notes": "Last release whose default PyPI wheel targets CUDA 12."},
+        "0.18.1": {"torch": "2.10.0", "default_cuda": "12.9", "cuda_builds": {"12.9": "pypi", "13.0": "vllm_index"}, "kernel_libs": {"flashinfer-python": "0.6.6"}},
+        "0.17.1": {"torch": "2.10.0", "default_cuda": "12.9", "cuda_builds": {"12.9": "pypi", "13.0": "vllm_index"}, "kernel_libs": {"flashinfer-python": "0.6.4"}}
+      }
+    },
+    "sglang": {
+      "display_name": "SGLang",
+      "pip_name": "sglang",
+      "kernel_libs": ["sglang-kernel", "sgl-kernel", "flashinfer-python", "sgl-deep-gemm"],
+      "strict_pins": true,
+      "install_templates": {
+        "pypi": [
+          "uv pip install sglang=={version}"
+        ],
+        "cu12_lane": [
+          "uv pip install sglang=={version}",
+          "uv pip install --force-reinstall torch=={torch} torchaudio=={torchaudio} torchvision --index-url https://download.pytorch.org/whl/{cu_tag}",
+          "uv pip install --force-reinstall sglang-kernel=={sglang_kernel} --index-url https://docs.sglang.ai/whl/{cu_tag}/",
+          "uv pip install --force-reinstall sgl-deep-gemm=={sgl_deep_gemm} --index-url https://docs.sglang.ai/whl/{cu_tag}/ --no-deps"
+        ]
+      },
+      "versions": {
+        "0.5.21": {"torch": "2.13.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi"}, "kernel_libs": {"sglang-kernel": "0.4.7", "flashinfer-python": "0.6.18", "sgl-deep-gemm": "0.2.0"}, "extra_pins": {"torchaudio": "2.11.0"}},
+        "0.5.20": {"torch": "2.13.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi"}, "kernel_libs": {"sglang-kernel": "0.4.7", "flashinfer-python": "0.6.18", "sgl-deep-gemm": "0.2.0"}, "extra_pins": {"torchaudio": "2.11.0"}, "notes": "CUDA 12 lane retired; SGLang now requires a CUDA 13 driver."},
+        "0.5.19": {"torch": "2.13.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "cu12_lane"}, "kernel_libs": {"sglang-kernel": "0.4.6.post1", "flashinfer-python": "0.6.18", "sgl-deep-gemm": "0.1.7"}, "extra_pins": {"torchaudio": "2.11.0"}, "notes": "Last release with a CUDA 12 lane."},
+        "0.5.18": {"torch": "2.13.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "cu12_lane"}, "kernel_libs": {"sglang-kernel": "0.4.6.post1", "flashinfer-python": "0.6.17", "sgl-deep-gemm": "0.1.5.post3"}, "extra_pins": {"torchaudio": "2.11.0"}},
+        "0.5.17": {"torch": "2.11.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "cu12_lane"}, "kernel_libs": {"sglang-kernel": "0.4.5", "flashinfer-python": "0.6.15.post1", "sgl-deep-gemm": "0.1.5.post1"}, "extra_pins": {"torchaudio": "2.11.0"}},
+        "0.5.16": {"torch": "2.11.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "cu12_lane"}, "kernel_libs": {"sglang-kernel": "0.4.5", "flashinfer-python": "0.6.14", "sgl-deep-gemm": "0.1.4.post1"}, "extra_pins": {"torchaudio": "2.11.0"}},
+        "0.5.15.post1": {"torch": "2.11.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "cu12_lane"}, "kernel_libs": {"sglang-kernel": "0.4.4", "flashinfer-python": "0.6.12", "sgl-deep-gemm": "0.1.4"}, "extra_pins": {"torchaudio": "2.11.0"}},
+        "0.5.14": {"torch": "2.11.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "cu12_lane"}, "kernel_libs": {"sglang-kernel": "0.4.4", "flashinfer-python": "0.6.12", "sgl-deep-gemm": "0.1.3"}, "extra_pins": {"torchaudio": "2.11.0"}},
+        "0.5.13.post1": {"torch": "2.11.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "cu12_lane"}, "kernel_libs": {"sglang-kernel": "0.4.3", "flashinfer-python": "0.6.12", "sgl-deep-gemm": "0.1.2"}, "extra_pins": {"torchaudio": "2.11.0"}},
+        "0.5.12.post1": {"torch": "2.11.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "cu12_lane"}, "kernel_libs": {"sglang-kernel": "0.4.2.post2", "flashinfer-python": "0.6.11.post1", "sgl-deep-gemm": "0.1.0"}, "extra_pins": {"torchaudio": "2.11.0"}},
+        "0.5.11": {"torch": "2.11.0", "default_cuda": "13.0", "cuda_builds": {"13.0": "pypi", "12.9": "cu12_lane"}, "kernel_libs": {"sglang-kernel": "0.4.2", "flashinfer-python": "0.6.8.post1"}, "extra_pins": {"torchaudio": "2.11.0"}, "notes": "First release defaulting to CUDA 13 + torch 2.11."},
+        "0.5.10.post1": {"torch": "2.9.1", "default_cuda": "12.8", "cuda_builds": {"12.8": "pypi"}, "kernel_libs": {"sglang-kernel": "0.4.1", "flashinfer-python": "0.6.7.post3"}, "notes": "Last release defaulting to CUDA 12 (torch 2.9.1, cuda-python 12.9)."},
+        "0.5.9": {"torch": "2.9.1", "default_cuda": "12.8", "cuda_builds": {"12.8": "pypi"}, "kernel_libs": {"sgl-kernel": "0.3.21", "flashinfer-python": "0.6.3"}}
+      }
+    }
+  }
+}

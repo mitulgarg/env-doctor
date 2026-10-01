@@ -214,3 +214,46 @@ class TestPythonLibraryDetectorIntegration:
         detector = DetectorRegistry.get("python_library")
         assert detector is not None
         assert isinstance(detector, PythonLibraryDetector)
+
+class TestEngineDetection:
+    """vLLM / SGLang are detected from package metadata, never imported."""
+
+    @staticmethod
+    def _versions(mapping):
+        import importlib.metadata as md
+
+        def fake_version(name):
+            if name in mapping:
+                return mapping[name]
+            raise md.PackageNotFoundError(name)
+        return fake_version
+
+    def test_vllm_detected_with_cuda_build_from_tags(self):
+        versions = {"vllm": "0.30.0+cu129", "torch": "2.13.0+cu129", "flashinfer-python": "0.6.18.post1"}
+        with patch("importlib.metadata.version", side_effect=self._versions(versions)), \
+             patch("importlib.import_module") as imp:
+            result = PythonLibraryDetector("vllm").detect()
+
+        imp.assert_not_called()
+        assert result.status == Status.SUCCESS
+        assert result.version == "0.30.0+cu129"
+        assert result.metadata["engine_cuda"] == "12.9"
+        assert result.metadata["torch_cuda"] == "12.9"
+        assert result.metadata["kernel_libs"] == {"flashinfer-python": "0.6.18.post1"}
+
+    def test_sglang_kernel_chain(self):
+        versions = {"sglang": "0.5.19", "torch": "2.13.0", "sglang-kernel": "0.4.6.post1", "sgl-deep-gemm": "0.1.7"}
+        with patch("importlib.metadata.version", side_effect=self._versions(versions)):
+            result = PythonLibraryDetector("sglang").detect()
+
+        assert result.status == Status.SUCCESS
+        assert result.metadata["engine_cuda"] is None
+        assert result.metadata["torch_cuda"] is None  # PyPI torch has no local tag
+        assert result.metadata["kernel_libs"] == {"sglang-kernel": "0.4.6.post1", "sgl-deep-gemm": "0.1.7"}
+
+    def test_engine_not_installed(self):
+        with patch("importlib.metadata.version", side_effect=self._versions({})):
+            result = PythonLibraryDetector("vllm").detect()
+
+        assert result.status == Status.NOT_FOUND
+        assert "env-doctor install vllm" in result.recommendations[0]

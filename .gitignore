@@ -195,3 +195,4 @@ CHANGES-cuda-install-run.md
 *.stackdump
 xyz.ipynb
 
+RELEASE_*.md

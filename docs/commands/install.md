@@ -94,7 +94,7 @@ env-doctor install sglang@0.5.19   # a specific version
 env-doctor install vllm --execute  # run the recommended commands
 ```
 
-Commands use `uv` (needed for `--torch-backend`); if `uv` isn't on PATH, `pip install uv` is prepended. `--execute` never runs a driver-upgrade option. See [check](check.md#inference-engines-vllm-sglang) for how resolution works.
+Commands use `uv` (needed for `--torch-backend`); if `uv` isn't on PATH, `pip install uv` is prepended. `--execute` never runs a driver-upgrade option. See the [Inference Engines guide](../guides/inference-engines.md) for how resolution works.
 
 ## See Also
 

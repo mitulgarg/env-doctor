@@ -184,6 +184,7 @@ nav:
     - init: commands/init.md
     - dashboard & report: commands/dashboard.md
   - Guides:
+    - "Inference Engines: vLLM & SGLang": guides/inference-engines.md
     - WSL2 GPU Support: guides/wsl2.md
     - Fleet Monitoring: guides/fleet-monitoring.md
     - MCP Integration: guides/mcp-integration.md

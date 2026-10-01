@@ -87,7 +87,7 @@ A build for a newer CUDA *minor* version (e.g. 12.9 on a 12.6 driver) is allowed
     📋 Copy-to-fix: uv pip install vllm==0.30.0 --extra-index-url https://wheels.vllm.ai/0.30.0/cu129 --torch-backend=cu129
 ```
 
-In `--json` output the resolution appears under `checks.engines.<name>` (status, ranked options, `copy_to_fix`). The compatibility table lives in `data/inference_engines.json` and refreshes from GitHub like the main compatibility DB.
+In `--json` output the resolution appears under `checks.engines.<name>` (status, ranked options, `copy_to_fix`). The compatibility table lives in `data/inference_engines.json` and refreshes from GitHub like the main compatibility DB. See the [Inference Engines guide](../guides/inference-engines.md) for the full walkthrough.
 
 ## Example Output
 

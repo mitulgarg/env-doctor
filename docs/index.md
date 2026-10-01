@@ -80,6 +80,7 @@ Env-Doctor also checks GPU architecture compatibility, Python version conflicts,
 | **Compilation Guard** | Warns if system `nvcc` doesn't match PyTorch's CUDA — preventing flash-attention build failures |
 | **WSL2 GPU Support** | Detects WSL1/WSL2 environments, validates GPU forwarding, catches common driver conflicts for WSL2 |
 | **Safe Install Commands** | Prescribes the exact `pip install` command that works with YOUR driver |
+| **vLLM & SGLang Resolver** | Resolves inference engine → torch → CUDA build → kernel libs against your driver — get the vLLM/SGLang install command that actually runs, instead of a default CUDA 13 wheel on a CUDA 12 box |
 | **Container Validation** | Catches GPU config errors in Dockerfiles and docker-compose with DB-driven recommendations |
 | **AI Model Compatibility** | Check if your GPU can run any model (LLMs, Diffusion, Audio) before downloading |
 | **cuDNN Detection** | Finds cuDNN libraries, validates symlinks, checks version compatibility |
@@ -109,6 +110,9 @@ env-doctor cuda-install
 
 # Get safe install command for PyTorch
 env-doctor install torch
+
+# Install vLLM / SGLang with a CUDA build your driver can run
+env-doctor install vllm
 
 # Check if a model fits on your GPU
 env-doctor model llama-3-8b
@@ -176,6 +180,14 @@ Monitor multiple GPU machines from a single web UI — aggregate status, topolog
     Full reference for all CLI commands
 
     [:octicons-arrow-right-24: Commands](commands/check.md)
+
+-   :material-rocket-launch:{ .lg .middle } **vLLM & SGLang**
+
+    ---
+
+    Install inference engines with a CUDA build your driver can actually run
+
+    [:octicons-arrow-right-24: Inference Engines Guide](guides/inference-engines.md)
 
 -   :fontawesome-brands-docker:{ .lg .middle } **Container Validation**
 
@@ -246,6 +258,14 @@ Monitor multiple GPU machines from a single web UI — aggregate status, topolog
     },
     {
       "@type": "Question",
+      "name": "Why does vLLM fail after pip install vllm on a CUDA 12 machine?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Since vLLM 0.20, the default PyPI wheel is built for CUDA 13.0, which cannot run on an NVIDIA driver that only supports CUDA 12.x. Run 'env-doctor install vllm' to get the install command for a CUDA build your driver can run (for example vLLM's CUDA 12.9 wheel index), without downgrading vLLM or upgrading the driver. SGLang is handled the same way with 'env-doctor install sglang'."
+      }
+    },
+    {
+      "@type": "Question",
       "name": "How do I use env-doctor with Claude or other AI assistants?",
       "acceptedAnswer": {
         "@type": "Answer",
@@ -286,6 +306,9 @@ Monitor multiple GPU machines from a single web UI — aggregate status, topolog
 
 ??? question "Why does flash-attention fail to build?"
     flash-attn requires an exact match between your system `nvcc` version and PyTorch's CUDA build. Run `env-doctor install flash-attn` — it detects the mismatch and gives you two fix paths.
+
+??? question "Why does vLLM fail after `pip install vllm` on a CUDA 12 machine?"
+    Since vLLM 0.20, `pip install vllm` pulls a wheel built for **CUDA 13.0**, which can't run on a driver that only supports CUDA 12.x. Run `env-doctor install vllm` to get the command for a CUDA build your driver can run (e.g. vLLM's CUDA 12.9 wheel index), with no vLLM downgrade and no driver upgrade. SGLang works the same way. See the [Inference Engines guide](guides/inference-engines.md).
 
 ??? question "How do I use env-doctor with Claude or other AI assistants?"
     Env-doctor ships a built-in MCP server (`env-doctor-mcp`). Add it to your Claude Desktop or Claude Code config and your AI assistant can call all diagnostic tools directly from the chat. See the [MCP Integration Guide](guides/mcp-integration.md).

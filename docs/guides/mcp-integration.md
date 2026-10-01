@@ -181,15 +181,36 @@ Validate docker-compose.yml content for GPU configuration issues.
 Get safe installation command for a library based on detected GPU driver.
 
 **Parameters:**
-- `library` (required): Library name (e.g., "torch", "tensorflow", "jax")
+- `library` (required): Library name (e.g., "torch", "tensorflow", "jax", "vllm", "sglang@0.5.19")
 
 **Returns:**
 - Detected driver version and max CUDA support
 - Safe pip install command with correct CUDA version
+- For `vllm` / `sglang`: the full engine `resolution` (ranked fix options, see `engine_check`)
 
 **Example prompts:**
 > "What's the safe install command for PyTorch?"
 > "How do I install TensorFlow for my GPU?"
+> "How do I install vLLM on this machine?"
+
+---
+
+### `engine_check`
+
+Check whether an inference engine (vLLM or SGLang) will run on the installed NVIDIA driver. Resolves engine version → pinned torch → CUDA build → kernel libs against the driver's max CUDA. See the [Inference Engines guide](inference-engines.md).
+
+**Parameters:**
+- `engine` (required): `"vllm"`, `"sglang"`, or with a target version (`"vllm@0.20.0"`)
+
+**Returns:**
+- `status` (`ok` / `warning` / `error` / `unknown`), target and installed version, default wheel CUDA, torch and kernel-lib pins
+- `issues` and `warnings` (e.g. a CUDA 13 build on a CUDA 12 driver, kernel-lib drift)
+- `options`: ranked fixes (alternate CUDA build → other engine version → driver upgrade, flagged `risky`)
+- `copy_to_fix`: the recommended install command
+
+**Example prompts:**
+> "Will vLLM run on this machine?"
+> "Which SGLang version can I install with my driver?"
 
 ---
 
